@@ -1,0 +1,13 @@
+{
+  "name": "control-surface-platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "agent": "npm run dev --workspace=apps/agent",
+    "mobile": "npm run start --workspace=apps/mobile",
+    "test": "npm run test --workspaces --if-present"
+  }
+}
