@@ -54,6 +54,7 @@ const BRAND_COLORS: Record<string, string> = {
   postman:    '#FF6C37',
   linear:     '#5E6AD2',
   vercel:     '#1F1F1F',
+  custom:     '#2D5A27',
 };
 
 const TILE_BG: Record<string, string> = {
@@ -61,6 +62,7 @@ const TILE_BG: Record<string, string> = {
   app:      '#1E1E2E',
   url:      '#0D2B45',
   shortcut: '#0F2A1A',
+  custom:   '#0A2010',
 };
 
 interface Props {
@@ -68,13 +70,16 @@ interface Props {
   isLoading?: boolean;
   isSelected?: boolean;
   onTap: (tile: TileConfig) => void;
+  onLongPress?: (tile: TileConfig) => void;
 }
 
-export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
+export function AppTile({ tile, isLoading, isSelected, onTap, onLongPress }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
+  const didLongPress = useRef(false);
   const [logoError, setLogoError] = useState(false);
 
   const handlePressIn = () => {
+    didLongPress.current = false;
     Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 50 }).start();
   };
 
@@ -82,14 +87,33 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20 }).start();
   };
 
+  const handlePress = () => {
+    if (didLongPress.current) {
+      didLongPress.current = false;
+      return;
+    }
+    onTap(tile);
+  };
+
+  const handleLongPress = () => {
+    if (!onLongPress) return;
+    didLongPress.current = true;
+    onLongPress(tile);
+  };
+
   const tileBg = tile.color ?? TILE_BG[tile.kind] ?? '#1E1E2E';
   // AI tiles use the tile's own color as the badge background
-  const brandColor = tile.kind === 'ai'
-    ? (tile.color ?? '#2D1B69')
-    : tile.kind === 'shortcut'
-      ? '#1DB954'
-      : (BRAND_COLORS[tile.iconId] ?? '#3A3A5C');
-  const logoDomain = tile.kind !== 'ai' ? LOGO_DOMAINS[tile.iconId] : undefined;
+  const brandColor =
+    tile.kind === 'ai'
+      ? (tile.color ?? '#2D1B69')
+      : tile.kind === 'shortcut'
+        ? '#1A3A1A'
+        : (BRAND_COLORS[tile.iconId] ?? BRAND_COLORS[tile.kind] ?? '#3A3A5C');
+  const showBase64 = !!tile.iconBase64;
+  const logoDomain =
+    !showBase64 && tile.kind !== 'ai' && tile.kind !== 'shortcut' && tile.kind !== 'custom'
+      ? LOGO_DOMAINS[tile.iconId]
+      : undefined;
   const logoUri = logoDomain ? `https://logo.clearbit.com/${logoDomain}` : undefined;
   const showLogo = !!logoUri && !logoError;
 
@@ -99,7 +123,9 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
         style={[styles.tile, { backgroundColor: tileBg }]}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        onPress={() => onTap(tile)}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={3000}
         disabled={isLoading}
       >
         {/* Icon badge */}
@@ -108,6 +134,11 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
             <Text style={styles.aiIcon}>✦</Text>
           ) : tile.kind === 'shortcut' ? (
             <Text style={styles.shortcutIcon}>⌨</Text>
+          ) : showBase64 ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${tile.iconBase64}` }}
+              style={styles.logo}
+            />
           ) : showLogo ? (
             <Image
               source={{ uri: logoUri }}
@@ -130,6 +161,12 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
         {tile.kind === 'ai' && (
           <View style={styles.aiBadge}>
             <Text style={styles.aiBadgeText}>✦</Text>
+          </View>
+        )}
+
+        {tile.pinned && (
+          <View style={styles.pinBadge}>
+            <Text style={styles.pinBadgeText}>PIN</Text>
           </View>
         )}
 
@@ -184,6 +221,16 @@ const styles = StyleSheet.create({
   },
   aiBadge: { position: 'absolute', top: 6, right: 6 },
   aiBadgeText: { color: 'rgba(255,255,255,0.6)', fontSize: 10 },
+  pinBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  pinBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(91,79,232,0.35)',

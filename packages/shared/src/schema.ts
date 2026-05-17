@@ -35,6 +35,7 @@ export interface TileConfig {
   iconId: string;
   color?: string;
   iconBase64?: string;
+  pinned?: boolean;
   action: ButtonAction;
 }
 
@@ -53,11 +54,17 @@ export interface RemoveTileMessage {
   tileId: string;
 }
 
+export interface SetTilePinnedMessage {
+  type: 'SET_TILE_PINNED';
+  tileId: string;
+  pinned: boolean;
+}
+
 // Custom launcher messages
 export interface AppSearchResult {
   name: string;
   exePath: string;
-  source: 'startmenu' | 'steam' | 'epic';
+  source: 'startmenu' | 'windows' | 'filesystem' | 'steam' | 'epic';
   iconBase64?: string;
 }
 
@@ -95,5 +102,6 @@ export type MobileMessage =
   | ButtonTapMessage
   | AddTileMessage
   | RemoveTileMessage
+  | SetTilePinnedMessage
   | SearchAppsMessage
   | ValidatePathMessage;

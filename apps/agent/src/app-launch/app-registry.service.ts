@@ -22,7 +22,7 @@ interface AppConfig {
   overrides: Record<string, string>;
 }
 
-// Built-in AI clipboard tiles — always returned first in getTiles(), not stored in config.
+// Built-in AI clipboard tiles are not stored in config; pinned user tiles can appear before them.
 // Users cannot remove them (they are not in apps.config.json).
 const DEFAULT_AI_TILES: TileConfig[] = [
   {
@@ -270,8 +270,10 @@ export class AppRegistryService {
   }
 
   getTiles(): TileConfig[] {
-    // Built-in AI tiles always appear first, followed by user-configured tiles
-    return [...DEFAULT_AI_TILES, ...this.config.tiles];
+    // Pinned user tiles appear before the default AI tools; everything else keeps config order.
+    const pinnedTiles = this.config.tiles.filter((tile) => tile.pinned);
+    const unpinnedTiles = this.config.tiles.filter((tile) => !tile.pinned);
+    return [...pinnedTiles, ...DEFAULT_AI_TILES, ...unpinnedTiles];
   }
 
   addTile(tile: Omit<TileConfig, 'id'>): void {
@@ -288,6 +290,17 @@ export class AppRegistryService {
   removeTile(tileId: string): void {
     // Built-in AI tile IDs start with 'builtin-' — they are not in config.tiles and cannot be removed
     this.config.tiles = this.config.tiles.filter((t) => t.id !== tileId);
+    this.persist();
+  }
+
+  setTilePinned(tileId: string, pinned: boolean): void {
+    const index = this.config.tiles.findIndex((tile) => tile.id === tileId);
+    if (index === -1) return;
+
+    const [tile] = this.config.tiles.splice(index, 1);
+    const updated = { ...tile, pinned: pinned || undefined };
+    if (pinned) this.config.tiles.unshift(updated);
+    else this.config.tiles.push(updated);
     this.persist();
   }
 

@@ -154,4 +154,42 @@ describe('WsGateway', () => {
       }
     });
   });
+
+  it('handles SET_TILE_PINNED and responds with pinned tile first', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+    const messages: string[] = [];
+
+    ws.on('message', (data) => {
+      messages.push(data.toString());
+
+      if (messages.length === 2) {
+        ws.send(
+          JSON.stringify({
+            type: 'ADD_TILE',
+            tile: {
+              kind: 'url',
+              label: 'Pin Me',
+              iconId: 'globe',
+              action: { kind: 'URL_OPEN', url: 'https://pin-me.example.com' },
+            },
+          })
+        );
+      }
+
+      if (messages.length === 3) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[2]);
+        const tile = withTile.tiles.find((t) => t.label === 'Pin Me');
+        expect(tile).toBeDefined();
+        ws.send(JSON.stringify({ type: 'SET_TILE_PINNED', tileId: tile!.id, pinned: true }));
+      }
+
+      if (messages.length === 4) {
+        const updated: DeckConfigMessage = JSON.parse(messages[3]);
+        expect(updated.type).toBe('DECK_CONFIG');
+        expect(updated.tiles[0]).toMatchObject({ label: 'Pin Me', pinned: true });
+        ws.close();
+        done();
+      }
+    });
+  });
 });

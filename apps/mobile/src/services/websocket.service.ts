@@ -7,6 +7,7 @@ import {
   TileConfig,
   AddTileMessage,
   RemoveTileMessage,
+  SetTilePinnedMessage,
   SearchAppsMessage,
   ValidatePathMessage,
   SearchAppsResultMessage,
@@ -74,6 +75,12 @@ export class WebSocketService {
   removeTile(tileId: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: RemoveTileMessage = { type: 'REMOVE_TILE', tileId };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  setTilePinned(tileId: string, pinned: boolean): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: SetTilePinnedMessage = { type: 'SET_TILE_PINNED', tileId, pinned };
     this.ws.send(JSON.stringify(msg));
   }
 

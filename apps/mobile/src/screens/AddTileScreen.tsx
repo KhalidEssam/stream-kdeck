@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { AppTile } from '../components/AppTile';
 import { TileConfig } from '../types/schema';
+import { WebSocketService } from '../services/websocket.service';
+import { GamesTab } from './GamesTab';
 
 // ─── Curated Apps ─────────────────────────────────────────────────────────────
 
@@ -42,7 +44,7 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'apps' | 'shortcut';
+type Tab = 'apps' | 'shortcut' | 'games';
 
 type Modifier = 'ctrl' | 'alt' | 'win' | 'shift';
 
@@ -51,11 +53,12 @@ interface Props {
   onAdd: (tile: Omit<TileConfig, 'id'>) => void;
   onRemove: (tileId: string) => void;
   onDismiss: () => void;
+  ws: WebSocketService;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss }: Props) {
+export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('apps');
 
   return (
@@ -72,14 +75,14 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss }: Prop
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['apps', 'shortcut'] as Tab[]).map((tab) => (
+        {(['apps', 'shortcut', 'games'] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === 'apps' ? 'Apps' : 'Shortcut'}
+              {tab === 'apps' ? 'Apps' : tab === 'shortcut' ? 'Shortcut' : 'Games'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -90,7 +93,15 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss }: Prop
           <AppsTab currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
         )}
         {activeTab === 'shortcut' && (
-          <ShortcutTab onAdd={onAdd} />
+          <ShortcutTab currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
+        )}
+        {activeTab === 'games' && (
+          <GamesTab
+            ws={ws}
+            currentTiles={currentTiles}
+            onAdd={onAdd}
+            onRemove={onRemove}
+          />
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -194,10 +205,34 @@ const MODIFIERS: { key: Modifier; label: string }[] = [
   { key: 'shift', label: 'Shift' },
 ];
 
-function ShortcutTab({ onAdd }: Pick<Props, 'onAdd'>) {
+const MODIFIER_KEYS = new Set<Modifier>(MODIFIERS.map((mod) => mod.key));
+
+function shortcutKey(keys: string[]): string {
+  const normalized = keys.map((item) => item.toLowerCase().trim()).filter(Boolean);
+  const mods = MODIFIERS
+    .map((mod) => mod.key)
+    .filter((mod) => normalized.includes(mod));
+  const regularKeys = normalized
+    .filter((item) => !MODIFIER_KEYS.has(item as Modifier))
+    .sort();
+
+  return [...mods, ...regularKeys].join('+');
+}
+
+function ShortcutTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' | 'onAdd' | 'onRemove'>) {
   const [mods, setMods] = useState<Set<Modifier>>(new Set());
   const [key, setKey]   = useState('');
   const [label, setLabel] = useState('');
+
+  const selectedByShortcut = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const tile of currentTiles) {
+      if (tile.action.kind === 'KEYSTROKE') {
+        map.set(shortcutKey(tile.action.keys), tile.id);
+      }
+    }
+    return map;
+  }, [currentTiles]);
 
   const toggleMod = (mod: Modifier) => {
     setMods((prev) => {
@@ -207,13 +242,23 @@ function ShortcutTab({ onAdd }: Pick<Props, 'onAdd'>) {
     });
   };
 
-  const keyList = [...Array.from(mods), key.toLowerCase().trim()].filter(Boolean);
+  const selectedMods = MODIFIERS
+    .map((item) => item.key)
+    .filter((mod) => mods.has(mod));
+  const keyList = [...selectedMods, key.toLowerCase().trim()].filter(Boolean);
   const autoLabel = keyList.map((k) => k.charAt(0).toUpperCase() + k.slice(1)).join('+');
 
   const canAdd = key.trim().length > 0;
+  const existingId = canAdd ? selectedByShortcut.get(shortcutKey(keyList)) : undefined;
+  const isSelected = !!existingId;
 
   const handleAdd = () => {
     if (!canAdd) return;
+    if (existingId) {
+      onRemove(existingId);
+      return;
+    }
+
     const tileLabel = label.trim() || autoLabel;
     onAdd({
       kind: 'shortcut',
@@ -272,11 +317,16 @@ function ShortcutTab({ onAdd }: Pick<Props, 'onAdd'>) {
       />
 
       <TouchableOpacity
-        style={[styles.addBtn, !canAdd && styles.addBtnDisabled, { marginTop: 16, alignSelf: 'stretch' }]}
+        style={[
+          styles.addBtn,
+          isSelected && styles.removeBtn,
+          !canAdd && styles.addBtnDisabled,
+          { marginTop: 16, alignSelf: 'stretch' },
+        ]}
         onPress={handleAdd}
         disabled={!canAdd}
       >
-        <Text style={styles.addBtnText}>Add Shortcut</Text>
+        <Text style={styles.addBtnText}>{isSelected ? 'Remove Shortcut' : 'Add Shortcut'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -335,6 +385,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addBtn: { backgroundColor: '#5B4FE8', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
+  removeBtn: { backgroundColor: '#5A2731' },
   addBtnDisabled: { opacity: 0.4 },
   addBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14, textAlign: 'center' },
 

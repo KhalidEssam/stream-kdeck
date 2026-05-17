@@ -63,15 +63,31 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'SET_TILE_PINNED') {
+        this.appRegistry.setTilePinned(data.tileId, data.pinned);
+        this.sendDeckConfig(client);
+        return;
+      }
+
       if (data.type === 'SEARCH_APPS') {
+        const startedAt = Date.now();
+        console.log(`[Agent] SEARCH_APPS "${data.query}"`);
         const results = await this.appSearch.searchApps(data.query);
+        const names = results.slice(0, 5).map((result) => result.name).join(', ');
+        console.log(
+          `[Agent] SEARCH_APPS_RESULT "${data.query}": ${results.length} result(s)` +
+            (names ? ` [${names}]` : '') +
+            ` in ${Date.now() - startedAt}ms`,
+        );
         const response: SearchAppsResultMessage = { type: 'SEARCH_APPS_RESULT', results };
         client.send(JSON.stringify(response));
         return;
       }
 
       if (data.type === 'VALIDATE_PATH') {
+        console.log(`[Agent] VALIDATE_PATH "${data.exePath}"`);
         const outcome = await this.appSearch.validatePath(data.exePath);
+        console.log(`[Agent] VALIDATE_PATH_RESULT "${data.exePath}": ${outcome.valid ? 'valid' : outcome.error}`);
         const response: ValidatePathResultMessage = { type: 'VALIDATE_PATH_RESULT', ...outcome };
         client.send(JSON.stringify(response));
         return;

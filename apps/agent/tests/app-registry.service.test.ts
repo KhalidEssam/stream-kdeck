@@ -15,7 +15,7 @@ function makeService(config: { tiles: any[]; overrides: Record<string, string> }
   return new AppRegistryService();
 }
 
-const AI_TILE_COUNT = 6; // DEFAULT_AI_TILES always prepended by getTiles()
+const AI_TILE_COUNT = 6;
 
 describe('AppRegistryService', () => {
   beforeEach(() => {
@@ -63,6 +63,34 @@ describe('AppRegistryService', () => {
       // Stable: same id on every call
       expect(svc.getTiles().find((t) => t.label === 'Spotify')!.id).toBe(spotifyTile!.id);
     });
+
+    it('puts pinned user tiles before built-in AI tiles', () => {
+      const svc = makeService({
+        tiles: [
+          {
+            id: 'tile-pinned',
+            kind: 'custom',
+            label: 'VALORANT',
+            iconId: 'custom',
+            pinned: true,
+            action: { kind: 'EXEC', exePath: 'C:\\Games\\VALORANT.lnk' },
+          },
+          {
+            id: 'tile-unpinned',
+            kind: 'url',
+            label: 'Docs',
+            iconId: 'globe',
+            action: { kind: 'URL_OPEN', url: 'https://example.com' },
+          },
+        ],
+        overrides: {},
+      });
+
+      const tiles = svc.getTiles();
+      expect(tiles[0].id).toBe('tile-pinned');
+      expect(tiles[1].id).toBe('builtin-ai-explain');
+      expect(tiles.at(-1)!.id).toBe('tile-unpinned');
+    });
   });
 
   describe('addTile', () => {
@@ -83,6 +111,35 @@ describe('AppRegistryService', () => {
       svc.addTile(tile);
       svc.addTile(tile);
       expect(svc.getTiles()).toHaveLength(AI_TILE_COUNT + 1);
+    });
+
+    it('persists a custom EXEC tile with iconBase64 to config', () => {
+      const svc = makeService({ tiles: [], overrides: {} });
+      svc.addTile({
+        kind: 'custom',
+        label: 'VALORANT',
+        iconId: 'custom',
+        iconBase64: 'ICON',
+        action: {
+          kind: 'EXEC',
+          exePath: 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Riot Games\\VALORANT.lnk',
+        },
+      });
+
+      const [, serialized] = mockedFs.writeFileSync.mock.calls.at(-1)!;
+      const saved = JSON.parse(serialized as string);
+      expect(saved.tiles).toHaveLength(1);
+      expect(saved.tiles[0]).toMatchObject({
+        kind: 'custom',
+        label: 'VALORANT',
+        iconId: 'custom',
+        iconBase64: 'ICON',
+        action: {
+          kind: 'EXEC',
+          exePath: 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Riot Games\\VALORANT.lnk',
+        },
+      });
+      expect(saved.tiles[0].id).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
@@ -106,6 +163,50 @@ describe('AppRegistryService', () => {
     it('is a no-op for an unknown id', () => {
       const svc = makeService({ tiles: [], overrides: {} });
       expect(() => svc.removeTile('nonexistent-id')).not.toThrow();
+    });
+  });
+
+  describe('setTilePinned', () => {
+    it('pins a user tile, moves it to the top, and persists config', () => {
+      const svc = makeService({
+        tiles: [
+          { id: 'first', kind: 'url', label: 'First', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://first.example.com' } },
+          { id: 'second', kind: 'url', label: 'Second', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://second.example.com' } },
+        ],
+        overrides: {},
+      });
+
+      svc.setTilePinned('second', true);
+
+      const tiles = svc.getTiles();
+      expect(tiles[0]).toMatchObject({ id: 'second', pinned: true });
+      const [, serialized] = mockedFs.writeFileSync.mock.calls.at(-1)!;
+      const saved = JSON.parse(serialized as string);
+      expect(saved.tiles[0]).toMatchObject({ id: 'second', pinned: true });
+    });
+
+    it('unpins a user tile and persists config', () => {
+      const svc = makeService({
+        tiles: [
+          { id: 'pinned', kind: 'url', label: 'Pinned', iconId: 'globe', pinned: true, action: { kind: 'URL_OPEN', url: 'https://pinned.example.com' } },
+        ],
+        overrides: {},
+      });
+
+      svc.setTilePinned('pinned', false);
+
+      const tile = svc.getTiles().find((item) => item.id === 'pinned')!;
+      expect(tile.pinned).toBeUndefined();
+      const [, serialized] = mockedFs.writeFileSync.mock.calls.at(-1)!;
+      const saved = JSON.parse(serialized as string);
+      expect(saved.tiles[0].pinned).toBeUndefined();
+    });
+
+    it('is a no-op for a built-in tile id', () => {
+      const svc = makeService({ tiles: [], overrides: {} });
+      svc.setTilePinned('builtin-ai-explain', true);
+      expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
+      expect(svc.getTiles()[0].id).toBe('builtin-ai-explain');
     });
   });
 
