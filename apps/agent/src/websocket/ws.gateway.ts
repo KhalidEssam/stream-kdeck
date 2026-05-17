@@ -6,14 +6,13 @@ import {
   MobileMessage,
   ActionResultMessage,
   DeckConfigMessage,
+  SearchAppsResultMessage,
+  ValidatePathResultMessage,
 } from '@control-surface/shared';
 import { CommandService } from '../command/command.service';
 import { AppRegistryService } from '../app-launch/app-registry.service';
+import { AppSearchService } from '../app-search/app-search.service';
 
-// No port in decorator — attaches to the HTTP server's port (3001 in production, test port in tests).
-// NestJS WsAdapter expects { event, data } format for @SubscribeMessage routing.
-// Our schema uses { type, buttonId, action } instead, so we handle messages via
-// raw client.on('message') in handleConnection rather than @SubscribeMessage.
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
   @WebSocketServer()
@@ -22,6 +21,7 @@ export class WsGateway implements OnGatewayConnection {
   constructor(
     private readonly commandService: CommandService,
     private readonly appRegistry: AppRegistryService,
+    private readonly appSearch: AppSearchService,
   ) {}
 
   private sendDeckConfig(client: WebSocket): void {
@@ -60,6 +60,20 @@ export class WsGateway implements OnGatewayConnection {
       if (data.type === 'REMOVE_TILE') {
         this.appRegistry.removeTile(data.tileId);
         this.sendDeckConfig(client);
+        return;
+      }
+
+      if (data.type === 'SEARCH_APPS') {
+        const results = await this.appSearch.searchApps(data.query);
+        const response: SearchAppsResultMessage = { type: 'SEARCH_APPS_RESULT', results };
+        client.send(JSON.stringify(response));
+        return;
+      }
+
+      if (data.type === 'VALIDATE_PATH') {
+        const outcome = await this.appSearch.validatePath(data.exePath);
+        const response: ValidatePathResultMessage = { type: 'VALIDATE_PATH_RESULT', ...outcome };
+        client.send(JSON.stringify(response));
         return;
       }
 

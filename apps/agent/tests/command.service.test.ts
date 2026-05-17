@@ -4,6 +4,7 @@ import { ClipboardService } from '../src/clipboard/clipboard.service';
 import { AiRouterService } from '../src/ai/ai-router.service';
 import { AppLaunchService } from '../src/app-launch/app-launch.service';
 import { KeystrokeService } from '../src/keystroke/keystroke.service';
+import { shell } from 'electron';
 
 describe('CommandService', () => {
   let commandService: CommandService;
@@ -108,5 +109,18 @@ describe('CommandService', () => {
     const result = await commandService.execute({ kind: 'APP_LAUNCH', appId: 'badapp' });
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Unknown app/);
+  });
+
+  it('executes EXEC action via shell.openPath', async () => {
+    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Games\\Game.exe' });
+    expect(result.success).toBe(true);
+    expect(shell.openPath).toHaveBeenCalledWith('C:\\Games\\Game.exe');
+  });
+
+  it('returns failure when shell.openPath returns error string for EXEC', async () => {
+    (shell.openPath as jest.Mock).mockResolvedValue('No such file');
+    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Bad\\game.exe' });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Failed to launch/);
   });
 });

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ButtonAction } from '@control-surface/shared';
+import { shell } from 'electron';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
@@ -48,6 +49,12 @@ export class CommandService {
         case 'KEYSTROKE':
           await this.keystroke.execute(action.keys);
           return { success: true };
+
+        case 'EXEC': {
+          const err = await shell.openPath(action.exePath);
+          if (err) return { success: false, error: `Failed to launch: ${err}` };
+          return { success: true };
+        }
 
         default: {
           const exhaustive: never = action;
