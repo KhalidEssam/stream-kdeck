@@ -8,87 +8,24 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
-import { DeckButton, ButtonConfig } from '../components/DeckButton';
+import { AppTile } from '../components/AppTile';
+import { AddTileScreen } from './AddTileScreen';
 import { WebSocketService } from '../services/websocket.service';
-import { ButtonAction } from '../types/schema';
-
-interface ButtonDefinition extends ButtonConfig {
-  action: ButtonAction;
-}
-
-const DEMO_BUTTONS: ButtonDefinition[] = [
-  {
-    id: 'btn-explain',
-    label: 'Explain Error',
-    color: '#2D1B69',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Explain this error clearly and concisely. What is the root cause and how do I fix it?',
-      outputMode: 'viewer',
-    },
-  },
-  {
-    id: 'btn-grammar',
-    label: 'Fix Grammar',
-    color: '#0D3B2E',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Fix all grammar and spelling errors. Return only the corrected text, no commentary.',
-      outputMode: 'autopaste',
-    },
-  },
-  {
-    id: 'btn-tweet',
-    label: 'Write Tweet',
-    color: '#1A237E',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Write a compelling tweet based on this content. Max 280 characters. No hashtags unless relevant.',
-      outputMode: 'clipboard',
-    },
-  },
-  {
-    id: 'btn-shorten',
-    label: 'Make Shorter',
-    color: '#2C1654',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Rewrite this to be shorter and more concise. Cut filler. Keep the core message intact.',
-      outputMode: 'autopaste',
-    },
-  },
-  {
-    id: 'btn-tests',
-    label: 'Write Tests',
-    color: '#1B2631',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Write comprehensive unit tests for this code. Use the same language and testing framework visible in the code.',
-      outputMode: 'viewer',
-    },
-  },
-  {
-    id: 'btn-translate',
-    label: 'Translate ES',
-    color: '#1A3C34',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Translate this text to Spanish. Return only the translation.',
-      outputMode: 'clipboard',
-    },
-  },
-];
+import { TileConfig } from '../types/schema';
 
 // Replace with your desktop machine's local IP address during development.
 // Find it with: ipconfig (Windows) or ifconfig | grep inet (macOS)
 // mDNS auto-discovery replaces this hardcoded IP in the Week 3-4 Core Expansion plan.
-const AGENT_URL = 'ws://192.168.1.100:3001';
+const AGENT_URL = 'ws://192.168.1.5:3001';
 
 export function DeckScreen() {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [tiles, setTiles] = useState<TileConfig[] | null>(null); // null = waiting for DECK_CONFIG
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [viewerText, setViewerText] = useState<string | null>(null);
+  const [showAddTile, setShowAddTile] = useState(false);
   const wsRef = useRef<WebSocketService | null>(null);
 
   useEffect(() => {
@@ -99,21 +36,29 @@ export function DeckScreen() {
       setLoadingId(null);
       if (result.output) setViewerText(result.output);
     });
+    ws.onDeckConfig((msg) => {
+      setTiles(msg.tiles);
+    });
     return () => ws.disconnect();
   }, []);
 
-  const handleTap = (buttonId: string) => {
-    if (status !== 'connected') return;
-    const def = DEMO_BUTTONS.find((b) => b.id === buttonId);
-    if (!def) return;
-    setLoadingId(buttonId);
-    wsRef.current?.tap(buttonId, def.action);
+  const handleRefresh = () => {
+    setLoadingId(null);
+    setViewerText(null);
+    setTiles(null);
+    wsRef.current?.reconnect();
   };
 
-  const buttons: ButtonConfig[] = DEMO_BUTTONS.map((b) => ({
-    ...b,
-    isLoading: b.id === loadingId,
-  }));
+  const handleTap = (tile: TileConfig) => {
+    if (status !== 'connected') return;
+    setLoadingId(tile.id);
+    wsRef.current?.tap(tile.id, tile.action);
+  };
+
+  const handleAddTile = (tile: Omit<TileConfig, 'id'>) => {
+    wsRef.current?.addTile(tile);
+    // DECK_CONFIG response from agent will update tiles via onDeckConfig callback
+  };
 
   const statusColor =
     status === 'connected' ? '#44FF88' : status === 'connecting' ? '#FFB800' : '#FF4444';
@@ -125,10 +70,11 @@ export function DeckScreen() {
 
       <View style={styles.header}>
         <Text style={styles.title}>Control Surface</Text>
-        <View style={styles.statusBadge}>
+        <TouchableOpacity style={styles.statusBadge} onPress={handleRefresh} activeOpacity={0.7}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
+          <Text style={styles.refreshIcon}>↺</Text>
+        </TouchableOpacity>
       </View>
 
       {viewerText !== null && (
@@ -142,13 +88,51 @@ export function DeckScreen() {
         </View>
       )}
 
-      <FlatList
-        data={buttons}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        renderItem={({ item }) => <DeckButton config={item} onTap={handleTap} />}
-        contentContainerStyle={styles.grid}
-      />
+      {tiles === null ? (
+        // Skeleton — waiting for DECK_CONFIG
+        <View style={styles.skeletonGrid}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View key={i} style={styles.skeletonTile} />
+          ))}
+        </View>
+      ) : tiles.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No tiles yet.</Text>
+          <Text style={styles.emptyHint}>Tap + to add apps and shortcuts.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={tiles}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
+          renderItem={({ item }) => (
+            <AppTile
+              tile={item}
+              isLoading={item.id === loadingId}
+              onTap={handleTap}
+            />
+          )}
+          contentContainerStyle={styles.grid}
+        />
+      )}
+
+      {/* FAB — add tile */}
+      <TouchableOpacity style={styles.fab} onPress={() => setShowAddTile(true)} activeOpacity={0.8}>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      {/* AddTile modal */}
+      <Modal
+        visible={showAddTile}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAddTile(false)}
+      >
+        <AddTileScreen
+          onAdd={handleAddTile}
+          onDismiss={() => setShowAddTile(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -162,10 +146,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   title: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', flex: 1 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 12, fontWeight: '600' },
-  grid: { padding: 8 },
+  refreshIcon: { color: '#6B6B8A', fontSize: 16, marginLeft: 2 },
+  grid: { padding: 8, paddingBottom: 80 },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
+  skeletonTile: {
+    flex: 1,
+    margin: 5,
+    aspectRatio: 1,
+    minWidth: '30%',
+    maxWidth: '32%',
+    backgroundColor: '#1E1E2E',
+    borderRadius: 14,
+    opacity: 0.4,
+  },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  emptyHint: { color: '#6B6B8A', fontSize: 13 },
   viewer: {
     margin: 12,
     maxHeight: 200,
@@ -184,4 +183,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewerDismissText: { color: '#6B6B8A', fontSize: 13, fontWeight: '600' },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#5B4FE8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#5B4FE8',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  fabText: { color: '#FFFFFF', fontSize: 28, fontWeight: '300', lineHeight: 32 },
 });

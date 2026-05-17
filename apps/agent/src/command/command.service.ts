@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ButtonAction } from '@control-surface/shared';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService } from '../ai/ai-router.service';
+import { AppLaunchService } from '../app-launch/app-launch.service';
 
 export interface CommandResult {
   success: boolean;
@@ -14,6 +15,7 @@ export class CommandService {
   constructor(
     private readonly clipboard: ClipboardService,
     private readonly aiRouter: AiRouterService,
+    private readonly appLaunch: AppLaunchService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -33,11 +35,16 @@ export class CommandService {
           return { success: true };
         }
 
+        case 'APP_LAUNCH':
+          await this.appLaunch.launch(action.appId);
+          return { success: true };
+
+        case 'URL_OPEN':
+          await this.appLaunch.openUrl(action.url);
+          return { success: true };
+
         case 'KEYSTROKE':
           return { success: false, error: 'KEYSTROKE not yet implemented (Week 3-4)' };
-
-        case 'APP_LAUNCH':
-          return { success: false, error: 'APP_LAUNCH not yet implemented (Week 3-4)' };
 
         default: {
           const exhaustive: never = action;

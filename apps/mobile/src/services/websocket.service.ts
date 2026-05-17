@@ -1,13 +1,23 @@
-import { AgentMessage, ButtonAction, ButtonTapMessage, ActionResultMessage } from '../types/schema';
+import {
+  AgentMessage,
+  ButtonAction,
+  ButtonTapMessage,
+  ActionResultMessage,
+  DeckConfigMessage,
+  TileConfig,
+  AddTileMessage,
+} from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 type StatusCallback = (status: Status) => void;
 type ResultCallback = (msg: ActionResultMessage) => void;
+type DeckConfigCallback = (msg: DeckConfigMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private statusCallbacks: StatusCallback[] = [];
   private resultCallbacks: ResultCallback[] = [];
+  private deckConfigCallbacks: DeckConfigCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -26,6 +36,8 @@ export class WebSocketService {
         this.notifyStatus('connected');
       } else if (msg.type === 'ACTION_RESULT') {
         this.resultCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'DECK_CONFIG') {
+        this.deckConfigCallbacks.forEach((cb) => cb(msg));
       }
     };
 
@@ -40,12 +52,28 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  addTile(tile: Omit<TileConfig, 'id'>): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: AddTileMessage = { type: 'ADD_TILE', tile };
+    this.ws.send(JSON.stringify(msg));
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
 
   onResult(cb: ResultCallback): void {
     this.resultCallbacks.push(cb);
+  }
+
+  onDeckConfig(cb: DeckConfigCallback): void {
+    this.deckConfigCallbacks.push(cb);
+  }
+
+  reconnect(): void {
+    this.disconnect();
+    this.notifyStatus('connecting');
+    this.connect();
   }
 
   disconnect(): void {
