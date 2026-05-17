@@ -29,7 +29,7 @@ export interface ConnectedMessage {
 
 export interface TileConfig {
   id: string;
-  kind: 'app' | 'url' | 'ai';
+  kind: 'app' | 'url' | 'ai' | 'shortcut';
   label: string;
   iconId: string;
   color?: string;
