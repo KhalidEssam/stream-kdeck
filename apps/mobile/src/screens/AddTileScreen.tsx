@@ -37,13 +37,26 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 ];
 
 interface Props {
+  currentTiles: TileConfig[];
   onAdd: (tile: Omit<TileConfig, 'id'>) => void;
+  onRemove: (tileId: string) => void;
   onDismiss: () => void;
 }
 
-export function AddTileScreen({ onAdd, onDismiss }: Props) {
+export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss }: Props) {
   const [search, setSearch] = useState('');
   const [customUrl, setCustomUrl] = useState('');
+
+  // Build a set of appIds that are already in the grid so we can show selected state.
+  const selectedByAppId = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>(); // appId → tileId
+    for (const tile of currentTiles) {
+      if (tile.action.kind === 'APP_LAUNCH') {
+        map.set(tile.action.appId, tile.id);
+      }
+    }
+    return map;
+  }, [currentTiles]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -51,9 +64,15 @@ export function AddTileScreen({ onAdd, onDismiss }: Props) {
     return CURATED_APPS.filter((app) => app.label.toLowerCase().includes(q));
   }, [search]);
 
-  const handleSelectApp = (tile: Omit<TileConfig, 'id'>) => {
-    onAdd(tile);
-    onDismiss();
+  const handleToggleApp = (item: Omit<TileConfig, 'id'>) => {
+    if (item.action.kind !== 'APP_LAUNCH') return;
+    const existingId = selectedByAppId.get(item.action.appId);
+    if (existingId) {
+      onRemove(existingId);
+    } else {
+      onAdd(item);
+    }
+    // Stay on screen so users can toggle multiple apps
   };
 
   const handleAddUrl = () => {
@@ -63,8 +82,10 @@ export function AddTileScreen({ onAdd, onDismiss }: Props) {
       try { return new URL(url).hostname; } catch { return url; }
     })();
     onAdd({ kind: 'url', label: hostname, iconId: 'globe', action: { kind: 'URL_OPEN', url } });
-    onDismiss();
+    setCustomUrl('');
   };
+
+  const selectedCount = selectedByAppId.size;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -73,9 +94,14 @@ export function AddTileScreen({ onAdd, onDismiss }: Props) {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Add Tile</Text>
-          <TouchableOpacity onPress={onDismiss} style={styles.closeBtn}>
-            <Text style={styles.closeText}>✕</Text>
+          <View>
+            <Text style={styles.title}>Add Tiles</Text>
+            <Text style={styles.subtitle}>
+              {selectedCount === 0 ? 'Tap to add' : `${selectedCount} selected — tap to toggle`}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={onDismiss} style={styles.doneBtn}>
+            <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
 
@@ -97,12 +123,17 @@ export function AddTileScreen({ onAdd, onDismiss }: Props) {
           data={filtered}
           keyExtractor={(item) => item.iconId}
           numColumns={3}
-          renderItem={({ item }) => (
-            <AppTile
-              tile={{ ...item, id: item.iconId }}
-              onTap={() => handleSelectApp(item)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const appId = item.action.kind === 'APP_LAUNCH' ? item.action.appId : '';
+            const selected = selectedByAppId.has(appId);
+            return (
+              <AppTile
+                tile={{ ...item, id: item.iconId }}
+                isSelected={selected}
+                onTap={() => handleToggleApp(item)}
+              />
+            );
+          }}
           contentContainerStyle={styles.grid}
           ListEmptyComponent={
             <Text style={styles.noResults}>No apps match "{search}"</Text>
@@ -120,6 +151,7 @@ export function AddTileScreen({ onAdd, onDismiss }: Props) {
             autoCapitalize="none"
             keyboardType="url"
             returnKeyType="done"
+            onSubmitEditing={handleAddUrl}
           />
           <TouchableOpacity
             style={[styles.addUrlBtn, !customUrl.startsWith('http') && styles.addUrlBtnDisabled]}
@@ -139,13 +171,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F0F14' },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   title: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', flex: 1 },
-  closeBtn: { padding: 8 },
-  closeText: { color: '#6B6B8A', fontSize: 18 },
+  subtitle: { color: '#6B6B8A', fontSize: 12, marginTop: 2 },
+  doneBtn: {
+    backgroundColor: '#5B4FE8',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  doneBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   searchRow: { paddingHorizontal: 12, paddingBottom: 8 },
   searchInput: {
     backgroundColor: '#1A1A2E',

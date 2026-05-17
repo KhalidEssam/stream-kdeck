@@ -48,7 +48,7 @@ describe('AppRegistryService', () => {
       expect(svc.getTiles()).toEqual([]);
     });
 
-    it('assigns stable UUIDs and returns configured tiles', () => {
+    it('returns tiles with stable IDs (migrates tiles that had no id)', () => {
       const svc = makeService({
         tiles: [{ kind: 'app', label: 'Spotify', iconId: 'spotify', action: { kind: 'APP_LAUNCH', appId: 'spotify' } }],
         overrides: {},
@@ -57,16 +57,44 @@ describe('AppRegistryService', () => {
       expect(tiles).toHaveLength(1);
       expect(tiles[0].id).toMatch(/^[0-9a-f-]{36}$/);
       expect(tiles[0].label).toBe('Spotify');
+      // Stable: same id on every call
+      expect(svc.getTiles()[0].id).toBe(tiles[0].id);
     });
   });
 
   describe('addTile', () => {
-    it('appends tile and writes config to disk', () => {
+    it('appends tile with a stable UUID and writes config to disk', () => {
       const svc = makeService({ tiles: [], overrides: {} });
       svc.addTile({ kind: 'url', label: 'My Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } });
       expect(mockedFs.writeFileSync).toHaveBeenCalled();
+      const tiles = svc.getTiles();
+      expect(tiles).toHaveLength(1);
+      expect(tiles[0].label).toBe('My Site');
+      expect(tiles[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('does not add a duplicate (same action) twice', () => {
+      const svc = makeService({ tiles: [], overrides: {} });
+      const tile = { kind: 'app' as const, label: 'Spotify', iconId: 'spotify', action: { kind: 'APP_LAUNCH' as const, appId: 'spotify' } };
+      svc.addTile(tile);
+      svc.addTile(tile);
       expect(svc.getTiles()).toHaveLength(1);
-      expect(svc.getTiles()[0].label).toBe('My Site');
+    });
+  });
+
+  describe('removeTile', () => {
+    it('removes a tile by id and writes config', () => {
+      const svc = makeService({ tiles: [], overrides: {} });
+      svc.addTile({ kind: 'url', label: 'My Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } });
+      const id = svc.getTiles()[0].id;
+      svc.removeTile(id);
+      expect(svc.getTiles()).toHaveLength(0);
+      expect(mockedFs.writeFileSync).toHaveBeenCalledTimes(2); // add + remove
+    });
+
+    it('is a no-op for an unknown id', () => {
+      const svc = makeService({ tiles: [], overrides: {} });
+      expect(() => svc.removeTile('nonexistent-id')).not.toThrow();
     });
   });
 

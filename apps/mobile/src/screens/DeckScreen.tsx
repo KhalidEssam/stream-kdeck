@@ -60,6 +60,10 @@ export function DeckScreen() {
     // DECK_CONFIG response from agent will update tiles via onDeckConfig callback
   };
 
+  const handleRemoveTile = (tileId: string) => {
+    wsRef.current?.removeTile(tileId);
+  };
+
   const statusColor =
     status === 'connected' ? '#44FF88' : status === 'connecting' ? '#FFB800' : '#FF4444';
   const statusLabel = { connecting: 'Connecting…', connected: 'Connected', disconnected: 'Disconnected' }[status];
@@ -129,7 +133,9 @@ export function DeckScreen() {
         onRequestClose={() => setShowAddTile(false)}
       >
         <AddTileScreen
+          currentTiles={tiles ?? []}
           onAdd={handleAddTile}
+          onRemove={handleRemoveTile}
           onDismiss={() => setShowAddTile(false)}
         />
       </Modal>

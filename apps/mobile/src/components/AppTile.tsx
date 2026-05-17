@@ -7,17 +7,55 @@ import {
   Image,
   ActivityIndicator,
   StyleSheet,
-  ImageSourcePropType,
 } from 'react-native';
 import { TileConfig } from '../types/schema';
 
-// Map of appId → bundled icon. Add entries here as PNGs are added to assets/icons/.
-const ICON_MAP: Record<string, ImageSourcePropType> = {
-  // e.g. spotify: require('../../assets/icons/spotify.png'),
+// Clearbit logo service — high-quality brand logos, HTTPS, no key required for low volume.
+// Maps iconId → domain used to fetch the logo.
+const LOGO_DOMAINS: Record<string, string> = {
+  spotify:    'spotify.com',
+  discord:    'discord.com',
+  vscode:     'code.visualstudio.com',
+  chrome:     'google.com',
+  slack:      'slack.com',
+  notion:     'notion.so',
+  obs:        'obsproject.com',
+  figma:      'figma.com',
+  claude:     'anthropic.com',
+  github:     'github.com',
+  youtube:    'youtube.com',
+  twitch:     'twitch.tv',
+  steam:      'steampowered.com',
+  postman:    'postman.com',
+  linear:     'linear.app',
+  vercel:     'vercel.com',
 };
 
-const TILE_COLORS: Record<string, string> = {
-  ai: '#2D1B69',
+// Official brand colors — used as icon background in all states.
+const BRAND_COLORS: Record<string, string> = {
+  spotify:    '#1DB954',
+  discord:    '#5865F2',
+  vscode:     '#007ACC',
+  chrome:     '#4285F4',
+  slack:      '#4A154B',
+  notion:     '#1F1F1F',
+  obs:        '#302E31',
+  figma:      '#F24E1E',
+  claude:     '#D97757',
+  github:     '#24292E',
+  youtube:    '#FF0000',
+  twitch:     '#9146FF',
+  powershell: '#012456',
+  terminal:   '#2D2D2D',
+  explorer:   '#0078D4',
+  steam:      '#1B2838',
+  postman:    '#FF6C37',
+  linear:     '#5E6AD2',
+  vercel:     '#1F1F1F',
+};
+
+const TILE_BG: Record<string, string> = {
+  ai:  '#1A1A2E',
   app: '#1E1E2E',
   url: '#0D2B45',
 };
@@ -25,12 +63,13 @@ const TILE_COLORS: Record<string, string> = {
 interface Props {
   tile: TileConfig;
   isLoading?: boolean;
+  isSelected?: boolean;
   onTap: (tile: TileConfig) => void;
 }
 
-export function AppTile({ tile, isLoading, onTap }: Props) {
+export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
-  const [iconError, setIconError] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const handlePressIn = () => {
     Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 50 }).start();
@@ -40,33 +79,33 @@ export function AppTile({ tile, isLoading, onTap }: Props) {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20 }).start();
   };
 
-  const bgColor = tile.color ?? TILE_COLORS[tile.kind] ?? '#1E1E2E';
-  const iconSource = ICON_MAP[tile.iconId];
-  const showFallback = !iconSource || iconError;
+  const tileBg = tile.color ?? TILE_BG[tile.kind] ?? '#1E1E2E';
+  const brandColor = BRAND_COLORS[tile.iconId] ?? '#3A3A5C';
+  const logoDomain = LOGO_DOMAINS[tile.iconId];
+  const logoUri = logoDomain ? `https://logo.clearbit.com/${logoDomain}` : undefined;
+  const showLogo = !!logoUri && !logoError;
 
   return (
     <Animated.View style={[styles.wrapper, { transform: [{ scale }] }]}>
       <Pressable
-        style={[styles.tile, { backgroundColor: bgColor }]}
+        style={[styles.tile, { backgroundColor: tileBg }]}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onPress={() => onTap(tile)}
         disabled={isLoading}
       >
-        {/* Icon area */}
-        <View style={styles.iconArea}>
-          {showFallback ? (
-            <View style={[styles.fallbackIcon, { backgroundColor: bgColor }]}>
-              <Text style={styles.fallbackLetter}>
-                {tile.label.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          ) : (
+        {/* Icon badge */}
+        <View style={[styles.iconBadge, { backgroundColor: brandColor }]}>
+          {showLogo ? (
             <Image
-              source={iconSource}
-              style={styles.icon}
-              onError={() => setIconError(true)}
+              source={{ uri: logoUri }}
+              style={styles.logo}
+              onError={() => setLogoError(true)}
             />
+          ) : (
+            <Text style={styles.fallbackLetter}>
+              {tile.label.charAt(0).toUpperCase()}
+            </Text>
           )}
         </View>
 
@@ -79,6 +118,13 @@ export function AppTile({ tile, isLoading, onTap }: Props) {
         {tile.kind === 'ai' && (
           <View style={styles.aiBadge}>
             <Text style={styles.aiBadgeText}>✦</Text>
+          </View>
+        )}
+
+        {/* Selected checkmark */}
+        {isSelected && (
+          <View style={styles.selectedOverlay}>
+            <Text style={styles.checkmark}>✓</Text>
           </View>
         )}
 
@@ -105,30 +151,35 @@ const styles = StyleSheet.create({
     padding: 8,
     overflow: 'hidden',
   },
-  iconArea: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
-  icon: { width: 40, height: 40, resizeMode: 'contain' },
-  fallbackIcon: {
+  iconBadge: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  logo: { width: 36, height: 36, resizeMode: 'contain' },
   fallbackLetter: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
   label: {
     color: '#CCCCCC',
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
-  aiBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-  },
+  aiBadge: { position: 'absolute', top: 6, right: 6 },
   aiBadgeText: { color: 'rgba(255,255,255,0.6)', fontSize: 10 },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(91,79,232,0.35)',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#5B4FE8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: { color: '#FFFFFF', fontSize: 28, fontWeight: '700' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

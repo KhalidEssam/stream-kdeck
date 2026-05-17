@@ -24,6 +24,14 @@ export class WsGateway implements OnGatewayConnection {
     private readonly appRegistry: AppRegistryService,
   ) {}
 
+  private sendDeckConfig(client: WebSocket): void {
+    const msg: DeckConfigMessage = {
+      type: 'DECK_CONFIG',
+      tiles: this.appRegistry.getTiles(),
+    };
+    client.send(JSON.stringify(msg));
+  }
+
   handleConnection(client: WebSocket): void {
     const connected: ConnectedMessage = {
       type: 'CONNECTED',
@@ -31,12 +39,7 @@ export class WsGateway implements OnGatewayConnection {
       platform: platform() as 'darwin' | 'win32' | 'linux',
     };
     client.send(JSON.stringify(connected));
-
-    const deckConfig: DeckConfigMessage = {
-      type: 'DECK_CONFIG',
-      tiles: this.appRegistry.getTiles(),
-    };
-    client.send(JSON.stringify(deckConfig));
+    this.sendDeckConfig(client);
 
     console.log('[Agent] Mobile client connected');
 
@@ -50,11 +53,13 @@ export class WsGateway implements OnGatewayConnection {
 
       if (data.type === 'ADD_TILE') {
         this.appRegistry.addTile(data.tile);
-        const updated: DeckConfigMessage = {
-          type: 'DECK_CONFIG',
-          tiles: this.appRegistry.getTiles(),
-        };
-        client.send(JSON.stringify(updated));
+        this.sendDeckConfig(client);
+        return;
+      }
+
+      if (data.type === 'REMOVE_TILE') {
+        this.appRegistry.removeTile(data.tileId);
+        this.sendDeckConfig(client);
         return;
       }
 

@@ -113,4 +113,45 @@ describe('WsGateway', () => {
       }
     });
   });
+
+  it('handles REMOVE_TILE and responds with updated DECK_CONFIG', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+    const messages: string[] = [];
+
+    ws.on('message', (data) => {
+      messages.push(data.toString());
+
+      // After CONNECTED + DECK_CONFIG, send ADD_TILE first
+      if (messages.length === 2) {
+        ws.send(
+          JSON.stringify({
+            type: 'ADD_TILE',
+            tile: {
+              kind: 'url',
+              label: 'Remove Me',
+              iconId: 'globe',
+              action: { kind: 'URL_OPEN', url: 'https://remove-me.example.com' },
+            },
+          })
+        );
+      }
+
+      // Third: DECK_CONFIG with the new tile — now send REMOVE_TILE
+      if (messages.length === 3) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[2]);
+        const tile = withTile.tiles.find((t) => t.label === 'Remove Me');
+        expect(tile).toBeDefined();
+        ws.send(JSON.stringify({ type: 'REMOVE_TILE', tileId: tile!.id }));
+      }
+
+      // Fourth: DECK_CONFIG without the removed tile
+      if (messages.length === 4) {
+        const updated: DeckConfigMessage = JSON.parse(messages[3]);
+        expect(updated.type).toBe('DECK_CONFIG');
+        expect(updated.tiles.some((t) => t.label === 'Remove Me')).toBe(false);
+        ws.close();
+        done();
+      }
+    });
+  });
 });

@@ -47,5 +47,10 @@ export interface AddTileMessage {
   tile: Omit<TileConfig, 'id'>;
 }
 
+export interface RemoveTileMessage {
+  type: 'REMOVE_TILE';
+  tileId: string;
+}
+
 export type AgentMessage = ActionResultMessage | ConnectedMessage | DeckConfigMessage;
-export type MobileMessage = ButtonTapMessage | AddTileMessage;
+export type MobileMessage = ButtonTapMessage | AddTileMessage | RemoveTileMessage;

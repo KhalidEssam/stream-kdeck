@@ -6,6 +6,7 @@ import {
   DeckConfigMessage,
   TileConfig,
   AddTileMessage,
+  RemoveTileMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -55,6 +56,12 @@ export class WebSocketService {
   addTile(tile: Omit<TileConfig, 'id'>): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: AddTileMessage = { type: 'ADD_TILE', tile };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  removeTile(tileId: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: RemoveTileMessage = { type: 'REMOVE_TILE', tileId };
     this.ws.send(JSON.stringify(msg));
   }
 
