@@ -1,6 +1,4 @@
-// Mirror of packages/shared/src/schema.ts
-// Keep these in sync with the agent schema when either side changes.
-
+// Mobile → Agent
 export interface ButtonTapMessage {
   type: 'BUTTON_TAP';
   buttonId: string;
@@ -12,8 +10,10 @@ export type ButtonAction =
   | { kind: 'KEYSTROKE'; keys: string[] }
   | { kind: 'APP_LAUNCH'; appId: string }
   | { kind: 'URL_OPEN'; url: string }
-  | { kind: 'CLIPBOARD_WRITE'; text: string };
+  | { kind: 'CLIPBOARD_WRITE'; text: string }
+  | { kind: 'EXEC'; exePath: string };
 
+// Agent → Mobile
 export interface ActionResultMessage {
   type: 'ACTION_RESULT';
   buttonId: string;
@@ -30,10 +30,11 @@ export interface ConnectedMessage {
 
 export interface TileConfig {
   id: string;
-  kind: 'app' | 'url' | 'ai' | 'shortcut';
+  kind: 'app' | 'url' | 'ai' | 'shortcut' | 'custom';
   label: string;
   iconId: string;
   color?: string;
+  iconBase64?: string;
   action: ButtonAction;
 }
 
@@ -52,5 +53,47 @@ export interface RemoveTileMessage {
   tileId: string;
 }
 
-export type AgentMessage = ActionResultMessage | ConnectedMessage | DeckConfigMessage;
-export type MobileMessage = ButtonTapMessage | AddTileMessage | RemoveTileMessage;
+// Custom launcher messages
+export interface AppSearchResult {
+  name: string;
+  exePath: string;
+  source: 'startmenu' | 'steam' | 'epic';
+  iconBase64?: string;
+}
+
+export interface SearchAppsMessage {
+  type: 'SEARCH_APPS';
+  query: string;
+}
+
+export interface ValidatePathMessage {
+  type: 'VALIDATE_PATH';
+  exePath: string;
+}
+
+export interface SearchAppsResultMessage {
+  type: 'SEARCH_APPS_RESULT';
+  results: AppSearchResult[];
+}
+
+export interface ValidatePathResultMessage {
+  type: 'VALIDATE_PATH_RESULT';
+  valid: boolean;
+  label?: string;
+  iconBase64?: string;
+  error?: string;
+}
+
+export type AgentMessage =
+  | ActionResultMessage
+  | ConnectedMessage
+  | DeckConfigMessage
+  | SearchAppsResultMessage
+  | ValidatePathResultMessage;
+
+export type MobileMessage =
+  | ButtonTapMessage
+  | AddTileMessage
+  | RemoveTileMessage
+  | SearchAppsMessage
+  | ValidatePathMessage;
