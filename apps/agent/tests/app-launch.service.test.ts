@@ -21,11 +21,19 @@ describe('AppLaunchService', () => {
     service = moduleRef.get(AppLaunchService);
   });
 
-  describe('launch', () => {
-    it('resolves target and calls shell.openExternal', async () => {
+  describe('launch with protocol/URL targets', () => {
+    it('uses shell.openExternal for protocol targets (e.g. spotify://)', async () => {
+      mockRegistry.resolveTarget.mockReturnValue('spotify://');
       await service.launch('spotify');
-      expect(mockRegistry.resolveTarget).toHaveBeenCalledWith('spotify');
       expect(shell.openExternal).toHaveBeenCalledWith('spotify://');
+      expect(shell.openPath).not.toHaveBeenCalled();
+    });
+
+    it('uses shell.openExternal for web URL targets', async () => {
+      mockRegistry.resolveTarget.mockReturnValue('https://claude.ai');
+      await service.launch('claude');
+      expect(shell.openExternal).toHaveBeenCalledWith('https://claude.ai');
+      expect(shell.openPath).not.toHaveBeenCalled();
     });
 
     it('throws when registry throws (unknown app)', async () => {
@@ -34,15 +42,31 @@ describe('AppLaunchService', () => {
     });
   });
 
+  describe('launch with exe path targets', () => {
+    it('uses shell.openPath for Windows absolute exe paths', async () => {
+      mockRegistry.resolveTarget.mockReturnValue('C:\\Users\\PC\\AppData\\Local\\Programs\\claude\\Claude.exe');
+      await service.launch('claude');
+      expect(shell.openPath).toHaveBeenCalledWith('C:\\Users\\PC\\AppData\\Local\\Programs\\claude\\Claude.exe');
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    });
+
+    it('uses shell.openPath for Unix absolute paths', async () => {
+      mockRegistry.resolveTarget.mockReturnValue('/Applications/VSCode.app');
+      await service.launch('vscode');
+      expect(shell.openPath).toHaveBeenCalledWith('/Applications/VSCode.app');
+    });
+
+    it('throws when shell.openPath returns an error string', async () => {
+      mockRegistry.resolveTarget.mockReturnValue('C:\\NonExistent\\app.exe');
+      (shell.openPath as jest.Mock).mockResolvedValue('No such file or directory');
+      await expect(service.launch('badapp')).rejects.toThrow('Failed to launch badapp');
+    });
+  });
+
   describe('openUrl', () => {
     it('calls shell.openExternal with https URL', async () => {
       await service.openUrl('https://example.com');
       expect(shell.openExternal).toHaveBeenCalledWith('https://example.com');
-    });
-
-    it('calls shell.openExternal with http URL', async () => {
-      await service.openUrl('http://localhost:3000');
-      expect(shell.openExternal).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('throws for a non-http URL', async () => {

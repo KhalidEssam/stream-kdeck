@@ -25,6 +25,7 @@ const LOGO_DOMAINS: Record<string, string> = {
   github:     'github.com',
   youtube:    'youtube.com',
   twitch:     'twitch.tv',
+  whatsapp:   'whatsapp.com',
   steam:      'steampowered.com',
   postman:    'postman.com',
   linear:     'linear.app',
@@ -45,6 +46,7 @@ const BRAND_COLORS: Record<string, string> = {
   github:     '#24292E',
   youtube:    '#FF0000',
   twitch:     '#9146FF',
+  whatsapp:   '#25D366',
   powershell: '#012456',
   terminal:   '#2D2D2D',
   explorer:   '#0078D4',
@@ -80,8 +82,11 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
   };
 
   const tileBg = tile.color ?? TILE_BG[tile.kind] ?? '#1E1E2E';
-  const brandColor = BRAND_COLORS[tile.iconId] ?? '#3A3A5C';
-  const logoDomain = LOGO_DOMAINS[tile.iconId];
+  // AI tiles use the tile's own color as the badge background
+  const brandColor = tile.kind === 'ai'
+    ? (tile.color ?? '#2D1B69')
+    : (BRAND_COLORS[tile.iconId] ?? '#3A3A5C');
+  const logoDomain = tile.kind !== 'ai' ? LOGO_DOMAINS[tile.iconId] : undefined;
   const logoUri = logoDomain ? `https://logo.clearbit.com/${logoDomain}` : undefined;
   const showLogo = !!logoUri && !logoError;
 
@@ -96,7 +101,9 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
       >
         {/* Icon badge */}
         <View style={[styles.iconBadge, { backgroundColor: brandColor }]}>
-          {showLogo ? (
+          {tile.kind === 'ai' ? (
+            <Text style={styles.aiIcon}>✦</Text>
+          ) : showLogo ? (
             <Image
               source={{ uri: logoUri }}
               style={styles.logo}
@@ -161,6 +168,7 @@ const styles = StyleSheet.create({
   },
   logo: { width: 36, height: 36, resizeMode: 'contain' },
   fallbackLetter: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
+  aiIcon: { color: '#FFFFFF', fontSize: 26, opacity: 0.9 },
   label: {
     color: '#CCCCCC',
     fontSize: 11,

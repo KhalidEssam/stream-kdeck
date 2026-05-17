@@ -8,5 +8,7 @@ module.exports = {
   },
   shell: {
     openExternal: jest.fn().mockResolvedValue(undefined),
+    // openPath returns '' on success, an error string on failure
+    openPath: jest.fn().mockResolvedValue(''),
   },
 };
