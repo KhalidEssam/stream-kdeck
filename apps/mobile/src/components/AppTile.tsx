@@ -57,9 +57,10 @@ const BRAND_COLORS: Record<string, string> = {
 };
 
 const TILE_BG: Record<string, string> = {
-  ai:  '#1A1A2E',
-  app: '#1E1E2E',
-  url: '#0D2B45',
+  ai:       '#1A1A2E',
+  app:      '#1E1E2E',
+  url:      '#0D2B45',
+  shortcut: '#0F2A1A',
 };
 
 interface Props {
@@ -85,7 +86,9 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
   // AI tiles use the tile's own color as the badge background
   const brandColor = tile.kind === 'ai'
     ? (tile.color ?? '#2D1B69')
-    : (BRAND_COLORS[tile.iconId] ?? '#3A3A5C');
+    : tile.kind === 'shortcut'
+      ? '#1DB954'
+      : (BRAND_COLORS[tile.iconId] ?? '#3A3A5C');
   const logoDomain = tile.kind !== 'ai' ? LOGO_DOMAINS[tile.iconId] : undefined;
   const logoUri = logoDomain ? `https://logo.clearbit.com/${logoDomain}` : undefined;
   const showLogo = !!logoUri && !logoError;
@@ -103,6 +106,8 @@ export function AppTile({ tile, isLoading, isSelected, onTap }: Props) {
         <View style={[styles.iconBadge, { backgroundColor: brandColor }]}>
           {tile.kind === 'ai' ? (
             <Text style={styles.aiIcon}>✦</Text>
+          ) : tile.kind === 'shortcut' ? (
+            <Text style={styles.shortcutIcon}>⌨</Text>
           ) : showLogo ? (
             <Image
               source={{ uri: logoUri }}
@@ -169,6 +174,7 @@ const styles = StyleSheet.create({
   logo: { width: 36, height: 36, resizeMode: 'contain' },
   fallbackLetter: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
   aiIcon: { color: '#FFFFFF', fontSize: 26, opacity: 0.9 },
+  shortcutIcon: { color: '#FFFFFF', fontSize: 24, opacity: 0.9 },
   label: {
     color: '#CCCCCC',
     fontSize: 11,
