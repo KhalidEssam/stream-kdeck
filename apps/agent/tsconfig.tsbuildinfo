@@ -1,0 +1,1 @@
+{"root":["./src/app.module.ts","./src/main.ts","./src/nestjs.ts","./src/ai/ai-router.service.ts","./src/app-launch/app-launch.service.ts","./src/app-launch/app-registry.service.ts","./src/clipboard/clipboard.service.ts","./src/command/command.service.ts","./src/keystroke/keystroke.service.ts","./src/websocket/ws.gateway.ts"],"version":"5.9.3"}

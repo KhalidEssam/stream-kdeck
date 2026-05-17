@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UX Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; }
+  h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.2rem; }
+  .subtitle { font-size: 0.78rem; color: #64748b; margin-bottom: 2rem; }
+  .section-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; margin-bottom: 0.8rem; padding-bottom: 0.5rem; border-bottom: 1px solid #1e2535; margin-top: 1.5rem; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* ── DEVICE MOCKUPS ── */
+  .devices { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.5rem; margin-bottom: 1rem; }
+
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .phone {
+    width: 180px;
+    background: #1a1a2e;
+    border-radius: 28px;
+    border: 2px solid #2d2d4e;
+    padding: 16px 12px;
+    box-shadow: 0 0 0 1px rgba(79,70,229,0.2), 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .phone-notch { width: 60px; height: 8px; background: #0f0f1a; border-radius: 4px; margin: 0 auto 12px; }
+  .phone-label { font-size: 0.65rem; color: #475569; text-align: center; }
+
+  .tablet-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .tablet {
+    width: 280px;
+    background: #1a1a2e;
+    border-radius: 16px;
+    border: 2px solid #2d2d4e;
+    padding: 14px 12px;
+    box-shadow: 0 0 0 1px rgba(79,70,229,0.2), 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .tablet-label { font-size: 0.65rem; color: #475569; text-align: center; }
+
+  /* ── DECK GRID ── */
+  .deck-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .deck-title { font-size: 0.55rem; color: #475569; font-weight: 600; letter-spacing: 0.05em; }
+  .deck-dots { display: flex; gap: 3px; }
+  .deck-dot { width: 4px; height: 4px; border-radius: 50%; background: #2d2d5e; }
+  .deck-dot.active { background: #4f46e5; }
+
+  .grid-3x3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .grid-4x4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .grid-4x5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+
+  .btn-cell {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px;
+    font-size: 0.55rem;
+    cursor: pointer;
+    transition: all 0.1s;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .btn-cell .ico { font-size: 1rem; line-height: 1; }
+  .btn-cell .lbl { font-size: 0.42rem; color: rgba(255,255,255,0.5); text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; }
+
+  /* button color variants */
+  .b-purple  { background: linear-gradient(135deg,#4f46e5,#6d28d9); }
+  .b-blue    { background: linear-gradient(135deg,#0284c7,#0369a1); }
+  .b-green   { background: linear-gradient(135deg,#16a34a,#15803d); }
+  .b-red     { background: linear-gradient(135deg,#dc2626,#b91c1c); }
+  .b-orange  { background: linear-gradient(135deg,#ea580c,#c2410c); }
+  .b-pink    { background: linear-gradient(135deg,#db2777,#be185d); }
+  .b-teal    { background: linear-gradient(135deg,#0d9488,#0f766e); }
+  .b-yellow  { background: linear-gradient(135deg,#d97706,#b45309); }
+  .b-gray    { background: #1e2535; border-color: #2d3748; }
+  .b-folder  { background: linear-gradient(135deg,#374151,#1f2937); border: 1px dashed #4b5563; }
+  .b-ai      { background: linear-gradient(135deg,rgba(220,38,38,0.4),rgba(168,85,247,0.3)); border: 1px solid rgba(220,38,38,0.4); }
+  .b-empty   { background: transparent; border: 1px dashed #1e2535; opacity: 0.3; }
+
+  /* ── PROFILE BAR ── */
+  .profile-bar {
+    display: flex; gap: 4px; margin-bottom: 8px;
+    background: rgba(0,0,0,0.3); border-radius: 8px; padding: 4px;
+  }
+  .profile-chip {
+    flex: 1; text-align: center; font-size: 0.42rem; font-weight: 600;
+    padding: 3px 2px; border-radius: 5px; color: #475569;
+  }
+  .profile-chip.active { background: #4f46e5; color: white; }
+
+  /* ── SLIDER ZONE ── */
+  .slider-zone {
+    display: flex; gap: 4px; margin-top: 5px;
+  }
+  .slider-btn {
+    flex: 1; height: 22px; border-radius: 6px; background: #1e2535;
+    border: 1px solid #2d3748;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.55rem; color: #64748b;
+  }
+  .slider-track {
+    flex: 2; height: 22px; border-radius: 6px; background: #1e2535;
+    border: 1px solid #2d3748; overflow: hidden; position: relative;
+  }
+  .slider-fill { height: 100%; width: 60%; background: linear-gradient(90deg,#4f46e5,#7c3aed); border-radius: 6px; }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: #4ade80; }
+  .status-text { font-size: 0.42rem; color: #475569; }
+  .status-app { font-size: 0.42rem; color: #94a3b8; font-weight: 600; }
+
+  /* ── ONBOARDING FLOW ── */
+  .onboard-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.6rem; margin-bottom: 2rem; }
+  .onboard-step {
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 0.8rem 0.7rem; text-align: center;
+  }
+  .ob-num { font-size: 0.6rem; font-weight: 800; color: #4f46e5; margin-bottom: 0.3rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .ob-icon { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  .ob-name { font-size: 0.72rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.2rem; }
+  .ob-desc { font-size: 0.63rem; color: #64748b; line-height: 1.4; }
+  .ob-time { font-size: 0.58rem; color: #475569; margin-top: 0.4rem; font-style: italic; }
+
+  /* ── PREMIUM FEEL ── */
+  .premium-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem; margin-bottom: 2rem; }
+  .premium-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 0.8rem 0.9rem;
+  }
+  .pc-icon { font-size: 1.2rem; margin-bottom: 0.4rem; }
+  .pc-name { font-weight: 700; font-size: 0.78rem; margin-bottom: 0.2rem; }
+  .pc-desc { font-size: 0.68rem; color: #64748b; line-height: 1.4; }
+
+  /* ── COMPETITOR MISTAKES ── */
+  .mistakes { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem; }
+  .mistake { background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.15); border-radius: 8px; padding: 0.7rem 0.9rem; display: grid; grid-template-columns: auto 1fr; gap: 0.7rem; align-items: center; }
+  .mistake-who { font-size: 0.62rem; font-weight: 800; color: #f87171; white-space: nowrap; }
+  .mistake-what { font-size: 0.72rem; color: #64748b; }
+
+  /* ── 60-SECOND FLOW ── */
+  .sixty-flow { display: flex; gap: 0.6rem; margin-bottom: 2rem; flex-wrap: wrap; }
+  .sixty-step {
+    flex: 1; min-width: 120px;
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 0.7rem 0.8rem;
+  }
+  .ss-time { font-size: 0.58rem; font-weight: 800; color: #4f46e5; margin-bottom: 0.25rem; }
+  .ss-name { font-weight: 700; font-size: 0.75rem; margin-bottom: 0.15rem; }
+  .ss-desc { font-size: 0.65rem; color: #64748b; line-height: 1.4; }
+  .ss-critical { border-color: rgba(22,163,74,0.3); background: rgba(22,163,74,0.04); }
+  .ss-time.green { color: #4ade80; }
+</style>
+</head>
+<body>
+
+<h1>UX Architecture</h1>
+<p class="subtitle">Mobile-native control surface · Grid + profiles + AI cards · Premium feel · iPad-first for dedicated use</p>
+
+<!-- ── DEVICE MOCKUPS ── -->
+<div class="section-label">UI paradigms on phone vs tablet</div>
+<div class="devices">
+
+  <!-- Phone -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <!-- Status -->
+      <div class="status-bar">
+        <div style="display:flex;align-items:center;gap:4px"><div class="status-dot"></div><div class="status-text">Connected</div></div>
+        <div class="status-app">VS Code</div>
+      </div>
+      <!-- Profile bar -->
+      <div class="profile-bar">
+        <div class="profile-chip active">Dev</div>
+        <div class="profile-chip">Stream</div>
+        <div class="profile-chip">Quick</div>
+      </div>
+      <!-- 3×3 grid -->
+      <div class="grid-3x3">
+        <div class="btn-cell b-red"><span class="ico">🐛</span><span class="lbl">Fix Error</span></div>
+        <div class="btn-cell b-purple"><span class="ico">🧪</span><span class="lbl">Write Tests</span></div>
+        <div class="btn-cell b-blue"><span class="ico">📝</span><span class="lbl">PR Desc</span></div>
+        <div class="btn-cell b-teal"><span class="ico">📸</span><span class="lbl">Screenshot</span></div>
+        <div class="btn-cell b-folder"><span class="ico">📁</span><span class="lbl">More →</span></div>
+        <div class="btn-cell b-green"><span class="ico">🔇</span><span class="lbl">Mute</span></div>
+        <div class="btn-cell b-ai"><span class="ico">🤖</span><span class="lbl">AI Chain</span></div>
+        <div class="btn-cell b-orange"><span class="ico">⚡</span><span class="lbl">Run Build</span></div>
+        <div class="btn-cell b-empty"></div>
+      </div>
+      <!-- Slider zone -->
+      <div class="slider-zone">
+        <div class="slider-btn">🔉</div>
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-btn">🔊</div>
+      </div>
+    </div>
+    <div class="phone-label">iPhone · 3×3 grid · swipe for pages</div>
+  </div>
+
+  <!-- Tablet -->
+  <div class="tablet-wrap">
+    <div class="tablet">
+      <div class="status-bar">
+        <div style="display:flex;align-items:center;gap:4px"><div class="status-dot"></div><div class="status-text">Connected · MacBook Pro</div></div>
+        <div class="status-app">OBS Studio — Live 01:24:30</div>
+      </div>
+      <div class="profile-bar">
+        <div class="profile-chip">Dev</div>
+        <div class="profile-chip active">Stream</div>
+        <div class="profile-chip">Quick</div>
+        <div class="profile-chip">Media</div>
+      </div>
+      <!-- 4×5 grid -->
+      <div class="grid-4x5">
+        <div class="btn-cell b-red"><span class="ico">🎥</span><span class="lbl">Scene 1</span></div>
+        <div class="btn-cell b-purple"><span class="ico">🖥️</span><span class="lbl">Scene 2</span></div>
+        <div class="btn-cell b-blue"><span class="ico">🎮</span><span class="lbl">Game Cam</span></div>
+        <div class="btn-cell b-teal"><span class="ico">💬</span><span class="lbl">Chat</span></div>
+        <div class="btn-cell b-gray"><span class="ico">⬛</span><span class="lbl">BRB</span></div>
+
+        <div class="btn-cell b-green"><span class="ico">🔴</span><span class="lbl">Go Live</span></div>
+        <div class="btn-cell b-orange"><span class="ico">✂️</span><span class="lbl">Clip It</span></div>
+        <div class="btn-cell b-pink"><span class="ico">🎵</span><span class="lbl">Music</span></div>
+        <div class="btn-cell b-yellow"><span class="ico">🔔</span><span class="lbl">Alert</span></div>
+        <div class="btn-cell b-folder"><span class="ico">📁</span><span class="lbl">Sounds</span></div>
+
+        <div class="btn-cell b-ai"><span class="ico">🤖</span><span class="lbl">Tweet It</span></div>
+        <div class="btn-cell b-ai"><span class="ico">✨</span><span class="lbl">Caption</span></div>
+        <div class="btn-cell b-blue"><span class="ico">🔇</span><span class="lbl">Mute Mic</span></div>
+        <div class="btn-cell b-teal"><span class="ico">📷</span><span class="lbl">Cam Off</span></div>
+        <div class="btn-cell b-empty"></div>
+
+        <div class="btn-cell b-empty"></div>
+        <div class="btn-cell b-empty"></div>
+        <div class="btn-cell b-empty"></div>
+        <div class="btn-cell b-empty"></div>
+        <div class="btn-cell b-empty"></div>
+      </div>
+      <div class="slider-zone">
+        <div class="slider-btn">🎙️</div>
+        <div class="slider-track"><div class="slider-fill" style="width:75%"></div></div>
+        <div class="slider-btn">🔊</div>
+        <div style="width:8px"></div>
+        <div class="slider-btn">🎵</div>
+        <div class="slider-track"><div class="slider-fill" style="width:40%;background:linear-gradient(90deg,#16a34a,#4ade80)"></div></div>
+        <div class="slider-btn">🎵</div>
+      </div>
+    </div>
+    <div class="tablet-label">iPad · 4×5 grid · dedicated on stand · dual sliders for mic + music</div>
+  </div>
+
+</div>
+
+<!-- ── ONBOARDING ── -->
+<div class="section-label">First-run onboarding — 5 screens, under 90 seconds</div>
+<div class="onboard-flow">
+  <div class="onboard-step">
+    <div class="ob-num">Screen 1</div>
+    <div class="ob-icon">✨</div>
+    <div class="ob-name">The Wow</div>
+    <div class="ob-desc">Animated showcase of what the deck does. No text walls. Pure demo.</div>
+    <div class="ob-time">0–15s</div>
+  </div>
+  <div class="onboard-step">
+    <div class="ob-num">Screen 2</div>
+    <div class="ob-icon">💳</div>
+    <div class="ob-name">Get Started</div>
+    <div class="ob-desc">Purchase CTA with 3 clear value props. No dark patterns. Clean.</div>
+    <div class="ob-time">15–25s</div>
+  </div>
+  <div class="onboard-step">
+    <div class="ob-num">Screen 3</div>
+    <div class="ob-icon">⬇️</div>
+    <div class="ob-name">Install Agent</div>
+    <div class="ob-desc">Platform-detected download link. Animated install gif. Permission guides.</div>
+    <div class="ob-time">25–55s</div>
+  </div>
+  <div class="onboard-step" style="border-color:rgba(79,70,229,0.4);background:rgba(79,70,229,0.06)">
+    <div class="ob-num" style="color:#a5b4fc">Screen 4</div>
+    <div class="ob-icon">🔗</div>
+    <div class="ob-name">Connect</div>
+    <div class="ob-desc">"Found your Mac!" auto via mDNS. OR tap to scan QR. The magic moment.</div>
+    <div class="ob-time" style="color:#a5b4fc">55–65s ← THE MOMENT</div>
+  </div>
+  <div class="onboard-step">
+    <div class="ob-num">Screen 5</div>
+    <div class="ob-icon">🚀</div>
+    <div class="ob-name">First Deck</div>
+    <div class="ob-desc">"I'm a developer" / "I'm a creator" / "Start blank." Pre-built template loads.</div>
+    <div class="ob-time">65–90s</div>
+  </div>
+</div>
+
+<!-- ── 60 SECOND EXPERIENCE ── -->
+<div class="section-label">First 60 seconds — required milestones</div>
+<div class="sixty-flow">
+  <div class="sixty-step"><div class="ss-time">0s</div><div class="ss-name">Visual wow</div><div class="ss-desc">Animated deck appears. User thinks "this looks incredible."</div></div>
+  <div class="sixty-step"><div class="ss-time">15s</div><div class="ss-name">Product understood</div><div class="ss-desc">User knows what this is and wants it, without reading docs.</div></div>
+  <div class="sixty-step ss-critical"><div class="ss-time green">45s</div><div class="ss-name">Connection moment</div><div class="ss-desc">"Found your computer!" — The single most important moment in the product.</div></div>
+  <div class="sixty-step ss-critical"><div class="ss-time green">60s</div><div class="ss-name">First action fires</div><div class="ss-desc">User presses a pre-loaded button. Something happens on their screen. They feel the power.</div></div>
+</div>
+
+<!-- ── PREMIUM FEEL ── -->
+<div class="section-label">What makes it feel premium</div>
+<div class="premium-grid">
+  <div class="premium-card"><div class="pc-icon">📳</div><div class="pc-name">Haptic feedback</div><div class="pc-desc">Precise haptics on every press. Feels like a physical button. iOS UIImpactFeedbackGenerator with "rigid" style.</div></div>
+  <div class="premium-card"><div class="pc-icon">🌊</div><div class="pc-name">Spring animations</div><div class="pc-desc">Buttons physically depress on press, spring back on release. Physics-based, not linear tweens.</div></div>
+  <div class="premium-card"><div class="pc-icon">🌑</div><div class="pc-name">Dark mode first</div><div class="pc-desc">Primary aesthetic. Looks stunning in a dark streaming room. Accent color system for personalization.</div></div>
+  <div class="premium-card"><div class="pc-icon">✅</div><div class="pc-name">Success animations</div><div class="pc-desc">Green flash on successful action. Red pulse on failure. AI loading shimmer while processing.</div></div>
+  <div class="premium-card"><div class="pc-icon">📡</div><div class="pc-name">Live status</div><div class="pc-desc">Real-time: connection state, active app, AI processing indicator, stream timer if OBS is live.</div></div>
+  <div class="premium-card"><div class="pc-icon">🎨</div><div class="pc-name">Icon quality</div><div class="pc-desc">SF Symbols on iOS, Material Symbols on Android. Custom SVG support. Emoji supported natively.</div></div>
+</div>
+
+<!-- ── COMPETITOR MISTAKES ── -->
+<div class="section-label">Biggest UX mistakes competitors make — what to actively avoid</div>
+<div class="mistakes">
+  <div class="mistake"><div class="mistake-who">Touch Portal</div><div class="mistake-what">First screen is a form asking for IP address and port. Feels like configuring a router. 30% of users never complete setup.</div></div>
+  <div class="mistake"><div class="mistake-who">Macro Deck</div><div class="mistake-what">Buttons designed for mouse interaction — too small for touch, no breathing room, grid feels like a spreadsheet.</div></div>
+  <div class="mistake"><div class="mistake-who">Deckboard</div><div class="mistake-what">Generic Material Design that feels like any productivity app. Zero personality. Nothing that makes you proud to show it on stream.</div></div>
+  <div class="mistake"><div class="mistake-who">All of them</div><div class="mistake-what">Drop users into an empty grid with zero guidance. No template suggestions, no onboarding path, no "here's what to do first."</div></div>
+  <div class="mistake"><div class="mistake-who">All of them</div><div class="mistake-what">Empty states are literal empty grids. Should be a beautiful state that actively guides users toward their first button.</div></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monetization Model</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1117;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 2rem;
+  }
+  h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 0.78rem; color: #64748b; margin-bottom: 2rem; }
+
+  /* ── TIERS ── */
+  .tiers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .tier {
+    border-radius: 12px;
+    padding: 1.3rem;
+    border: 1px solid rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .tier-download { background: #161b22; border-color: #30363d; }
+  .tier-core     { background: linear-gradient(135deg,#1c1f2e,#141720); border-color: #4f46e5; }
+  .tier-ai       { background: linear-gradient(135deg,#1e1010,#140f0f); border-color: #dc2626; }
+
+  .tier-badge {
+    display: inline-block;
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.2rem 0.6rem; border-radius: 999px;
+    margin-bottom: 0.8rem;
+  }
+  .badge-free  { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+  .badge-core  { background: rgba(79,70,229,0.2);  color: #a5b4fc; border: 1px solid rgba(79,70,229,0.3); }
+  .badge-ai    { background: rgba(220,38,38,0.2);  color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
+
+  .tier-name   { font-size: 1.15rem; font-weight: 800; margin-bottom: 0.3rem; }
+  .tier-price  { font-size: 0.8rem; color: #64748b; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .tier-price strong { font-size: 1.5rem; color: #e2e8f0; font-weight: 800; }
+  .tier-price .sub  { font-size: 0.7rem; color: #475569; }
+
+  .features { list-style: none; font-size: 0.75rem; line-height: 1.9; }
+  .features li { color: #94a3b8; }
+  .features li::before { content: "✓  "; color: #4ade80; font-weight: 700; }
+  .features li.no::before { content: "✗  "; color: #475569; }
+  .features li.no { color: #3f4a5a; }
+
+  .tier-note {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.68rem;
+    color: #475569;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  .recommended-badge {
+    position: absolute;
+    top: -10px; left: 50%; transform: translateX(-50%);
+    background: #4f46e5; color: white;
+    font-size: 0.58rem; font-weight: 800;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.2rem 0.8rem; border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* ── PURCHASE FLOW ── */
+  .flow-section { margin-bottom: 2rem; }
+  .flow-title {
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #475569; margin-bottom: 0.8rem;
+  }
+  .flow {
+    display: flex; align-items: flex-start; gap: 0; flex-wrap: wrap;
+  }
+  .flow-step {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.74rem;
+    min-width: 160px;
+    flex: 1;
+  }
+  .flow-step-num {
+    font-size: 0.6rem; font-weight: 800;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: #4f46e5; margin-bottom: 0.3rem;
+  }
+  .flow-step-name { font-weight: 700; color: #e2e8f0; margin-bottom: 0.2rem; }
+  .flow-step-desc { color: #64748b; font-size: 0.68rem; line-height: 1.4; }
+  .flow-arrow {
+    display: flex; align-items: center;
+    padding: 0 0.5rem; color: #30363d; font-size: 1.2rem;
+    align-self: center;
+  }
+
+  /* ── REVENUE PROJECTION ── */
+  .projections {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem;
+    margin-bottom: 2rem;
+  }
+  .proj-card {
+    background: #161b22; border: 1px solid #21262d;
+    border-radius: 8px; padding: 0.9rem 1rem;
+  }
+  .proj-label {
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #475569; margin-bottom: 0.3rem;
+  }
+  .proj-num { font-size: 1.3rem; font-weight: 800; color: #e2e8f0; margin-bottom: 0.15rem; }
+  .proj-desc { font-size: 0.68rem; color: #64748b; line-height: 1.4; }
+  .proj-card.highlight { border-color: rgba(79,70,229,0.4); background: rgba(79,70,229,0.06); }
+  .proj-num.green { color: #4ade80; }
+
+  /* ── RISK CARDS ── */
+  .risks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  .risk-card {
+    border-radius: 8px; padding: 0.9rem 1rem;
+    font-size: 0.75rem;
+  }
+  .risk-warn { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); }
+  .risk-ok   { background: rgba(22,163,74,0.08);  border: 1px solid rgba(22,163,74,0.2); }
+  .risk-card-title { font-weight: 700; margin-bottom: 0.35rem; }
+  .risk-warn .risk-card-title { color: #fbbf24; }
+  .risk-ok   .risk-card-title { color: #4ade80; }
+  .risk-card-body { color: #64748b; font-size: 0.7rem; line-height: 1.5; }
+
+  section-title {
+    display: block;
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #475569; margin-bottom: 0.8rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #1e2535;
+  }
+</style>
+</head>
+<body>
+
+<h1>Monetization Architecture</h1>
+<p class="subtitle">Desktop-gated model · One-time license + AI subscription · No free tier at launch</p>
+
+<!-- ── TIERS ── -->
+<div class="tiers">
+
+  <div class="tier tier-download">
+    <div class="tier-badge badge-free">Free Download</div>
+    <div class="tier-name">Mobile App</div>
+    <div class="tier-price"><strong>$0</strong><span class="sub"> — App Store / Play Store</span></div>
+    <ul class="features">
+      <li>Download from App Store / Play Store</li>
+      <li>Beautiful product onboarding</li>
+      <li>Live product demo / preview</li>
+      <li>Purchase flow for Desktop License</li>
+      <li class="no">Functional without Desktop License</li>
+      <li class="no">Connect to any device</li>
+      <li class="no">Any macros or automations</li>
+    </ul>
+    <div class="tier-note">
+      App Store listing clearly states: "Requires Control Surface Desktop License." First screen is the product showcase and purchase CTA — not a broken app.
+    </div>
+  </div>
+
+  <div class="tier tier-core">
+    <div class="recommended-badge">Entry Point</div>
+    <div class="tier-badge badge-core">Core License</div>
+    <div class="tier-name">Desktop Client</div>
+    <div class="tier-price"><strong>$19</strong><span class="sub"> — one-time, your website (no App Store cut)</span></div>
+    <ul class="features">
+      <li>Desktop agent (Win / Mac)</li>
+      <li>Unlimited decks + buttons</li>
+      <li>LAN connection (local, private)</li>
+      <li>mDNS auto-discovery + QR pairing</li>
+      <li>OBS integration</li>
+      <li>Basic macro types (press, hold, toggle)</li>
+      <li>Profile sync across 2 devices</li>
+      <li>Community template browser</li>
+      <li class="no">AI workflow builder</li>
+      <li class="no">Cloud relay (remote access)</li>
+      <li class="no">Speech recognition</li>
+    </ul>
+    <div class="tier-note">
+      Sold on your own website via Stripe / Lemon Squeezy. You keep 100% — no 30% Apple/Google cut. User logs in to app with their account to unlock.
+    </div>
+  </div>
+
+  <div class="tier tier-ai">
+    <div class="tier-badge badge-ai">AI Tier</div>
+    <div class="tier-name">Pro Subscription</div>
+    <div class="tier-price"><strong>$8</strong><span class="sub">/month · or $59/year · requires Core License</span></div>
+    <ul class="features">
+      <li>AI workflow builder (Claude integration)</li>
+      <li>Clipboard AI processing</li>
+      <li>Speech recognition commands</li>
+      <li>Cloud relay (remote access)</li>
+      <li>Unlimited device sync</li>
+      <li>Advanced macro types (sliders, dials)</li>
+      <li>AI prompt library + chaining</li>
+      <li>Priority support</li>
+      <li>Early access to new features</li>
+    </ul>
+    <div class="tier-note">
+      Billed via Stripe on your website (avoid 30% cut). Monthly AI usage quota included — prevents runaway API costs. Bring-your-own-API-key option for developers who prefer it.
+    </div>
+  </div>
+
+</div>
+
+<!-- ── USER FLOW ── -->
+<div class="flow-section">
+  <section-title>Purchase Flow</section-title>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-step-num">Step 1</div>
+      <div class="flow-step-name">App Store Download</div>
+      <div class="flow-step-desc">Free. User sees product demo, understands what it does. Clear CTA to buy Desktop License.</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-step-num">Step 2</div>
+      <div class="flow-step-name">Buy Desktop License</div>
+      <div class="flow-step-desc">$19 on your website. Stripe / Lemon Squeezy. Creates account. You keep 100%.</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-step-num">Step 3</div>
+      <div class="flow-step-name">Download Agent</div>
+      <div class="flow-step-desc">Desktop agent download from your website post-purchase. Installs in 30 seconds.</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-step-num">Step 4</div>
+      <div class="flow-step-name">Log In on Mobile</div>
+      <div class="flow-step-desc">Same account. App unlocks. Auto-discovers agent on LAN or scans QR.</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-step-num">Step 5 (optional)</div>
+      <div class="flow-step-name">Upgrade to AI Pro</div>
+      <div class="flow-step-desc">$8/month when user wants AI workflows. Clear upsell inside the app.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── REVENUE PROJECTIONS ── -->
+<div class="flow-section">
+  <section-title>Revenue at Milestone Checkpoints (Conservative)</section-title>
+  <div class="projections">
+    <div class="proj-card">
+      <div class="proj-label">3 Months (Launch)</div>
+      <div class="proj-num">500</div>
+      <div class="proj-desc">Core license sales × $19 = <strong style="color:#e2e8f0">$9,500</strong> one-time<br>100 Pro subs × $8 = <strong style="color:#4ade80">$800 MRR</strong></div>
+    </div>
+    <div class="proj-card highlight">
+      <div class="proj-label">6 Months</div>
+      <div class="proj-num green">$4,800</div>
+      <div class="proj-desc">600 Pro subscribers × $8/mo<br>3,000 core license holders<br>20% attach rate to AI sub</div>
+    </div>
+    <div class="proj-card">
+      <div class="proj-label">12 Months (Pitch)</div>
+      <div class="proj-num">$12k+</div>
+      <div class="proj-desc">MRR target for seed narrative<br>1,500 Pro subs × $8<br>25% YoY growth signal</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RISKS ── -->
+<div class="flow-section">
+  <section-title>Key Risks &amp; Mitigations</section-title>
+  <div class="risks">
+    <div class="risk-card risk-warn">
+      <div class="risk-card-title">⚠️ App Store "non-functional app" rejection</div>
+      <div class="risk-card-body">If App Store listing says "Free" but app does nothing, it gets rejected or removed.<br><br><strong>Fix:</strong> App Store listing clearly states "Requires Desktop License." First screen is a rich product preview + purchase CTA. App is functional as a purchase funnel — not broken.</div>
+    </div>
+    <div class="risk-card risk-warn">
+      <div class="risk-card-title">⚠️ AI API cost overrun</div>
+      <div class="risk-card-body">1,000 active Pro users × heavy AI use = potential $3k–8k/month Claude API bills.<br><br><strong>Fix:</strong> Monthly action quota per Pro user (e.g., 500 AI calls/month). Bring-your-own-key option for power users. Hard cap with graceful degradation.</div>
+    </div>
+    <div class="risk-card risk-ok">
+      <div class="risk-card-title">✅ Investor MRR narrative</div>
+      <div class="risk-card-body">The $8/month Pro subscription is your recurring revenue story. One-time license sales are the funnel metric. Investors see: license holders → attach rate → MRR → growth rate. Clean SaaS signal despite the hybrid model.</div>
+    </div>
+    <div class="risk-card risk-ok">
+      <div class="risk-card-title">✅ No 30% platform tax on core revenue</div>
+      <div class="risk-card-body">Desktop license sold on your own website = 100% margin. AI subscription via web billing = 100% margin. App Store / Play Store only distribute the free app. Zero platform cut on real revenue.</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

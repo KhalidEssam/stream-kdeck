@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1117;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 2rem;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.01em;
+  }
+  .subtitle {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 2rem;
+  }
+
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 1.5rem;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* ── BOXES ── */
+  .box {
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+  }
+  .box-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+    opacity: 0.6;
+  }
+  .box-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .box-items {
+    list-style: none;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.7;
+  }
+  .box-items li::before { content: "· "; color: #475569; }
+
+  /* ── COLOR VARIANTS ── */
+  .mobile   { background: linear-gradient(135deg, #1e1b4b 0%, #1a1a2e 100%); border-color: #4f46e5; }
+  .agent    { background: linear-gradient(135deg, #1a2e1a 0%, #0f1a0f 100%); border-color: #16a34a; }
+  .cloud    { background: linear-gradient(135deg, #1a2535 0%, #0f1a25 100%); border-color: #0284c7; }
+  .ext      { background: #161b22; border-color: #30363d; }
+  .ai-box   { background: linear-gradient(135deg, #2d1b1b 0%, #1a0f0f 100%); border-color: #dc2626; }
+
+  /* ── CENTER COLUMN ── */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+
+  /* ── CONNECTION LANES ── */
+  .lane {
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    position: relative;
+  }
+  .lane-primary {
+    background: rgba(22, 163, 74, 0.08);
+    border: 1px solid rgba(22, 163, 74, 0.3);
+  }
+  .lane-secondary {
+    background: rgba(2, 132, 199, 0.08);
+    border: 1px solid rgba(2, 132, 199, 0.3);
+  }
+  .lane-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .lane-primary .lane-label { color: #4ade80; }
+  .lane-secondary .lane-label { color: #38bdf8; }
+
+  .lane-desc {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .lane-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+  .badge-green { background: rgba(22,163,74,0.2); color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
+  .badge-blue  { background: rgba(2,132,199,0.2);  color: #38bdf8; border: 1px solid rgba(2,132,199,0.3); }
+  .badge-red   { background: rgba(220,38,38,0.2);  color: #f87171; border: 1px solid rgba(220,38,38,0.3); }
+  .badge-gray  { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+
+  /* ── FLOW ARROWS ── */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    color: #475569;
+    margin-top: 0.4rem;
+  }
+  .arrow { color: #4ade80; font-size: 0.9rem; }
+  .arrow-blue { color: #38bdf8; }
+
+  /* ── BOTTOM ROW (external services) ── */
+  .ext-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.8rem;
+    margin-top: 0.5rem;
+  }
+  .ext-item {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.72rem;
+  }
+  .ext-item-name {
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 0.2rem;
+  }
+  .ext-item-desc { color: #64748b; font-size: 0.67rem; line-height: 1.4; }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #1e2535;
+    font-size: 0.7rem;
+    color: #64748b;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── LATENCY TAG ── */
+  .latency-tag {
+    position: absolute;
+    top: -10px;
+    right: 12px;
+    background: #0f1117;
+    padding: 0 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── SECTION DIVIDER ── */
+  .section-header {
+    grid-column: 1 / -1;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #475569;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #1e2535;
+    margin-bottom: 0.2rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>Recommended System Architecture</h1>
+<p class="subtitle">AI-Native Control Surface · Mobile App + Lightweight Desktop Agent · Hybrid LAN / Cloud</p>
+
+<div class="arch">
+
+  <!-- ── LEFT: MOBILE APP ── -->
+  <div class="box mobile">
+    <div class="box-title">Client Layer</div>
+    <div class="box-name">📱 Mobile App</div>
+    <ul class="box-items">
+      <li>React Native (Expo)</li>
+      <li>iOS + Android</li>
+      <li>iPad support</li>
+      <li>Configures layouts</li>
+      <li>Touch / gesture input</li>
+      <li>Stores profiles locally</li>
+      <li>Syncs to cloud</li>
+    </ul>
+  </div>
+
+  <!-- ── CENTER: CONNECTION LANES ── -->
+  <div class="center-col">
+
+    <div class="lane lane-primary">
+      <span class="latency-tag" style="color:#4ade80">PRIMARY PATH</span>
+      <div class="lane-label">Local LAN · WebSocket</div>
+      <div class="lane-desc">
+        Phone and agent on same Wi-Fi network.
+        <span class="lane-badge badge-green">1–5ms latency</span>
+        <span class="lane-badge badge-green">No server costs</span>
+        <span class="lane-badge badge-green">Works offline</span>
+      </div>
+      <div class="flow-row">
+        <span class="arrow">→</span> mDNS auto-discovery (Zeroconf / Bonjour)
+      </div>
+      <div class="flow-row">
+        <span class="arrow">→</span> QR code pairing on first connect
+      </div>
+      <div class="flow-row">
+        <span class="arrow">→</span> Encrypted WebSocket (WSS + local token)
+      </div>
+    </div>
+
+    <div class="lane lane-secondary">
+      <span class="latency-tag" style="color:#38bdf8">FALLBACK PATH</span>
+      <div class="lane-label">Cloud Relay · Supabase Realtime</div>
+      <div class="lane-desc">
+        Used when not on same network (office, travel, remote use).
+        <span class="lane-badge badge-blue">50–150ms latency</span>
+        <span class="lane-badge badge-blue">Cross-network</span>
+        <span class="lane-badge badge-gray">Server cost applies</span>
+      </div>
+      <div class="flow-row">
+        <span class="arrow arrow-blue">→</span> Agent maintains persistent Supabase channel
+      </div>
+      <div class="flow-row">
+        <span class="arrow arrow-blue">→</span> Mobile routes via cloud when LAN unreachable
+      </div>
+      <div class="flow-row">
+        <span class="arrow arrow-blue">→</span> Graceful auto-switch between paths
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT: DESKTOP AGENT ── -->
+  <div class="box agent">
+    <div class="box-title">Execution Layer</div>
+    <div class="box-name">🖥️ Desktop Agent</div>
+    <ul class="box-items">
+      <li>Node.js + pkg (tray icon)</li>
+      <li>Windows / macOS / Linux</li>
+      <li>WebSocket server</li>
+      <li>mDNS broadcaster</li>
+      <li>Active app detection</li>
+      <li>App icon extraction</li>
+      <li>Command execution engine</li>
+      <li>Global hotkey listener</li>
+      <li>Clipboard bridge</li>
+      <li>OBS WebSocket client</li>
+      <li>Local AI runner (optional)</li>
+    </ul>
+  </div>
+
+  <!-- ── BOTTOM ROW HEADER ── -->
+  <div class="section-header">External Service Integrations (Agent ↔ Services)</div>
+
+  <!-- ── BOTTOM ROW ── -->
+  <div class="ext-row">
+
+    <div class="ext-item">
+      <div class="ext-item-name">🤖 Claude API</div>
+      <div class="ext-item-desc">AI macro execution, prompt pipelines, clipboard processing, code actions</div>
+    </div>
+
+    <div class="ext-item">
+      <div class="ext-item-name">🎬 OBS WebSocket</div>
+      <div class="ext-item-desc">Scene switching, stream start/stop, source control, live detection</div>
+    </div>
+
+    <div class="ext-item">
+      <div class="ext-item-name">☁️ Supabase</div>
+      <div class="ext-item-desc">Cloud sync, auth, profile storage, marketplace templates, Realtime relay</div>
+    </div>
+
+    <div class="ext-item">
+      <div class="ext-item-name">🔗 Webhooks</div>
+      <div class="ext-item-desc">Zapier, Make, n8n, custom HTTP — triggered from agent or mobile directly</div>
+    </div>
+
+    <div class="ext-item">
+      <div class="ext-item-name">🎵 Media APIs</div>
+      <div class="ext-item-desc">Spotify, system audio, media keys — agent reads system state</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ── LEGEND ── -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div> Local LAN path (primary, ~1–5ms)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div> Cloud relay fallback (~50–150ms)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Agent executes all system commands locally</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div> Mobile app is configuration + control surface only</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#64748b"></div> Supabase handles auth, sync, and cloud relay (one dependency)</div>
+</div>
+
+</body>
+</html>

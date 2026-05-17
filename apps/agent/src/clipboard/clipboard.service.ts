@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import clipboard from 'clipboardy';
+import { clipboard } from 'electron';
 
 @Injectable()
 export class ClipboardService {
   async read(): Promise<string> {
-    return clipboard.read();
+    return clipboard.readText();
   }
 
   async write(text: string): Promise<void> {
-    return clipboard.write(text);
+    clipboard.writeText(text);
   }
 }

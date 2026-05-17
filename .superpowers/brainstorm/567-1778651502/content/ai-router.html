@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Provider AI Router</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1117;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 2rem;
+  }
+  h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.2rem; }
+  .subtitle { font-size: 0.78rem; color: #64748b; margin-bottom: 2rem; }
+
+  /* ── ROUTER DIAGRAM ── */
+  .router-diagram {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr 80px 1fr;
+    gap: 0;
+    align-items: start;
+    margin-bottom: 2rem;
+  }
+  .col { display: flex; flex-direction: column; gap: 0.6rem; }
+  .arrow-col {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding-top: 3.5rem;
+    gap: 0.6rem;
+  }
+  .arrow-line {
+    display: flex; flex-direction: column; align-items: center;
+    color: #30363d; font-size: 0.9rem; gap: 0.1rem;
+  }
+  .arrow-label { font-size: 0.58rem; color: #475569; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* ── CARDS ── */
+  .card {
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.75rem;
+  }
+  .card-title { font-weight: 700; margin-bottom: 0.35rem; font-size: 0.82rem; }
+  .card-sub { color: #64748b; font-size: 0.68rem; line-height: 1.5; }
+
+  .c-mobile  { background: linear-gradient(135deg,#1e1b4b,#14152a); border-color: #4f46e5; }
+  .c-router  { background: linear-gradient(135deg,#1a2535,#101820); border-color: #0284c7; position: relative; }
+  .c-agent   { background: linear-gradient(135deg,#1a2e1a,#0f170f); border-color: #16a34a; }
+
+  /* ── PROVIDER TABLE ── */
+  .providers { display: flex; flex-direction: column; gap: 0.5rem; }
+  .provider {
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid rgba(255,255,255,0.06);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .p-name { font-weight: 700; font-size: 0.78rem; }
+  .p-sub  { font-size: 0.65rem; color: #64748b; margin-top: 0.1rem; }
+  .p-tags { display: flex; gap: 0.3rem; flex-wrap: wrap; justify-content: flex-end; }
+  .tag {
+    font-size: 0.58rem; font-weight: 700; padding: 0.15rem 0.45rem;
+    border-radius: 999px; white-space: nowrap;
+  }
+  .t-free   { background: rgba(22,163,74,0.15);  color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
+  .t-cheap  { background: rgba(234,179,8,0.12);  color: #fbbf24; border: 1px solid rgba(234,179,8,0.25); }
+  .t-med    { background: rgba(2,132,199,0.12);  color: #38bdf8; border: 1px solid rgba(2,132,199,0.3); }
+  .t-code   { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+  .t-byok   { background: rgba(239,68,68,0.1);   color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+  .t-fast   { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.25); }
+
+  /* provider priority stripe */
+  .p1 { background: rgba(22,163,74,0.06);  border-color: rgba(22,163,74,0.2); }
+  .p2 { background: rgba(234,179,8,0.04);  border-color: rgba(234,179,8,0.15); }
+  .p3 { background: rgba(2,132,199,0.04);  border-color: rgba(2,132,199,0.15); }
+  .p4 { background: rgba(168,85,247,0.04); border-color: rgba(168,85,247,0.15); }
+  .p5 { background: rgba(239,68,68,0.04);  border-color: rgba(239,68,68,0.15); }
+
+  /* ── ROUTING LOGIC ── */
+  .routing-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.7rem;
+    margin-bottom: 2rem;
+  }
+  .route-card {
+    background: #161b22; border: 1px solid #21262d;
+    border-radius: 8px; padding: 0.8rem 0.9rem;
+  }
+  .route-type {
+    font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 0.4rem;
+  }
+  .route-example {
+    font-size: 0.72rem; color: #94a3b8; margin-bottom: 0.5rem;
+    line-height: 1.4; font-style: italic;
+  }
+  .route-goes-to {
+    font-size: 0.65rem; font-weight: 700;
+    padding: 0.25rem 0; border-top: 1px solid #21262d;
+    margin-top: 0.4rem;
+  }
+
+  /* ── BYOK SECTION ── */
+  .byok-bar {
+    background: rgba(79,70,229,0.06); border: 1px solid rgba(79,70,229,0.2);
+    border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 2rem;
+    display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;
+  }
+  .byok-label {
+    font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #a5b4fc; margin-bottom: 0.3rem;
+  }
+  .byok-desc { font-size: 0.74rem; color: #64748b; line-height: 1.5; }
+
+  /* ── COST TABLE ── */
+  table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-bottom: 2rem; }
+  th { background: #161b22; color: #64748b; font-size: 0.62rem; font-weight: 700;
+       letter-spacing: 0.08em; text-transform: uppercase; padding: 0.6rem 0.8rem;
+       text-align: left; border-bottom: 1px solid #21262d; }
+  td { padding: 0.65rem 0.8rem; border-bottom: 1px solid #161b22; color: #94a3b8; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .td-name { font-weight: 700; color: #e2e8f0; }
+  .td-green { color: #4ade80; font-weight: 700; }
+  .td-yellow { color: #fbbf24; font-weight: 700; }
+  .td-red { color: #f87171; }
+
+  /* section labels */
+  .section-label {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #475569;
+    margin-bottom: 0.7rem; padding-bottom: 0.5rem;
+    border-bottom: 1px solid #1e2535;
+  }
+</style>
+</head>
+<body>
+
+<h1>Multi-Provider AI Router Architecture</h1>
+<p class="subtitle">Desktop agent routes AI requests across providers to minimize cost · BYOK support for power users</p>
+
+<!-- ── ROUTER DIAGRAM ── -->
+<div class="section-label">System flow</div>
+<div class="router-diagram">
+
+  <!-- Left: mobile -->
+  <div class="col">
+    <div class="card c-mobile">
+      <div class="card-title">📱 Mobile App</div>
+      <div class="card-sub">
+        User presses AI button.<br>
+        Sends action payload:<br>
+        <code style="color:#a5b4fc;font-size:0.68rem">{ task: "summarize", context: "clipboard", prompt: "..." }</code><br><br>
+        Mobile never touches API keys.<br>
+        Never calls AI directly.
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 1 -->
+  <div class="arrow-col">
+    <div class="arrow-line">
+      <span>→</span>
+      <span class="arrow-label">WS / LAN</span>
+    </div>
+  </div>
+
+  <!-- Center: router in agent -->
+  <div class="col">
+    <div class="card c-router">
+      <div class="card-title">🧠 AI Router</div>
+      <div class="card-sub" style="margin-bottom:0.6rem">Lives inside the Desktop Agent</div>
+      <div style="font-size:0.68rem;line-height:1.8;color:#94a3b8">
+        1. Classify task type (simple / medium / code / complex)<br>
+        2. Check provider health + quota remaining<br>
+        3. Select cheapest available provider<br>
+        4. Fallback chain if provider fails<br>
+        5. Rate-limit per user per month<br>
+        6. Return response to mobile
+      </div>
+    </div>
+    <div class="card" style="background:#161b22;border-color:#21262d;font-size:0.68rem;color:#475569;line-height:1.6">
+      <strong style="color:#e2e8f0">Keys stored here only.</strong><br>
+      Encrypted in OS keychain.<br>
+      Never leave the desktop agent.<br>
+      Never sent to mobile or cloud.
+    </div>
+  </div>
+
+  <!-- Arrow 2 -->
+  <div class="arrow-col">
+    <div class="arrow-line">
+      <span>→</span>
+      <span class="arrow-label">HTTPS</span>
+    </div>
+  </div>
+
+  <!-- Right: providers -->
+  <div class="col">
+    <div class="providers">
+      <div class="provider p1">
+        <div>
+          <div class="p-name">Gemini 1.5 Flash</div>
+          <div class="p-sub">Google · Free tier first</div>
+        </div>
+        <div class="p-tags">
+          <span class="tag t-free">FREE</span>
+          <span class="tag t-fast">Fast</span>
+        </div>
+      </div>
+      <div class="provider p2">
+        <div>
+          <div class="p-name">DeepSeek V3</div>
+          <div class="p-sub">$0.00027/1K tokens</div>
+        </div>
+        <div class="p-tags">
+          <span class="tag t-cheap">Ultra-cheap</span>
+        </div>
+      </div>
+      <div class="provider p3">
+        <div>
+          <div class="p-name">Qwen 2.5</div>
+          <div class="p-sub">Alibaba · free + paid tiers</div>
+        </div>
+        <div class="p-tags">
+          <span class="tag t-free">FREE</span>
+          <span class="tag t-cheap">Cheap</span>
+        </div>
+      </div>
+      <div class="provider p4">
+        <div>
+          <div class="p-name">Claude Haiku 3.5</div>
+          <div class="p-sub">Anthropic · $0.0008/1K</div>
+        </div>
+        <div class="p-tags">
+          <span class="tag t-code">Code</span>
+          <span class="tag t-fast">Fast</span>
+        </div>
+      </div>
+      <div class="provider p5">
+        <div>
+          <div class="p-name">Claude Sonnet / GPT-4o</div>
+          <div class="p-sub">High precision only</div>
+        </div>
+        <div class="p-tags">
+          <span class="tag t-med">Premium</span>
+          <span class="tag t-byok">BYOK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── ROUTING LOGIC ── -->
+<div class="section-label">Task classification → provider selection</div>
+<div class="routing-grid">
+  <div class="route-card">
+    <div class="route-type" style="color:#4ade80">Simple</div>
+    <div class="route-example">"Summarize clipboard" · "Rewrite shorter" · "Translate this" · "Fix grammar"</div>
+    <div class="route-goes-to" style="color:#4ade80">→ Gemini Flash (free) → DeepSeek fallback</div>
+  </div>
+  <div class="route-card">
+    <div class="route-type" style="color:#fbbf24">Creative</div>
+    <div class="route-example">"Write tweet about this" · "Draft reply" · "Generate caption" · "Stream title ideas"</div>
+    <div class="route-goes-to" style="color:#fbbf24">→ Qwen 2.5 → DeepSeek → Gemini fallback</div>
+  </div>
+  <div class="route-card">
+    <div class="route-type" style="color:#c084fc">Code</div>
+    <div class="route-example">"Explain this error" · "Write tests" · "Refactor to TS" · "Add types"</div>
+    <div class="route-goes-to" style="color:#c084fc">→ Claude Haiku → DeepSeek (code-tuned)</div>
+  </div>
+  <div class="route-card">
+    <div class="route-type" style="color:#f87171">Complex / Chain</div>
+    <div class="route-example">Multi-step pipelines · Long-context analysis · Structured JSON output</div>
+    <div class="route-goes-to" style="color:#f87171">→ Claude Sonnet (BYOK preferred) → GPT-4o</div>
+  </div>
+</div>
+
+<!-- ── BYOK ── -->
+<div class="section-label">Bring Your Own Key (BYOK)</div>
+<div class="byok-bar">
+  <div style="flex:1;min-width:200px">
+    <div class="byok-label">For developers and power users</div>
+    <div class="byok-desc">
+      User enters their own Anthropic / Google / OpenAI API key in the desktop agent settings tray.<br>
+      Their key takes full priority — bypasses all platform quotas and routing.<br>
+      Cost is 100% theirs. Platform pays $0 for their AI usage.
+    </div>
+  </div>
+  <div style="flex:1;min-width:200px">
+    <div class="byok-label">Why this is a feature, not a workaround</div>
+    <div class="byok-desc">
+      Developers want full control of which model they use.<br>
+      Claude Code users already have Anthropic API keys.<br>
+      BYOK users get unlimited AI with zero quota warnings.<br>
+      Perfect upsell: "bring your own key or use our pool at $8/mo."
+    </div>
+  </div>
+</div>
+
+<!-- ── COST TABLE ── -->
+<div class="section-label">Estimated cost per 1,000 AI actions (platform-side)</div>
+<table>
+  <thead>
+    <tr>
+      <th>Provider</th>
+      <th>Model</th>
+      <th>Cost / 1K actions (est.)</th>
+      <th>Free tier</th>
+      <th>Best for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="td-name">Google Gemini</td>
+      <td>1.5 Flash</td>
+      <td class="td-green">~$0.00 (free quota)</td>
+      <td>✅ 1M tokens/day</td>
+      <td>Simple tasks, first priority</td>
+    </tr>
+    <tr>
+      <td class="td-name">DeepSeek</td>
+      <td>V3 / R1</td>
+      <td class="td-green">~$0.27</td>
+      <td>No</td>
+      <td>Cost-efficient fallback</td>
+    </tr>
+    <tr>
+      <td class="td-name">Qwen</td>
+      <td>2.5 / 2.5-Turbo</td>
+      <td class="td-green">~$0.00–$0.20</td>
+      <td>✅ Generous</td>
+      <td>Creative + multilingual</td>
+    </tr>
+    <tr>
+      <td class="td-name">Anthropic</td>
+      <td>Claude Haiku 3.5</td>
+      <td class="td-yellow">~$0.80</td>
+      <td>No</td>
+      <td>Code tasks</td>
+    </tr>
+    <tr>
+      <td class="td-name">Anthropic</td>
+      <td>Claude Sonnet 4.6</td>
+      <td class="td-red">~$3.00</td>
+      <td>No</td>
+      <td>Complex chains only</td>
+    </tr>
+    <tr>
+      <td class="td-name">OpenAI</td>
+      <td>GPT-4o-mini</td>
+      <td class="td-green">~$0.15</td>
+      <td>No</td>
+      <td>General fallback</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

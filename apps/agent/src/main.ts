@@ -25,4 +25,4 @@ app.whenReady().then(async () => {
   await bootstrapNestJS();
 });
 
-app.on('window-all-closed', (e: Event) => e.preventDefault());
+app.on('window-all-closed', () => { /* tray-only app — stay alive with no windows */ });

@@ -1,0 +1,18 @@
+{
+  "eslint.workingDirectories": [
+    {
+      "directory": "rawaq-web",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "rawaq-mobile",
+      "changeProcessCWD": true
+    }
+  ],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ]
+}

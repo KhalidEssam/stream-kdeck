@@ -1,4 +1,154 @@
 {
-  "tiles": [],
+  "tiles": [
+    {
+      "kind": "app",
+      "label": "YouTube",
+      "iconId": "youtube",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "youtube"
+      },
+      "id": "3d1e9e30-9cfb-44c1-9703-092698ff69b2"
+    },
+    {
+      "kind": "app",
+      "label": "Claude",
+      "iconId": "claude",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "claude"
+      },
+      "id": "a8648ac4-0c22-4a28-9948-469d03888c85"
+    },
+    {
+      "kind": "app",
+      "label": "Discord",
+      "iconId": "discord",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "discord"
+      },
+      "id": "07b10db7-cae4-4691-a219-32b4dcf95023"
+    },
+    {
+      "kind": "app",
+      "label": "VS Code",
+      "iconId": "vscode",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "vscode"
+      },
+      "id": "ae5d7d67-b561-4500-abad-b95388bded11"
+    },
+    {
+      "kind": "app",
+      "label": "File Explorer",
+      "iconId": "explorer",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "explorer"
+      },
+      "id": "262042a4-bef7-45f0-b565-6993be30d86c"
+    },
+    {
+      "kind": "app",
+      "label": "Spotify",
+      "iconId": "spotify",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "spotify"
+      },
+      "id": "b9d66bb0-bfd6-4ab1-96bb-4fcfbfeac621"
+    },
+    {
+      "kind": "app",
+      "label": "Slack",
+      "iconId": "slack",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "slack"
+      },
+      "id": "5ef30e52-4459-4595-8511-52bb5396bec3"
+    },
+    {
+      "kind": "app",
+      "label": "OBS Studio",
+      "iconId": "obs",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "obs"
+      },
+      "id": "43108d56-fa91-43cd-9030-e56f79aabc4a"
+    },
+    {
+      "kind": "app",
+      "label": "Twitch",
+      "iconId": "twitch",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "twitch"
+      },
+      "id": "ffc81542-55af-4847-a59e-2245078c39a4"
+    },
+    {
+      "kind": "app",
+      "label": "Postman",
+      "iconId": "postman",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "postman"
+      },
+      "id": "8cdc934c-3734-4d51-8293-2ae14702030d"
+    },
+    {
+      "kind": "app",
+      "label": "WhatsApp",
+      "iconId": "whatsapp",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "whatsapp"
+      },
+      "id": "bbd96b05-56ec-4608-ad0f-80ccfc944a43"
+    },
+    {
+      "kind": "app",
+      "label": "Notion",
+      "iconId": "notion",
+      "action": {
+        "kind": "APP_LAUNCH",
+        "appId": "notion"
+      },
+      "id": "753d65d5-e8a9-466b-9aa4-387f50a94dd0"
+    },
+    {
+      "kind": "shortcut",
+      "label": "Powertoys",
+      "iconId": "keyboard",
+      "color": "#0F2A1A",
+      "action": {
+        "kind": "KEYSTROKE",
+        "keys": [
+          "ctrl",
+          "win",
+          "t"
+        ]
+      },
+      "id": "e1a7e101-1bfb-49a7-ab90-af3ef93f6cc2"
+    },
+    {
+      "kind": "shortcut",
+      "label": "Win+X",
+      "iconId": "keyboard",
+      "color": "#0F2A1A",
+      "action": {
+        "kind": "KEYSTROKE",
+        "keys": [
+          "win",
+          "x"
+        ]
+      },
+      "id": "85b8c507-f018-4cb4-97a0-f5a07a3a5e5a"
+    }
+  ],
   "overrides": {}
 }

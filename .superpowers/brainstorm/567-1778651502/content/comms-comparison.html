@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Communication Protocol Comparison</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1117;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 2rem;
+  }
+  h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 0.78rem; color: #64748b; margin-bottom: 1.8rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  th {
+    background: #161b22;
+    color: #94a3b8;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.7rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #21262d;
+  }
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #161b22;
+    vertical-align: middle;
+    color: #94a3b8;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .method { font-weight: 700; color: #e2e8f0; }
+
+  .verdict {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .v-primary  { background: rgba(22,163,74,0.15);  color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
+  .v-fallback { background: rgba(2,132,199,0.15);   color: #38bdf8; border: 1px solid rgba(2,132,199,0.3); }
+  .v-skip     { background: rgba(239,68,68,0.12);   color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+  .v-layer    { background: rgba(168,85,247,0.12);  color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+
+  .score {
+    display: flex;
+    gap: 2px;
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #21262d;
+  }
+  .dot.on { background: #4ade80; }
+  .dot.half { background: #f59e0b; }
+
+  .highlight-row td { background: rgba(22,163,74,0.04); }
+  .highlight-row-b td { background: rgba(2,132,199,0.04); }
+
+  .note {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    margin-top: 1.2rem;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.6;
+  }
+  .note strong { color: #f87171; }
+</style>
+</head>
+<body>
+
+<h1>Communication Protocol Comparison</h1>
+<p class="subtitle">Evaluating every viable transport option for mobile → desktop control</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Latency</th>
+      <th>Setup Friction</th>
+      <th>Offline</th>
+      <th>Cost at Scale</th>
+      <th>iOS Friendly</th>
+      <th>Complexity</th>
+      <th>Verdict</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    <tr class="highlight-row">
+      <td class="method">LAN WebSocket</td>
+      <td>1–5ms</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Very low
+      </td>
+      <td>✅ Yes</td>
+      <td>$0</td>
+      <td>✅ Full</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Simple
+      </td>
+      <td><span class="verdict v-primary">Primary Path</span></td>
+    </tr>
+
+    <tr class="highlight-row-b">
+      <td class="method">Cloud WebSocket Relay<br><small style="color:#475569">(Supabase Realtime)</small></td>
+      <td>50–150ms</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Zero (transparent)
+      </td>
+      <td>❌ No</td>
+      <td>Low–Med</td>
+      <td>✅ Full</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div>
+        </div>
+        Moderate
+      </td>
+      <td><span class="verdict v-fallback">Fallback Path</span></td>
+    </tr>
+
+    <tr>
+      <td class="method">mDNS / Zeroconf</td>
+      <td>Discovery only</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Zero
+      </td>
+      <td>✅ Yes</td>
+      <td>$0</td>
+      <td>⚠️ Partial</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        Medium
+      </td>
+      <td><span class="verdict v-layer">Discovery Layer</span></td>
+    </tr>
+
+    <tr>
+      <td class="method">QR Code Pairing</td>
+      <td>N/A (pairing only)</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Minimal
+      </td>
+      <td>✅ Yes</td>
+      <td>$0</td>
+      <td>✅ Full</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div>
+        </div>
+        Low
+      </td>
+      <td><span class="verdict v-layer">Pairing Layer</span></td>
+    </tr>
+
+    <tr>
+      <td class="method">Bluetooth Classic / BLE</td>
+      <td>10–40ms</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        High — pairing UX pain
+      </td>
+      <td>✅ Yes</td>
+      <td>$0</td>
+      <td>🚫 Restricted</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        High
+      </td>
+      <td><span class="verdict v-skip">Skip — iOS trap</span></td>
+    </tr>
+
+    <tr>
+      <td class="method">WebRTC</td>
+      <td>20–80ms</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        High — STUN/TURN overhead
+      </td>
+      <td>⚠️ Partial</td>
+      <td>Med (TURN)</td>
+      <td>✅ Supported</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div>
+        </div>
+        Very High
+      </td>
+      <td><span class="verdict v-skip">Skip — overkill</span></td>
+    </tr>
+
+    <tr>
+      <td class="method">USB</td>
+      <td>&lt;1ms</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        Very high — drivers
+      </td>
+      <td>✅ Yes</td>
+      <td>$0</td>
+      <td>🚫 iOS blocked</td>
+      <td>
+        <div class="score">
+          <div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div>
+        </div>
+        Extreme
+      </td>
+      <td><span class="verdict v-skip">Skip — iOS dead end</span></td>
+    </tr>
+
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Bluetooth warning:</strong> iOS CoreBluetooth restricts BLE background scanning. When your app goes to background, BLE scanning stops within seconds. Users would have to keep the app in foreground permanently — which defeats the purpose of a control surface. Every competitor who shipped BT-first eventually pivoted. Don't repeat that mistake.
+</div>
+
+</body>
+</html>
