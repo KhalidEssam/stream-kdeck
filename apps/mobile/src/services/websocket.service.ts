@@ -7,18 +7,26 @@ import {
   TileConfig,
   AddTileMessage,
   RemoveTileMessage,
+  SearchAppsMessage,
+  ValidatePathMessage,
+  SearchAppsResultMessage,
+  ValidatePathResultMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 type StatusCallback = (status: Status) => void;
 type ResultCallback = (msg: ActionResultMessage) => void;
 type DeckConfigCallback = (msg: DeckConfigMessage) => void;
+type SearchAppsResultCallback = (msg: SearchAppsResultMessage) => void;
+type ValidatePathResultCallback = (msg: ValidatePathResultMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private statusCallbacks: StatusCallback[] = [];
   private resultCallbacks: ResultCallback[] = [];
   private deckConfigCallbacks: DeckConfigCallback[] = [];
+  private searchAppsCallbacks: SearchAppsResultCallback[] = [];
+  private validatePathCallbacks: ValidatePathResultCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -39,6 +47,10 @@ export class WebSocketService {
         this.resultCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'DECK_CONFIG') {
         this.deckConfigCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'SEARCH_APPS_RESULT') {
+        this.searchAppsCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'VALIDATE_PATH_RESULT') {
+        this.validatePathCallbacks.forEach((cb) => cb(msg));
       }
     };
 
@@ -65,6 +77,18 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  searchApps(query: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: SearchAppsMessage = { type: 'SEARCH_APPS', query };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  validatePath(exePath: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: ValidatePathMessage = { type: 'VALIDATE_PATH', exePath };
+    this.ws.send(JSON.stringify(msg));
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -75,6 +99,20 @@ export class WebSocketService {
 
   onDeckConfig(cb: DeckConfigCallback): void {
     this.deckConfigCallbacks.push(cb);
+  }
+
+  onSearchAppsResult(cb: SearchAppsResultCallback): () => void {
+    this.searchAppsCallbacks.push(cb);
+    return () => {
+      this.searchAppsCallbacks = this.searchAppsCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onValidatePathResult(cb: ValidatePathResultCallback): () => void {
+    this.validatePathCallbacks.push(cb);
+    return () => {
+      this.validatePathCallbacks = this.validatePathCallbacks.filter((c) => c !== cb);
+    };
   }
 
   reconnect(): void {
