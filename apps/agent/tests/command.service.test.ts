@@ -3,12 +3,14 @@ import { CommandService } from '../src/command/command.service';
 import { ClipboardService } from '../src/clipboard/clipboard.service';
 import { AiRouterService } from '../src/ai/ai-router.service';
 import { AppLaunchService } from '../src/app-launch/app-launch.service';
+import { KeystrokeService } from '../src/keystroke/keystroke.service';
 
 describe('CommandService', () => {
   let commandService: CommandService;
   let clipboardService: ClipboardService;
   let mockAiRouter: { call: jest.Mock };
   let mockAppLaunch: { launch: jest.Mock; openUrl: jest.Mock };
+  let mockKeystroke: { execute: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -16,6 +18,7 @@ describe('CommandService', () => {
       launch: jest.fn().mockResolvedValue(undefined),
       openUrl: jest.fn().mockResolvedValue(undefined),
     };
+    mockKeystroke = { execute: jest.fn().mockResolvedValue(undefined) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -23,6 +26,7 @@ describe('CommandService', () => {
         ClipboardService,
         { provide: AiRouterService, useValue: mockAiRouter },
         { provide: AppLaunchService, useValue: mockAppLaunch },
+        { provide: KeystrokeService, useValue: mockKeystroke },
       ],
     }).compile();
 
@@ -74,10 +78,17 @@ describe('CommandService', () => {
     expect(await clipboardService.read()).toBe('my text');
   });
 
-  it('returns success: false for unimplemented KEYSTROKE', async () => {
-    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['cmd', 'c'] });
+  it('executes KEYSTROKE — delegates to KeystrokeService', async () => {
+    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'c'] });
+    expect(result.success).toBe(true);
+    expect(mockKeystroke.execute).toHaveBeenCalledWith(['ctrl', 'c']);
+  });
+
+  it('returns error when KeystrokeService throws (unknown key)', async () => {
+    mockKeystroke.execute.mockRejectedValueOnce(new Error('Unknown key: "xyz"'));
+    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'xyz'] });
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/not yet implemented/i);
+    expect(result.error).toMatch(/Unknown key/);
   });
 
   it('executes APP_LAUNCH — calls appLaunch.launch with appId', async () => {

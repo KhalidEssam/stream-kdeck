@@ -3,6 +3,7 @@ import { ButtonAction } from '@control-surface/shared';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
+import { KeystrokeService } from '../keystroke/keystroke.service';
 
 export interface CommandResult {
   success: boolean;
@@ -16,6 +17,7 @@ export class CommandService {
     private readonly clipboard: ClipboardService,
     private readonly aiRouter: AiRouterService,
     private readonly appLaunch: AppLaunchService,
+    private readonly keystroke: KeystrokeService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -44,7 +46,8 @@ export class CommandService {
           return { success: true };
 
         case 'KEYSTROKE':
-          return { success: false, error: 'KEYSTROKE not yet implemented (Week 3-4)' };
+          await this.keystroke.execute(action.keys);
+          return { success: true };
 
         default: {
           const exhaustive: never = action;
