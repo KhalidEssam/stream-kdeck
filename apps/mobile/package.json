@@ -22,6 +22,8 @@
     "@types/react-native": "^0.72.8",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
+    "jest-websocket-mock": "^2.5.0",
+    "mock-socket": "^9.3.1",
     "ts-jest": "^29.4.9"
   }
 }
