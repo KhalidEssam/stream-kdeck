@@ -57,7 +57,7 @@ export function AuthScreen({ onAuthenticated }: Props) {
         style={styles.inner}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Text style={styles.logo}>Control Surface</Text>
+        <Text style={styles.logo}>KDeck</Text>
 
         {step === 'email' ? (
           <>

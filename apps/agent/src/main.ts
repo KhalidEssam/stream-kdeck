@@ -18,7 +18,7 @@ app.whenReady().then(async () => {
 
   const buildTrayMenu = () =>
     Menu.buildFromTemplate([
-      { label: 'Control Surface Agent v0.1.0', enabled: false },
+      { label: 'KDeck Agent v0.1.0', enabled: false },
       { type: 'separator' },
       {
         label:   licenseService.isLicensed() ? 'Licensed ✓' : 'Activate License…',
@@ -32,7 +32,7 @@ app.whenReady().then(async () => {
   const iconPath = path.join(__dirname, '../assets/icon.png');
   try {
     tray = new Tray(iconPath);
-    tray.setToolTip('Control Surface Agent');
+    tray.setToolTip('KDeck Agent');
     tray.setContextMenu(buildTrayMenu());
   } catch {
     console.warn('[Agent] Could not load tray icon — continuing without tray');

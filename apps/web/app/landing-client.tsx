@@ -29,7 +29,7 @@ const FEATURES = [
         <path d="M9 7h6M9 11h6M9 15h4" />
       </svg>
     ),
-    title: 'Mobile Control Surface',
+    title: 'Mobile Deck Remote',
     body:  'Your phone becomes a customisable deck. Tap tiles to fire actions on your desktop in real time.',
   },
   {

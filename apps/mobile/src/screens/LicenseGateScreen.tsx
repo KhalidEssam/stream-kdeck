@@ -22,7 +22,7 @@ export function LicenseGateScreen({ onRequestActivation }: Props) {
         <Text style={styles.icon}>🔒</Text>
         <Text style={styles.title}>License Required</Text>
         <Text style={styles.body}>
-          Control Surface requires a Desktop License ($19 one-time) to unlock the full
+          KDeck requires a Desktop License ($19 one-time) to unlock the full
           experience including AI tools, keyboard shortcuts, and app launcher.
         </Text>
 

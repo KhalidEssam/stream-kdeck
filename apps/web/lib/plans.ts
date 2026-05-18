@@ -14,19 +14,19 @@ export interface PlanConfig {
 
 const PLAN_META: Record<PlanId, { name: string; amountKey: 'license_amount_cents' | 'ai_pro_monthly_amount_cents' | 'ai_pro_yearly_amount_cents'; aiPro: boolean; period: number | null }> = {
   desktop_license: {
-    name: 'Control Surface Desktop License',
+    name: 'KDeck Desktop License',
     amountKey: 'license_amount_cents',
     aiPro: false,
     period: null,
   },
   ai_pro_monthly: {
-    name: 'Control Surface AI Pro Monthly',
+    name: 'KDeck AI Pro Monthly',
     amountKey: 'ai_pro_monthly_amount_cents',
     aiPro: true,
     period: 1,
   },
   ai_pro_yearly: {
-    name: 'Control Surface AI Pro Yearly',
+    name: 'KDeck AI Pro Yearly',
     amountKey: 'ai_pro_yearly_amount_cents',
     aiPro: true,
     period: 12,

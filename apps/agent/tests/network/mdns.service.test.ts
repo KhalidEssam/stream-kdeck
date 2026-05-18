@@ -27,7 +27,7 @@ describe('MdnsService', () => {
   it('publishes _controlsurface._tcp on bootstrap', () => {
     service.onApplicationBootstrap();
     expect(mockPublish).toHaveBeenCalledWith({
-      name: 'Control Surface Agent',
+      name: 'KDeck Agent',
       type: 'controlsurface',
       port: AGENT_PORT,
     });

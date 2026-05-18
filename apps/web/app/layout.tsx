@@ -18,7 +18,7 @@ const figtree = Figtree({
 
 export const metadata: Metadata = {
   title: { default: 'KDeck', template: '%s · KDeck' },
-  description: 'A programmable control surface for your desktop. Custom tiles, AI assistant, and shortcuts for every workflow.',
+  description: 'KDeck — a programmable tile deck for your desktop. Custom tiles, AI assistant, and shortcuts for every workflow.',
   keywords: ['stream deck alternative', 'macro keyboard', 'custom shortcuts', 'productivity tool', 'KDeck'],
 };
 

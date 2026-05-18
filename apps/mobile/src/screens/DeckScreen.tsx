@@ -214,7 +214,7 @@ export function DeckScreen() {
         <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
         <View style={styles.centerFill}>
           <ActivityIndicator size="large" color="#5B4FE8" style={{ marginBottom: 16 }} />
-          <Text style={styles.loadingText}>Looking for Control Surface agent…</Text>
+          <Text style={styles.loadingText}>Looking for KDeck agent…</Text>
           <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8, color: '#6B6B8A' }]}>
             Make sure your desktop and phone are on the same WiFi network.
           </Text>
@@ -271,7 +271,7 @@ export function DeckScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
 
       <View style={styles.header}>
-        <Text style={styles.title}>Control Surface</Text>
+        <Text style={styles.title}>KDeck</Text>
         <TouchableOpacity style={styles.statusBadge} onPress={handleRefresh} activeOpacity={0.7}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>

@@ -1,4 +1,4 @@
-# Control Surface Web
+# KDeck Web
 
 Next.js App Router website and serverless API layer for the SaaS licensing cycle.
 

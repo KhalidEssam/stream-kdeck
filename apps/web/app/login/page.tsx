@@ -68,7 +68,7 @@ export default function LoginPage() {
         <p>
           {status === 'loading'
             ? 'Finishing secure sign-in...'
-            : 'Use the email connected to your Control Surface purchase.'}
+            : 'Use the email connected to your KDeck purchase.'}
         </p>
         <label className="field">
           <span>Email</span>

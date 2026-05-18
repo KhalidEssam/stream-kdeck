@@ -71,7 +71,7 @@ export function discoverAgent(
     if (!resolved) {
       resolved = true;
       cleanupZeroconf(zc);
-      onTimeout('No Control Surface agent found on this network.');
+      onTimeout('No KDeck agent found on this network.');
     }
   }, timeoutMs);
 

@@ -6,10 +6,10 @@ export async function sendLicenseEmail(input: {
   planName: string;
 }): Promise<void> {
   const apiKey = getOptionalEnv('RESEND_API_KEY');
-  const from = getEnv('EMAIL_FROM', 'Control Surface <licenses@example.com>');
-  const subject = 'Your Control Surface license key';
+  const from = getEnv('EMAIL_FROM', 'KDeck <licenses@example.com>');
+  const subject = 'Your KDeck license key';
   const text = [
-    'Thanks for buying Control Surface.',
+    'Thanks for buying KDeck.',
     '',
     `License key: ${input.licenseKey}`,
     `Plan: ${input.planName}`,
@@ -38,8 +38,8 @@ export async function sendLicenseEmail(input: {
       text,
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
-          <h1>Your Control Surface license</h1>
-          <p>Thanks for buying Control Surface.</p>
+          <h1>Your KDeck license</h1>
+          <p>Thanks for buying KDeck.</p>
           <p><strong>License key:</strong></p>
           <p style="font-size:20px;font-weight:700;letter-spacing:1px">${escapeHtml(input.licenseKey)}</p>
           <p><strong>Plan:</strong> ${escapeHtml(input.planName)}</p>

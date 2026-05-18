@@ -36,7 +36,7 @@ export class ActivationDialogService {
       height:    300,
       resizable: false,
       center:    true,
-      title:     'Activate Control Surface',
+      title:     'Activate KDeck',
       webPreferences: {
         nodeIntegration:  true,
         contextIsolation: false,
@@ -117,7 +117,7 @@ export class ActivationDialogService {
   </style>
 </head>
 <body>
-  <h2>Activate Control Surface</h2>
+  <h2>Activate KDeck</h2>
   <p>Enter the license key from your purchase confirmation email.</p>
   <input id="k" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
   <div id="err"></div>

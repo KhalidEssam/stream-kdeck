@@ -12,7 +12,7 @@ export class MdnsService implements OnApplicationBootstrap, OnApplicationShutdow
   onApplicationBootstrap(): void {
     this.bonjour = new Bonjour();
     this.service = this.bonjour.publish({
-      name: 'Control Surface Agent',
+      name: 'KDeck Agent',
       type: 'controlsurface',
       port: AGENT_PORT,
     });

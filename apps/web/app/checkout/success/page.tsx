@@ -14,8 +14,8 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
         <h1>{provisioned ? 'License ready' : 'Payment received'}</h1>
         <p>
           {provisioned
-            ? 'Your Control Surface license has been provisioned. Check your email for the activation key.'
-            : 'When Paymob sends the confirmed transaction webhook, the server provisions your Supabase account and emails your Control Surface license key.'}
+            ? 'Your KDeck license has been provisioned. Check your email for the activation key.'
+            : 'When Paymob sends the confirmed transaction webhook, the server provisions your Supabase account and emails your KDeck license key.'}
         </p>
         <a className="nav-link" href="/">
           Back to checkout

@@ -1,14 +1,14 @@
-# Control Surface — Shipping Checklist
+# KDeck — Shipping Checklist
 
 ## Features remaining before public launch
 
 ### P0 — Required for any user to use the product
 
-| # | Feature | Plan |
-|---|---------|------|
-| 1 | **mDNS auto-discovery** — agent advertises on LAN, mobile finds it without manual IP | `docs/superpowers/plans/2026-05-18-mdns-auto-discovery.md` |
-| 2 | **AI proxy Edge Function** — move `GEMINI_API_KEY` server-side so it is never bundled in the installer | TBD |
-| 3 | **electron-builder installer** — produce `.exe` / `.dmg` distributable that users double-click to install | TBD |
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | **mDNS auto-discovery** — agent advertises on LAN, mobile finds it without manual IP | ✅ Done |
+| 2 | **AI proxy Edge Function** — `GEMINI_API_KEY` moved server-side, agent calls Edge Function with JWT | ✅ Done — deploy: `supabase functions deploy ai-proxy && supabase secrets set GEMINI_API_KEY=...` |
+| 3 | **electron-builder installer** — produce `.exe` / `.dmg` distributable that users double-click to install | ⏳ Next |
 
 ### P1 — Required before charging real money
 
@@ -21,7 +21,7 @@
 
 | # | Feature | Notes |
 |---|---------|-------|
-| 6 | Remove temporary JWT debug `console.log` lines added in `license.service.ts` | Quick cleanup |
+| 6 | Remove temporary JWT debug `console.log` lines in `license.service.ts` | Quick cleanup |
 | 7 | DMARC record on `target-for-engineering.com` mail domain | DNS task |
 
 ---

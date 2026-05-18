@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <header className="workspace-header">
           <div>
             <p className="eyebrow">Customer dashboard</p>
-            <h1>Control Surface</h1>
+            <h1>KDeck</h1>
             <p>{session.user.email}</p>
           </div>
           <LogoutButton />
