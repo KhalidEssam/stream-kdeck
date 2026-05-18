@@ -9,6 +9,8 @@ let tray: Tray | null = null;
 app.whenReady().then(async () => {
   app.dock?.hide();
 
+  process.env.USER_DATA_PATH = app.getPath('userData');
+
   const { nestApp } = await bootstrapNestJS();
 
   const licenseService   = nestApp.get(LicenseService);
