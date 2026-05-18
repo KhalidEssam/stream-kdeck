@@ -6,6 +6,7 @@ declare global {
       readonly EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
       readonly EXPO_PUBLIC_PURCHASE_URL?: string;
       readonly EXPO_PUBLIC_UPGRADE_URL?: string;
+      readonly EXPO_PUBLIC_AGENT_WS_URL?: string;
     }
   }
 
