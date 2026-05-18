@@ -1,11 +1,43 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = readUrlSessionParams();
+    if (!params) return;
+
+    let cancelled = false;
+    setStatus('loading');
+    setError(null);
+
+    fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = (await response.json()) as { error?: string };
+          throw new Error(data.error ?? 'Could not finish sign-in.');
+        }
+        window.history.replaceState(null, '', '/login');
+        window.location.assign('/dashboard');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setStatus('idle');
+        setError(err instanceof Error ? err.message : 'Could not finish sign-in.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,7 +65,11 @@ export default function LoginPage() {
       <form className="status-card" onSubmit={submit}>
         <p className="eyebrow">Customer sign in</p>
         <h1>Open your dashboard</h1>
-        <p>Use the email connected to your Control Surface purchase.</p>
+        <p>
+          {status === 'loading'
+            ? 'Finishing secure sign-in...'
+            : 'Use the email connected to your Control Surface purchase.'}
+        </p>
         <label className="field">
           <span>Email</span>
           <input
@@ -54,4 +90,26 @@ export default function LoginPage() {
       </form>
     </main>
   );
+}
+
+function readUrlSessionParams(): {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: string;
+} | null {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const search = new URLSearchParams(window.location.search);
+  const accessToken = hash.get('access_token') ?? search.get('access_token');
+  const refreshToken = hash.get('refresh_token') ?? search.get('refresh_token');
+  const expiresIn = hash.get('expires_in') ?? search.get('expires_in') ?? undefined;
+
+  if (!accessToken || !refreshToken) {
+    return null;
+  }
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+  };
 }

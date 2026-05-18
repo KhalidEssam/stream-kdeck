@@ -1,4 +1,4 @@
-import { errors, jwtVerify, JWTPayload } from 'jose';
+import { createRemoteJWKSet, decodeProtectedHeader, errors, jwtVerify, JWTPayload } from 'jose';
 import { getEnv } from '../env';
 
 export type StaffRole = 'admin' | 'owner';
@@ -20,10 +20,11 @@ export class AccessTokenExpiredError extends Error {
   }
 }
 
+let remoteJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+
 export async function verifyAccessToken(token: string): Promise<VerifiedAccessToken> {
   try {
-    const secret = new TextEncoder().encode(getEnv('SUPABASE_JWT_SECRET'));
-    const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
+    const { payload } = await verifySupabaseJwt(token);
     return mapJwtPayload(payload);
   } catch (err) {
     if (err instanceof errors.JWTExpired) {
@@ -31,6 +32,31 @@ export async function verifyAccessToken(token: string): Promise<VerifiedAccessTo
     }
     throw err;
   }
+}
+
+async function verifySupabaseJwt(token: string): Promise<{ payload: JWTPayload }> {
+  const header = decodeProtectedHeader(token);
+
+  if (header.alg === 'HS256') {
+    const secret = new TextEncoder().encode(getEnv('SUPABASE_JWT_SECRET'));
+    return jwtVerify(token, secret, { algorithms: ['HS256'] });
+  }
+
+  if (header.alg === 'ES256' || header.alg === 'RS256') {
+    return jwtVerify(token, getSupabaseJwks(), { algorithms: ['ES256', 'RS256'] });
+  }
+
+  throw new Error(`Unsupported Supabase JWT algorithm: ${header.alg ?? 'unknown'}`);
+}
+
+function getSupabaseJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!remoteJwks) {
+    remoteJwks = createRemoteJWKSet(
+      new URL('/auth/v1/.well-known/jwks.json', getEnv('SUPABASE_URL')),
+    );
+  }
+
+  return remoteJwks;
 }
 
 function mapJwtPayload(payload: JWTPayload): VerifiedAccessToken {
