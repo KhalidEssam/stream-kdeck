@@ -12,26 +12,6 @@
     },
     {
       "kind": "app",
-      "label": "Claude",
-      "iconId": "claude",
-      "action": {
-        "kind": "APP_LAUNCH",
-        "appId": "claude"
-      },
-      "id": "a8648ac4-0c22-4a28-9948-469d03888c85"
-    },
-    {
-      "kind": "app",
-      "label": "Discord",
-      "iconId": "discord",
-      "action": {
-        "kind": "APP_LAUNCH",
-        "appId": "discord"
-      },
-      "id": "07b10db7-cae4-4691-a219-32b4dcf95023"
-    },
-    {
-      "kind": "app",
       "label": "VS Code",
       "iconId": "vscode",
       "action": {
@@ -59,16 +39,6 @@
         "appId": "spotify"
       },
       "id": "b9d66bb0-bfd6-4ab1-96bb-4fcfbfeac621"
-    },
-    {
-      "kind": "app",
-      "label": "Slack",
-      "iconId": "slack",
-      "action": {
-        "kind": "APP_LAUNCH",
-        "appId": "slack"
-      },
-      "id": "5ef30e52-4459-4595-8511-52bb5396bec3"
     },
     {
       "kind": "app",
@@ -101,41 +71,6 @@
       "id": "8cdc934c-3734-4d51-8293-2ae14702030d"
     },
     {
-      "kind": "app",
-      "label": "WhatsApp",
-      "iconId": "whatsapp",
-      "action": {
-        "kind": "APP_LAUNCH",
-        "appId": "whatsapp"
-      },
-      "id": "bbd96b05-56ec-4608-ad0f-80ccfc944a43"
-    },
-    {
-      "kind": "app",
-      "label": "Notion",
-      "iconId": "notion",
-      "action": {
-        "kind": "APP_LAUNCH",
-        "appId": "notion"
-      },
-      "id": "753d65d5-e8a9-466b-9aa4-387f50a94dd0"
-    },
-    {
-      "kind": "shortcut",
-      "label": "Powertoys",
-      "iconId": "keyboard",
-      "color": "#0F2A1A",
-      "action": {
-        "kind": "KEYSTROKE",
-        "keys": [
-          "ctrl",
-          "win",
-          "t"
-        ]
-      },
-      "id": "e1a7e101-1bfb-49a7-ab90-af3ef93f6cc2"
-    },
-    {
       "kind": "shortcut",
       "label": "Win+X",
       "iconId": "keyboard",
@@ -148,6 +83,102 @@
         ]
       },
       "id": "85b8c507-f018-4cb4-97a0-f5a07a3a5e5a"
+    },
+    {
+      "kind": "shortcut",
+      "label": "Hard refresh",
+      "iconId": "keyboard",
+      "color": "#0F2A1A",
+      "action": {
+        "kind": "KEYSTROKE",
+        "keys": [
+          "ctrl",
+          "shift",
+          "r"
+        ]
+      },
+      "id": "afa55bbd-d461-4942-afcb-941f496a56c3"
+    },
+    {
+      "kind": "custom",
+      "label": "RiotClientServices",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAANHSURBVFhHvVddSBVBFB4j6iEJuu9R1MuspZFaN3oIQeoplQpFqC7UQ2RBYVIYRFZgWPkgQRFJt+ghqpeEgpIipKiE5BJht0gQNMqcmZ0do8AH4cTs7N11d+7P7sXrgQ92d2a+8+38nDkHoZBGEY5RhBMEGUmKcIoizCkyQEE+299kW4IgHAuOL9oowpggfI8iPOs5LAQ864zBQb7QRhAuJwj3UYTndAfhQBCekxySK8if1ygyMEVGOkhYLAjCkivcbBCEaykyWJBkAcAIMmqD/nzmrHcpnNtQ3Dn2BUW4nKqp0gYuJJzl0PeE2nD6gFJA+go6x5F3+9p64H1JEJOTYD19CebpHmDxZqBLN+p9Ndinw1sKdWaDnbKDVTYAv/sYxAyHmX8zGsT0FFhPXoDZ3g2seq82PgPp03YuIxwJEWRY3UH7T8VfoTnNBWFSjceD9IljUkBCb3SwpAJYUxtYbz5o5GGQX4AtIiEFJPUGA+jqOhBjYxppFIQQkJQCUnqDAXRZFQg6rZHmA++8FlGAkZIC5t1qflgDg5oTl3zkE1jPX/u+sR0HIgrAXArI0qAgd3KGzBocAjEx4b0PvQPzbK9fQFUjCItFEGBAXgFsU5NLxntu+WZEjKaBNRz1C5An5f3HyAJyLgEtqwDxY1IJuPMIePdNj5xNA12/0yfAbDkJvP9hBAFqCbJvQgfWgwGbzI52+zt8DumKahDktyfg+AUwT12OIMBIySiY/Rg6MI+cUwKGR4Bt3uMXsKYerLfD7js/3wds12Hl/I8F4stXjW8+pG8pIHcgklinplmMjwNdXuWGYDH1C1hlI5jHuoD39oN54hKwmn328aWxbWpsWYXO5xdgB6KCoZhfvA5mW5f9zDbsBroq7rWX1wDb3gpmazuYZ64Av3EfrGevQHweBTH1U+PyYOeNKnmNchkFwbY2g/g+lvWOyLcH3Muo6Os4iJVbgMVbwDzUCfzqbTUL6W96PxuB69gRsWgJCQ0mJI6ARUvJSLaUTJqzFCVLShV3jqQ0YyotL4UIXDgtz5hKzxeyMDHS2qYrZJnSTJZXQcKwKLo0m29SebHFaeS/zmcyahFkyNLbLc8JwvIv3fJctjl9Qpfn/wEtPfWe5CxX2AAAAABJRU5ErkJggg==",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\Riot Games\\Riot Client\\RiotClientServices.exe"
+      },
+      "id": "4c0f092e-b387-4296-b68d-99a7711f99d5"
+    },
+    {
+      "kind": "custom",
+      "label": "FC26",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGFSURBVFhHxZUxroJAEIYxGDsLPYA1CSYm1DSexVbPYEdlQmPrAWzsuIC34ALQGxsTdV/+TYbA/iLwkjdvki+7+7HsDLuInud55p8hoQ0JbUhoQ0IbEtqQ0IbEIPb7vZnP5+QHQKIX7/fb1APj0WhE83pAohNJLuPFYmEdcOf2gEQnSBTHse2/Xi9bTFEUjaIGQKITRBiGZrlcmiAIbEGbzca22A13fgckOkGi+/1uTqeTiaLI3G43cz6f9Y5gNptVZ14PtQIEKQDt8Xik6z0hoQ2JX/Mn34FPZ+yePdxqtWp4/DzX63VjXss7QqICi7g31R36AH15KdFHbLdbO87zvLp+OBwoR2sB4/H4Y/XSTiYTM51Oq/llWdqPkRSIxPW4Xq+U42sBWES+cojL5VI5XM+yzCRJ8nGuOAHh+z7laC0gTVPa+t1uZxfCv9/j8WjsCIAXpBjpu2t1FoAb8IR193w+qydE4KWDd8N1smNfIKENCW1IaENCGxLakNCGhDYktCGhyg/ItGHT2gOSzAAAAABJRU5ErkJggg==",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "D:\\EA SPORTS FC 26\\FC26.exe"
+      },
+      "id": "2789859a-e61d-4c52-8c08-d5eefc32b59c"
+    },
+    {
+      "kind": "custom",
+      "label": "Battlefield™ 6",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAITSURBVFhH7ZexSxtRHMe/S/+EDMVRJCUdVeQcChmKpYQaaKoYL8QUkdxraOrg4qZumqlFYnAQMYPN2pDGpTqcsZA2IRRKHbzk/QsdHVQe+sj15130ciYptj/4LF9+/N4H3rt7d/CvYqZdRhagDM9DobkTwDjO2yW8j/TkHtI0d8J/AVcCWh1G3IBBcye4ErgLbAW0BqpaHSXCIeP4wThOSW9Nq0NvwXc6/0YBXxhe2JQ3BE+sgo+ydzCBUdpjLu9LeOl8VwKiHg7jAeNodEUgmEMymMPy+C4WB17AI/PIIbaoQDCHOdFrZuoL1ul8RwKM41jmY2nEZR7K4wMVYBxf6axWOBZ4lsGbf1tgbAOazMMH2BRZxwVUHWuqjmz4AJlHIfTJXKvjm+g1C6g6lkSvZPYnjujsPwQm95CRxCooWgnQevoe6sRnrDCOM9E7UURKZLRPlH8Vs+YFY1UUzWsKgXVJrILCbQT8KaihT02BV3mkREb7RFkIFMxr3moLomWsRcvIRo6Q8U2ZtsC4vgXRMpZEr2Tu1w1bQAMrAdtDuN+lQ/hXPYY9F+jJqziwg2RgB8uBbSz2PzddRqXrl1FHBKyqT7G+ju9M4HHEXsA3Dc/rWvODZOhtBwQYR5VxlAiWn2SMo8Y49Ct+W8yypZVAV3AlEDfQiJ9cnoN2cSXQ8x+T+yHwZAUz7TL0DspgAgrNnXABKn0WegLvM0cAAAAASUVORK5CYII=",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "D:\\Battlefield 6\\bf6.exe"
+      },
+      "id": "bfae664d-5a17-4c42-84de-a4f1aac44969"
+    },
+    {
+      "kind": "custom",
+      "label": "VALORANT",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHwSURBVFhH7ZU7S8NQGIadRVFHcRJ1cxAc/AeCP0BwFpxc/AcOWhVBrKsuDi6CIuLo4qUX79VYqm3SNL0k6b3qIg7yyYntwe+cNvWkKgh94YWS7+v7PjkNTUtLU2WVxibgL832WwAd3X1/4iZAE6AJ8P8A7Ga1bPcdRwB2c9b19h0D2O2I7DYEkBod5+YVk9mvA/zUHtsvBFBtl51X23EMUK+Avf6dLLa/LoCTolpGAJncy2o69wwmcfYJjOwT6JmS5VS6CEmzCAmzAHGjAHE9D+bmDgKweyhrGQGQUhFFE7mGTwEBkDsVkaxlOABRCARAjvernt/eYXTPhJFtw/LwVgqmD7N0HlbTXKCoEYCm5xEA0exZCWaO89C/EYcutwqD6xqdhRSDCxQ1AlCTOVRe0ZK/CJ0rCvSsKjCwFqXXgxGdCxQ1ApDjGVRMtOgrQvuyDAueAkzu6tC7HKEz6THJBYoaAYRjaVS+4C1A21IEXCefP83MgQlDawqdB0IJLlDUCCAUNWi46zQPra4wzB/j56L0+k4/Xwc1LlDUCCAo6zR8at+EuaPqz0RFF1KMCxQ1ApDCSbbDVme3Kvcf4MQUIPCQYDts5btR+BdJI7qUYu6rew0uiaWYdcTnd6p1p/5AFHzENwp4y/Zcy242oxF9ABi/hOxSBSaFAAAAAElFTkSuQmCC",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Riot Games\\VALORANT.lnk"
+      },
+      "id": "e8138558-10eb-43da-9e90-348d91db3855"
+    },
+    {
+      "kind": "custom",
+      "label": "Discord",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAPvSURBVFhHtVfNbxNHFN9zBFJ65lSJRhx6qMqB/6B/gdflgNTdAL0EiXDpAQ5FahMoUgOIAxIg1AouUFUoTdU2RYKk+cCQ4BRjBfxtx/grWdtJ8W5ie9eveuPd9e4b27HT9Cf9pNW8md97M/P2zYwg9I5BQRBOiJJ6R5RUvyiriiirukn8XkYb9jH77huGREm9K8oVzTusQS/EvjhGEIQjVKwfDHikyoRHqtSog16JY1EDtaj4bhjyymqQCu6VoqwGUZM66YRPvbKqUJH/SlHWFNSmziiGxOH9d27RDKLjSgzgUtFB+01zO/ic8EqVCdr5/6KZmC4cEXfJ9lNnNbh5twoz83UYn9jh7Jeu7jAb9jk9yo93Ev8O11Z4ZPUH2smidEaDpRUddL0BFoqlBkQTBuQLBuQKBkTjBpTKLTv2xTHSCK9n0awTDIPdisyfT+u2cL+YflLn9OwA5IpmVcwT1Gjx3IVtMIzWzPoFjkUNqmuRlW2s39RgcWZh77O3MLvQZRXw7MBDhBqQ8hkNqrW9z95CrdZgWlTfDMCPAbQtPDduV6kWS7SpP2qwGtKpCd6EdWZzJqMF1KL6LABZVTAAnRqQT+fcy4/7OXq+uZ+fn9QgHDNsWyRusDa0nT3P5w1qUX0zAL1jAPFUywECfz2nffK3mm375feay6YU3QGgFtV3BtB2C95X3CLOjMbZRhwrgHXg+KnmOFwlugKoRfXNABT8C/zUgKQiiPJmA36drrP9pngb0WFqun0OoBbVNwNYFqaf/BPMb2xBDrm+Cdn1TcgUyozv8iVI50qwlitCKluEVEaB0qZK9XdFxwDwN0Sn/SC2tkGbbGxvN1jtwPLsxIbSPgdYIcKZ9oNIsgAXv9uBO/eq8NNkjRG/se3Lc+7caDQaMO+rs3bq3CurzVKMy+vEVtWAzx7l4NiDLOPR++9g5PG6bQ/F87yYg74lnRWfOV8dvrrYuQzbh1Eyo7gCQHztK8PorAKHb6fgg2tx+PhW0ratRrOcmJNfjDRJ2530SCoex80bczzdfk8vPyvB4PdROHQ1Ch9dj9ntwXCGE+yXHklrXUgiqYLLMeLSYgkOXonA+HwRhn/OwIdXwrYt8DbNCfZD7koWSuRdzscXinDgchjG/mpuzehUDj65HrXtK6trnGivZIWHXkpXY1lbfGxOgYGxEHw7686L8nYrs18Gk5xwLzSd89fyYCRji5+ezME3M+1zwsKLQIIT341dHyaBUJr66Arf33HOQSf29DRbebNGfXTFoj/KOaJ0PE7bz9qJpUDi2vLrJCwhAwm2xM9fxdlMn63EYBHpj8KCyR8fpoPsKU6f5/hk38Pz/F9JWacrjyvT8QAAAABJRU5ErkJggg==",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\Users\\PC\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Discord Inc\\Discord.lnk"
+      },
+      "id": "ad2e5c62-5629-4410-be74-1043b00092b6"
+    },
+    {
+      "kind": "custom",
+      "label": "Windscribe",
+      "iconId": "custom",
+      "iconBase64": "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",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Windscribe\\Windscribe.lnk"
+      },
+      "id": "d2b49e5a-ba7b-4c46-8e8d-8c07d2bb454b"
+    },
+    {
+      "kind": "shortcut",
+      "label": "Pin to screen",
+      "iconId": "keyboard",
+      "color": "#0F2A1A",
+      "action": {
+        "kind": "KEYSTROKE",
+        "keys": [
+          "ctrl",
+          "win",
+          "t"
+        ]
+      },
+      "id": "29a09be2-92e8-4780-92cb-165d017ae5c6"
     }
   ],
   "overrides": {}
