@@ -3,6 +3,8 @@ dist/
 out/
 .env
 *.env.local
+.agents/skills/
+supabase/.temp/
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
