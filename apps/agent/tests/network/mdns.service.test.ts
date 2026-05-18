@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { MdnsService } from '../../src/network/mdns.service';
+import { AGENT_PORT } from '../../src/constants';
 
 const mockStop    = jest.fn();
 const mockPublish = jest.fn().mockReturnValue({ stop: mockStop });
@@ -28,7 +29,7 @@ describe('MdnsService', () => {
     expect(mockPublish).toHaveBeenCalledWith({
       name: 'Control Surface Agent',
       type: 'controlsurface',
-      port: 3001,
+      port: AGENT_PORT,
     });
   });
 
@@ -41,5 +42,7 @@ describe('MdnsService', () => {
 
   it('is safe to shutdown without bootstrapping', () => {
     expect(() => service.onApplicationShutdown()).not.toThrow();
+    expect(mockPublish).not.toHaveBeenCalled();
+    expect(mockDestroy).not.toHaveBeenCalled();
   });
 });
