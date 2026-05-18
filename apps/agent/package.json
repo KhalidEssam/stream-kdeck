@@ -42,7 +42,7 @@
     "typescript": "^5.4.0"
   },
   "build": {
-    "appId": "com.controlsurface.agent",
+    "appId": "com.kdeck.agent",
     "productName": "KDeck Agent",
     "copyright": "Copyright © 2026 KDeck",
     "electronVersion": "31.7.7",
