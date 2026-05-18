@@ -28,7 +28,7 @@ export async function processPaymobTransactionPayload(
   }
 
   const email = fallback?.email ?? extractCustomerEmail(payload, transaction);
-  const plan = fallback?.plan ?? extractPlanId(payload, transaction);
+  const plan = fallback?.plan ?? await extractPlanId(payload, transaction);
   const paymobOrderId = extractPaymobOrderId(transaction);
   if (!email || !plan || !paymobOrderId) {
     throw new Error('MISSING_PROVISIONING_DATA');

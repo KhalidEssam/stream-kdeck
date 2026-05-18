@@ -20,7 +20,7 @@ export async function createPaymobCheckoutSession(input: {
   email: string;
 }): Promise<PaymobCheckoutSession> {
   const siteUrl = getSiteUrl();
-  const plan = getPlanConfig(input.plan);
+  const plan = await getPlanConfig(input.plan);
   const reference = createReference(input.plan);
   const currency = getEnv('PAYMOB_CURRENCY', 'USD');
   const paymentMethods = getPaymentMethods();

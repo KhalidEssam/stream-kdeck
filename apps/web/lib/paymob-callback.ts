@@ -51,7 +51,7 @@ export function extractCustomerEmail(payload: unknown, transaction: PaymobTransa
   return firstString(candidates)?.toLowerCase() ?? null;
 }
 
-export function extractPlanId(payload: unknown, transaction: PaymobTransaction): PlanId | null {
+export async function extractPlanId(payload: unknown, transaction: PaymobTransaction): Promise<PlanId | null> {
   const directCandidates = [
     getPath(transaction, 'extras.plan'),
     getPath(transaction, 'data.extras.plan'),

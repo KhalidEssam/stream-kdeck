@@ -1,7 +1,5 @@
--- Run at midnight UTC on the 1st of every month.
--- Supabase projects need the pg_cron extension enabled. If it is not available yet,
--- keep the schema migration deployable and let a later cron migration reschedule once
--- pg_cron is enabled.
+-- Re-schedule monthly credit resets after platform_config exists. This preserves
+-- per-license credit limits while letting AI Pro credits follow owner config.
 
 DO $cron_setup$
 BEGIN
@@ -49,7 +47,14 @@ BEGIN
       $job$
         UPDATE public.subscriptions
         SET
-          credits_remaining = 500,
+          credits_remaining = COALESCE(
+            (
+              SELECT NULLIF(value, '')::int
+              FROM public.platform_config
+              WHERE key = 'ai_pro_monthly_credits'
+            ),
+            500
+          ),
           credits_reset_at  = date_trunc('month', now()) + interval '1 month'
         WHERE status = 'active'
           AND (credits_reset_at IS NULL OR credits_reset_at <= now());

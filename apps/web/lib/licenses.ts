@@ -15,7 +15,7 @@ interface ProvisionInput {
 
 export async function provisionPaidOrder(input: ProvisionInput): Promise<{ status: 'created' | 'already_processed' }> {
   const supabase = getSupabaseAdmin();
-  const plan = getPlanConfig(input.plan);
+  const plan = await getPlanConfig(input.plan);
   const licenseKey = deriveLicenseKey(input);
   const keyHash = hashLicenseKey(licenseKey);
 
@@ -46,7 +46,8 @@ export async function provisionPaidOrder(input: ProvisionInput): Promise<{ statu
     user_id: userId,
     key_hash: keyHash,
     status: 'unused',
-    monthly_ai_credits: plan.monthlyAiCredits,
+    monthly_ai_credits: plan.desktopMonthlyAiCredits,
+    plan_id: input.plan,
     credits_used: 0,
     credits_reset_at: nextReset.toISOString(),
     paymob_order_id: input.paymobOrderId,
@@ -73,7 +74,7 @@ async function ensureSubscription(input: {
   paymobSubscriptionId?: string | null;
 }): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const plan = getPlanConfig(input.plan);
+  const plan = await getPlanConfig(input.plan);
   if (!plan.includesAiPro) return;
 
   const currentPeriodEnd = addMonths(new Date(), plan.subscriptionPeriodMonths ?? 1);
@@ -84,7 +85,7 @@ async function ensureSubscription(input: {
       paymob_order_id: input.paymobOrderId,
       plan: 'ai_pro',
       status: 'active',
-      credits_remaining: 500,
+      credits_remaining: plan.monthlyAiCredits,
       credits_reset_at: nextMonthlyReset().toISOString(),
       current_period_end: currentPeriodEnd.toISOString(),
     },
@@ -114,7 +115,7 @@ async function ensureUser(email: string, plan: PlanId): Promise<string> {
   throw error ?? new Error(`Could not create Supabase user for ${email}.`);
 }
 
-function deriveLicenseKey(input: ProvisionInput): string {
+export function deriveLicenseKey(input: Pick<ProvisionInput, 'email' | 'plan' | 'paymobOrderId'>): string {
   const digest = crypto
     .createHmac('sha256', getEnv('LICENSE_KEY_SECRET'))
     .update(`${input.paymobOrderId}:${input.email.toLowerCase()}:${input.plan}`)

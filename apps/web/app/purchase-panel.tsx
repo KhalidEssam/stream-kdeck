@@ -4,34 +4,20 @@ import { FormEvent, useMemo, useState } from 'react';
 
 type PlanId = 'desktop_license' | 'ai_pro_monthly' | 'ai_pro_yearly';
 
-const PLANS: Array<{ id: PlanId; name: string; price: string; copy: string }> = [
-  {
-    id: 'desktop_license',
-    name: 'Desktop License',
-    price: '$19',
-    copy: 'Full deck access and 50 AI calls each month.',
-  },
-  {
-    id: 'ai_pro_monthly',
-    name: 'Desktop + AI Pro',
-    price: '$8/mo',
-    copy: 'Desktop license plus 500 AI calls per month.',
-  },
-  {
-    id: 'ai_pro_yearly',
-    name: 'Desktop + AI Pro Yearly',
-    price: '$59/yr',
-    copy: 'Best value for power users and demos.',
-  },
-];
+export interface PurchasePlanOption {
+  id: PlanId;
+  name: string;
+  price: string;
+  copy: string;
+}
 
-export function PurchasePanel() {
-  const [plan, setPlan] = useState<PlanId>('desktop_license');
+export function PurchasePanel({ plans }: { plans: PurchasePlanOption[] }) {
+  const [plan, setPlan] = useState<PlanId>(plans[0]?.id ?? 'desktop_license');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedPlan = useMemo(() => PLANS.find((entry) => entry.id === plan), [plan]);
+  const selectedPlan = useMemo(() => plans.find((entry) => entry.id === plan), [plan, plans]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,7 +47,7 @@ export function PurchasePanel() {
       <p>Select a plan and enter the email that should receive the license key.</p>
 
       <div className="plans" role="radiogroup" aria-label="Plans">
-        {PLANS.map((entry) => (
+        {plans.map((entry) => (
           <button
             key={entry.id}
             type="button"

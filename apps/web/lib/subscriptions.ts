@@ -11,7 +11,7 @@ export async function checkExistingSubscriptionForCheckout(input: {
   email: string;
   plan: PlanId;
 }): Promise<ExistingSubscriptionCheck> {
-  const plan = getPlanConfig(input.plan);
+  const plan = await getPlanConfig(input.plan);
   if (!plan.includesAiPro) {
     return { exists: false };
   }
