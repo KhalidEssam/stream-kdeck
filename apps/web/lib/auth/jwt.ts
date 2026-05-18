@@ -49,9 +49,9 @@ function mapJwtPayload(payload: JWTPayload): VerifiedAccessToken {
 }
 
 function readRole(payload: JWTPayload): StaffRole | null {
-  const topLevelRole = payload.role;
-  if (topLevelRole === 'admin' || topLevelRole === 'owner') {
-    return topLevelRole;
+  const staffRole = payload.staff_role;
+  if (staffRole === 'admin' || staffRole === 'owner') {
+    return staffRole;
   }
 
   const appMetadata = payload.app_metadata;
