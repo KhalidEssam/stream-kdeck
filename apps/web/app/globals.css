@@ -698,6 +698,11 @@ a {
   margin-top: var(--space-4);
 }
 
+.mobile-menu-actions .navbar-cta-ghost,
+.mobile-menu-actions .navbar-cta {
+  display: block;
+}
+
 .mobile-full {
   display: block;
   text-align: center;
