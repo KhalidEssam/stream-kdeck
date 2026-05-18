@@ -6,12 +6,16 @@ import {
   MobileMessage,
   ActionResultMessage,
   DeckConfigMessage,
+  LicenseStatusMessage,
+  AiQuotaExceededMessage,
   SearchAppsResultMessage,
   ValidatePathResultMessage,
 } from '@control-surface/shared';
 import { CommandService } from '../command/command.service';
 import { AppRegistryService } from '../app-launch/app-registry.service';
 import { AppSearchService } from '../app-search/app-search.service';
+import { LicenseService } from '../license/license.service';
+import { ActivationDialogService } from '../license/activation-dialog.service';
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
@@ -22,6 +26,8 @@ export class WsGateway implements OnGatewayConnection {
     private readonly commandService: CommandService,
     private readonly appRegistry: AppRegistryService,
     private readonly appSearch: AppSearchService,
+    private readonly licenseService: LicenseService,
+    private readonly activationDialog: ActivationDialogService,
   ) {}
 
   private sendDeckConfig(client: WebSocket): void {
@@ -32,14 +38,26 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(msg));
   }
 
+  private sendLicenseStatus(client: WebSocket): void {
+    const claims = this.licenseService.getClaims();
+    const msg: LicenseStatusMessage = {
+      type:             'LICENSE_STATUS',
+      licensed:         claims.licensed,
+      aiPro:            claims.ai_pro,
+      creditsRemaining: claims.credits_remaining,
+    };
+    client.send(JSON.stringify(msg));
+  }
+
   handleConnection(client: WebSocket): void {
     const connected: ConnectedMessage = {
-      type: 'CONNECTED',
+      type:         'CONNECTED',
       agentVersion: '0.1.0',
-      platform: platform() as 'darwin' | 'win32' | 'linux',
+      platform:     platform() as 'darwin' | 'win32' | 'linux',
     };
     client.send(JSON.stringify(connected));
     this.sendDeckConfig(client);
+    this.sendLicenseStatus(client);
 
     console.log('[Agent] Mobile client connected');
 
@@ -48,6 +66,16 @@ export class WsGateway implements OnGatewayConnection {
       try {
         data = JSON.parse(raw.toString()) as MobileMessage;
       } catch {
+        return;
+      }
+
+      if (data.type === 'OPEN_ACTIVATION_DIALOG') {
+        this.activationDialog.open();
+        return;
+      }
+
+      if (data.type === 'GET_LICENSE_STATUS') {
+        this.sendLicenseStatus(client);
         return;
       }
 
@@ -73,7 +101,7 @@ export class WsGateway implements OnGatewayConnection {
         const startedAt = Date.now();
         console.log(`[Agent] SEARCH_APPS "${data.query}"`);
         const results = await this.appSearch.searchApps(data.query);
-        const names = results.slice(0, 5).map((result) => result.name).join(', ');
+        const names = results.slice(0, 5).map((r) => r.name).join(', ');
         console.log(
           `[Agent] SEARCH_APPS_RESULT "${data.query}": ${results.length} result(s)` +
             (names ? ` [${names}]` : '') +
@@ -98,16 +126,22 @@ export class WsGateway implements OnGatewayConnection {
       console.log(`[Agent] BUTTON_TAP ${data.buttonId} (${data.action.kind})`);
       const result = await this.commandService.execute(data.action);
 
+      if (result.quotaExceeded) {
+        const quotaMsg: AiQuotaExceededMessage = { type: 'AI_QUOTA_EXCEEDED', reason: 'credits_exhausted' };
+        client.send(JSON.stringify(quotaMsg));
+        return;
+      }
+
       if (!result.success) {
         console.error(`[Agent] Action failed: ${result.error}`);
       }
 
       const response: ActionResultMessage = {
-        type: 'ACTION_RESULT',
+        type:     'ACTION_RESULT',
         buttonId: data.buttonId,
-        success: result.success,
-        output: result.output,
-        error: result.error,
+        success:  result.success,
+        output:   result.output,
+        error:    result.error,
       };
       client.send(JSON.stringify(response));
     });
