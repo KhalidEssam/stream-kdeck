@@ -29,7 +29,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly licenseService: LicenseService,
     private readonly activationDialog: ActivationDialogService,
   ) {
-    this.activationDialog.onActivated(() => this.broadcastLicenseStatus());
+    this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
   }
 
   private sendDeckConfig(client: WebSocket): void {
