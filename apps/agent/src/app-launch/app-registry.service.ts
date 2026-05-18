@@ -234,20 +234,23 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   },
 };
 
-const CONFIG_PATH = path.join(__dirname, '../../apps.config.json');
-
 @Injectable()
 export class AppRegistryService {
   private config: AppConfig = { tiles: [], overrides: {} };
+  private readonly configPath: string;
 
   constructor() {
+    this.configPath = path.join(
+      process.env.USER_DATA_PATH ?? path.join(__dirname, '../../'),
+      'apps.config.json',
+    );
     this.loadConfig();
   }
 
   private loadConfig(): void {
-    if (fs.existsSync(CONFIG_PATH)) {
+    if (fs.existsSync(this.configPath)) {
       try {
-        const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        const raw = fs.readFileSync(this.configPath, 'utf-8');
         const parsed = JSON.parse(raw) as { tiles: Partial<TileConfig>[]; overrides: Record<string, string> };
         let needsPersist = false;
         const tiles = parsed.tiles.map((t) => {
@@ -266,7 +269,11 @@ export class AppRegistryService {
   }
 
   private persist(): void {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8');
+    try {
+      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8');
+    } catch {
+      // Non-fatal: config directory may be read-only (e.g. unsigned macOS bundle)
+    }
   }
 
   getTiles(): TileConfig[] {
