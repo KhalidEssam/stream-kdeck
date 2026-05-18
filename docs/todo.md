@@ -8,7 +8,7 @@
 |---|---------|--------|
 | 1 | **mDNS auto-discovery** — agent advertises on LAN, mobile finds it without manual IP | ✅ Done |
 | 2 | **AI proxy Edge Function** — `GEMINI_API_KEY` moved server-side, agent calls Edge Function with JWT | ✅ Done — deploy: `supabase functions deploy ai-proxy && supabase secrets set GEMINI_API_KEY=...` |
-| 3 | **electron-builder installer** — produce `.exe` / `.dmg` distributable that users double-click to install | ⏳ Next |
+| 3 | **electron-builder installer** — produce `.exe` / `.dmg` distributable that users double-click to install | ✅ Done — `npm run dist:win` produces `KDeck Agent Setup 0.1.0.exe` (83 MB) |
 
 ### P1 — Required before charging real money
 
