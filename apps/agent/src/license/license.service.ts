@@ -12,9 +12,10 @@ export interface LicenseClaims {
   licensed: boolean;
   ai_pro: boolean;
   credits_remaining: number;
+  credit_quota: number;
 }
 
-const DEFAULT_CLAIMS: LicenseClaims = { licensed: false, ai_pro: false, credits_remaining: 0 };
+const DEFAULT_CLAIMS: LicenseClaims = { licensed: false, ai_pro: false, credits_remaining: 0, credit_quota: 0 };
 
 @Injectable()
 export class LicenseService implements OnApplicationBootstrap {
@@ -44,8 +45,7 @@ export class LicenseService implements OnApplicationBootstrap {
     if (!refreshToken) return;
 
     try {
-      const { data, error } = await this.supabase.auth.setSession({
-        access_token:  '',
+      const { data, error } = await this.supabase.auth.refreshSession({
         refresh_token: refreshToken,
       });
 
@@ -77,19 +77,12 @@ export class LicenseService implements OnApplicationBootstrap {
     this.storage.set(CACHED_CLAIMS_KEY, JSON.stringify(this.claims));
   }
 
-  async decrementCredit(): Promise<void> {
-    if (!this.claims.licensed || this.claims.credits_remaining <= 0) return;
-
-    this.claims.credits_remaining = Math.max(0, this.claims.credits_remaining - 1);
-
-    try {
-      if (this.claims.ai_pro) {
-        await this.supabase.rpc('decrement_subscription_credits');
-      } else {
-        await this.supabase.rpc('increment_license_credits_used');
-      }
-    } catch {
-      // Non-fatal
+  decrementCredit(): void {
+    // The ai-proxy Edge Function handles the authoritative DB write.
+    // This only updates the local in-memory counter so the mobile gets
+    // real-time feedback without waiting for a token refresh.
+    if (this.claims.credits_remaining > 0) {
+      this.claims.credits_remaining = Math.max(0, this.claims.credits_remaining - 1);
     }
   }
 
@@ -129,6 +122,7 @@ export class LicenseService implements OnApplicationBootstrap {
         licensed:          payload.licensed          ?? false,
         ai_pro:            payload.ai_pro            ?? false,
         credits_remaining: payload.credits_remaining ?? 0,
+        credit_quota:      payload.credit_quota      ?? 0,
       };
     } catch {
       this.claims = { ...DEFAULT_CLAIMS };

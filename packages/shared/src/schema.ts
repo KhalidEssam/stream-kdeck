@@ -98,6 +98,7 @@ export interface LicenseStatusMessage {
   licensed: boolean;
   aiPro: boolean;
   creditsRemaining: number;
+  creditQuota: number;
 }
 
 export interface AiQuotaExceededMessage {

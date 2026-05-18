@@ -37,6 +37,7 @@ export class CommandService {
           }
           const context = await this.clipboard.read();
           const result = await this.aiRouter.call(action.prompt, context);
+          this.licenseService.decrementCredit();
           if (action.outputMode === 'viewer') {
             return { success: true, output: result };
           }

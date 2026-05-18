@@ -56,6 +56,7 @@ export class WsGateway implements OnGatewayConnection {
       licensed:         claims.licensed,
       aiPro:            claims.ai_pro,
       creditsRemaining: claims.credits_remaining,
+      creditQuota:      claims.credit_quota,
     };
   }
 
@@ -143,6 +144,7 @@ export class WsGateway implements OnGatewayConnection {
       if (result.quotaExceeded) {
         const quotaMsg: AiQuotaExceededMessage = { type: 'AI_QUOTA_EXCEEDED', reason: 'credits_exhausted' };
         client.send(JSON.stringify(quotaMsg));
+        this.sendLicenseStatus(client);
         return;
       }
 
@@ -158,6 +160,10 @@ export class WsGateway implements OnGatewayConnection {
         error:    result.error,
       };
       client.send(JSON.stringify(response));
+
+      if (data.action.kind === 'AI_CLIPBOARD') {
+        this.sendLicenseStatus(client);
+      }
     });
   }
 }

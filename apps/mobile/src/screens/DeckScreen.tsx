@@ -35,6 +35,7 @@ export function DeckScreen() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [licensed, setLicensed] = useState<boolean | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
+  const [creditQuota, setCreditQuota] = useState(0);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [tiles, setTiles] = useState<TileConfig[] | null>(null); // null = waiting for DECK_CONFIG
   const [activeTab, setActiveTab] = useState<DeckTab>('ai');
@@ -58,6 +59,7 @@ export function DeckScreen() {
       if (!session) {
         setLicensed(null);
         setCreditsRemaining(0);
+        setCreditQuota(0);
         setTiles(null);
       }
     });
@@ -102,6 +104,7 @@ export function DeckScreen() {
     const unsubscribeLicense = ws.onLicenseStatus((msg) => {
       setLicensed(msg.licensed);
       setCreditsRemaining(msg.creditsRemaining);
+      setCreditQuota(msg.creditQuota);
     });
     const unsubscribeQuota = ws.onAiQuotaExceeded(() => {
       setLoadingId(null);
@@ -424,7 +427,7 @@ export function DeckScreen() {
           <View style={styles.upsellSheet}>
             <Text style={styles.upsellTitle}>Credits Exhausted</Text>
             <Text style={styles.upsellBody}>
-              You have used all your AI credits for this month. Upgrade to AI Pro for 500
+              You have used all your AI credits for this month. Upgrade to AI Pro for more
               credits/month.
             </Text>
             <TouchableOpacity
