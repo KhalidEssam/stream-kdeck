@@ -1,9 +1,12 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { SecureStorageService } from './secure-storage.service';
 
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const CACHED_CLAIMS_KEY = 'cached_claims';
+type SupabaseClientOptions = NonNullable<Parameters<typeof createClient>[2]>;
+type SupabaseRealtimeTransport = NonNullable<SupabaseClientOptions['realtime']>['transport'];
 
 export interface LicenseClaims {
   licensed: boolean;
@@ -22,6 +25,11 @@ export class LicenseService implements OnApplicationBootstrap {
     this.supabase = createClient(
       process.env.SUPABASE_URL ?? '',
       process.env.SUPABASE_ANON_KEY ?? '',
+      {
+        realtime: {
+          transport: WebSocket as unknown as SupabaseRealtimeTransport,
+        },
+      },
     );
   }
 

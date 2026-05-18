@@ -45,6 +45,19 @@ describe('LicenseService', () => {
     expect(licenseService.creditsRemaining()).toBe(0);
   });
 
+  it('creates Supabase client with ws transport for Node 20 realtime support', () => {
+    const { createClient } = require('@supabase/supabase-js');
+    expect(createClient).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        realtime: expect.objectContaining({
+          transport: expect.any(Function),
+        }),
+      }),
+    );
+  });
+
   it('loads cached claims from storage when present', async () => {
     mockStorage.get.mockImplementation((key: string) => {
       if (key === 'cached_claims') {
