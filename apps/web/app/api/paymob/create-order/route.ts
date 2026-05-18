@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createPaymobCheckoutSession } from '@/lib/paymob';
 import { isPlanId } from '@/lib/plans';
+import { checkExistingSubscriptionForCheckout } from '@/lib/subscriptions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,22 @@ export async function POST(request: NextRequest) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!isValidEmail(email)) {
       return Response.json({ error: 'INVALID_EMAIL' }, { status: 400 });
+    }
+
+    const existingSubscription = await checkExistingSubscriptionForCheckout({
+      email,
+      plan: body.plan,
+    });
+    if (existingSubscription.exists) {
+      return Response.json(
+        {
+          error:
+            existingSubscription.status === 'past_due'
+              ? 'This email already has a past-due AI Pro subscription. Please resolve the existing subscription before starting a new checkout.'
+              : 'This email already has an active AI Pro subscription.',
+        },
+        { status: 409 },
+      );
     }
 
     const session = await createPaymobCheckoutSession({ plan: body.plan, email });

@@ -3,6 +3,7 @@ import { getEnv } from './env';
 import { sendLicenseEmail } from './mail';
 import { getPlanConfig, PlanId } from './plans';
 import { getSupabaseAdmin } from './supabase-admin';
+import { findAuthUserByEmail } from './supabase-users';
 
 interface ProvisionInput {
   email: string;
@@ -107,25 +108,10 @@ async function ensureUser(email: string, plan: PlanId): Promise<string> {
 
   if (!error && data.user) return data.user.id;
 
-  const existing = await findUserByEmail(email);
+  const existing = await findAuthUserByEmail(email);
   if (existing) return existing.id;
 
   throw error ?? new Error(`Could not create Supabase user for ${email}.`);
-}
-
-async function findUserByEmail(email: string): Promise<{ id: string } | null> {
-  const supabase = getSupabaseAdmin();
-  const normalized = email.toLowerCase();
-
-  for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw error;
-    const found = data.users.find((user) => user.email?.toLowerCase() === normalized);
-    if (found) return { id: found.id };
-    if (data.users.length < 1000) break;
-  }
-
-  return null;
 }
 
 function deriveLicenseKey(input: ProvisionInput): string {

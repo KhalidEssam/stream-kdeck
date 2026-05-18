@@ -21,6 +21,7 @@ the sample value from `.env.example`, will make Paymob return a 404.
 
 - `POST /api/paymob/create-order`
   - Creates a Paymob payment intention from `{ "plan": "desktop_license", "email": "you@example.com" }`.
+  - For AI Pro plans, checks Supabase `subscriptions` first and refuses duplicate active/past-due subscriptions for the same email.
   - Returns a hosted checkout URL.
 
 - `POST /api/paymob/webhook?hmac=...`
