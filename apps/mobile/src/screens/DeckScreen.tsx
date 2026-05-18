@@ -4,12 +4,13 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
   Modal,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTile } from '../components/AppTile';
 import { AddTileScreen } from './AddTileScreen';
 import { AuthScreen } from './AuthScreen';
@@ -17,11 +18,8 @@ import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
 import { TileConfig } from '../types/schema';
 import { supabase } from '../lib/supabase';
+import { discoverAgent } from '../services/discovery.service';
 
-// Replace with your desktop machine's local IP address during development.
-// Find it with: ipconfig (Windows) or ifconfig | grep inet (macOS)
-// mDNS auto-discovery replaces this hardcoded IP in the Week 3-4 Core Expansion plan.
-const AGENT_URL = 'ws://192.168.1.5:3001';
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
 
@@ -47,6 +45,9 @@ export function DeckScreen() {
   const [showUpsell, setShowUpsell] = useState(false);
   const [wsService, setWsService] = useState<WebSocketService | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
+  const retryCancelRef = useRef<(() => void) | null>(null);
+  const [agentUrl, setAgentUrl]             = useState<string | null>(null);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,10 +65,27 @@ export function DeckScreen() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Effect 1: run mDNS discovery when authenticated
   useEffect(() => {
+    retryCancelRef.current?.();
+    retryCancelRef.current = null;
+    setAgentUrl(null);
+    setDiscoveryError(null);
     if (!authenticated) return;
 
-    const ws = new WebSocketService(AGENT_URL);
+    const cancel = discoverAgent(
+      (url) => setAgentUrl(url),
+      (msg) => setDiscoveryError(msg),
+    );
+
+    return cancel;
+  }, [authenticated]);
+
+  // Effect 2: connect WebSocket once discovery succeeds
+  useEffect(() => {
+    if (!agentUrl) return;
+
+    const ws = new WebSocketService(agentUrl);
     wsRef.current = ws;
     setWsService(ws);
     ws.onStatusChange((nextStatus) => {
@@ -98,7 +116,7 @@ export function DeckScreen() {
       wsRef.current = null;
       setWsService(null);
     };
-  }, [authenticated]);
+  }, [agentUrl]);
 
   const handleRefresh = () => {
     setLoadingId(null);
@@ -188,6 +206,49 @@ export function DeckScreen() {
 
   if (!authenticated) {
     return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
+  }
+
+  if (authenticated && !agentUrl && !discoveryError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
+        <View style={styles.centerFill}>
+          <ActivityIndicator size="large" color="#5B4FE8" style={{ marginBottom: 16 }} />
+          <Text style={styles.loadingText}>Looking for Control Surface agent…</Text>
+          <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8, color: '#6B6B8A' }]}>
+            Make sure your desktop and phone are on the same WiFi network.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (discoveryError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
+        <View style={styles.centerFill}>
+          <Text style={styles.loadingText}>Agent not found</Text>
+          <Text style={[styles.loadingText, { fontSize: 13, marginTop: 8, color: '#6B6B8A' }]}>
+            {discoveryError}
+          </Text>
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 24, paddingHorizontal: 28 }]}
+            onPress={() => {
+              retryCancelRef.current?.();
+              setDiscoveryError(null);
+              retryCancelRef.current = discoverAgent(
+                (url) => { retryCancelRef.current = null; setAgentUrl(url); },
+                (msg) => { retryCancelRef.current = null; setDiscoveryError(msg); },
+              );
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (licensed === null && status === 'connected') {
@@ -539,4 +600,11 @@ const styles = StyleSheet.create({
   upsellButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   upsellDismiss: { alignItems: 'center', paddingVertical: 8 },
   upsellDismissText: { color: '#555555', fontSize: 14 },
+  button: {
+    backgroundColor: '#5B4FE8',
+    borderRadius:    10,
+    paddingVertical: 14,
+    alignItems:      'center',
+  },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 });
