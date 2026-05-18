@@ -15,6 +15,7 @@
     "@nestjs/platform-ws": "^10.0.0",
     "@nestjs/websockets": "^10.0.0",
     "@nut-tree-fork/nut-js": "^4.2.6",
+    "@supabase/supabase-js": "^2.105.4",
     "clipboardy": "^3.0.0",
     "dotenv": "^17.4.2",
     "electron": "^31.0.0",
