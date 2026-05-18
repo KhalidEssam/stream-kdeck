@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
 
 type PlanId = 'desktop_license' | 'ai_pro_monthly' | 'ai_pro_yearly';
+type AiCycle = 'monthly' | 'yearly';
 
 export interface PurchasePlanOption {
   id: PlanId;
@@ -12,29 +13,37 @@ export interface PurchasePlanOption {
 }
 
 export function PurchasePanel({ plans }: { plans: PurchasePlanOption[] }) {
-  const [plan, setPlan] = useState<PlanId>(plans[0]?.id ?? 'desktop_license');
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [addAiPro, setAddAiPro] = useState(false);
+  const [aiCycle, setAiCycle]   = useState<AiCycle>('monthly');
+  const [email, setEmail]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
-  const selectedPlan = useMemo(() => plans.find((entry) => entry.id === plan), [plan, plans]);
+  const desktop    = plans.find((p) => p.id === 'desktop_license');
+  const aiMonthly  = plans.find((p) => p.id === 'ai_pro_monthly');
+  const aiYearly   = plans.find((p) => p.id === 'ai_pro_yearly');
+
+  const activePlanId: PlanId = addAiPro
+    ? aiCycle === 'yearly' ? 'ai_pro_yearly' : 'ai_pro_monthly'
+    : 'desktop_license';
+
+  const ctaPrice = addAiPro
+    ? aiCycle === 'yearly' ? aiYearly?.price : aiMonthly?.price
+    : desktop?.price;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
-      const response = await fetch('/api/paymob/create-order', {
-        method: 'POST',
+      const res = await fetch('/api/paymob/create-order', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, email }),
+        body:    JSON.stringify({ plan: activePlanId, email }),
       });
-      const payload = (await response.json()) as { checkoutUrl?: string; error?: string };
-      if (!response.ok || !payload.checkoutUrl) {
-        throw new Error(payload.error ?? 'Unable to start checkout.');
-      }
-      window.location.assign(payload.checkoutUrl);
+      const data = (await res.json()) as { checkoutUrl?: string; error?: string };
+      if (!res.ok || !data.checkoutUrl) throw new Error(data.error ?? 'Unable to start checkout.');
+      window.location.assign(data.checkoutUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start checkout.');
       setLoading(false);
@@ -42,50 +51,112 @@ export function PurchasePanel({ plans }: { plans: PurchasePlanOption[] }) {
   }
 
   return (
-    <form className="panel checkout" onSubmit={handleSubmit}>
-      <h2>Start checkout</h2>
-      <p>Select a plan and enter the email that should receive the license key.</p>
+    <form className="panel checkout-v2" onSubmit={handleSubmit}>
 
-      <div className="plans" role="radiogroup" aria-label="Plans">
-        {plans.map((entry) => (
+      {/* ── Step 1: Desktop License (always required) ── */}
+      <div className="cv2-step">
+        <p className="cv2-step-label">Step 1 — Required</p>
+        <div className="cv2-base-card">
+          <div className="cv2-base-top">
+            <span className="cv2-base-name">Desktop License</span>
+            <span className="cv2-base-price">{desktop?.price ?? '—'}</span>
+          </div>
+          <p className="cv2-base-desc">
+            One-time purchase. Unlocks the agent, mobile app pairing, custom tiles,
+            script execution, and {desktop?.copy?.match(/(\d+) AI/)?.[1] ?? '50'} AI calls/month.
+          </p>
+          <div className="cv2-base-badge">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <circle cx="6" cy="6" r="5.5" stroke="currentColor" strokeWidth="1"/>
+              <path d="M3.5 6 L5.5 8 L8.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Always included
+          </div>
+        </div>
+      </div>
+
+      {/* ── Divider ── */}
+      <div className="cv2-divider">
+        <span>Optional add-on</span>
+      </div>
+
+      {/* ── Step 2: AI Pro (optional) ── */}
+      <div className="cv2-step">
+        <p className="cv2-step-label">Step 2 — Optional</p>
+
+        <label className="cv2-toggle-row">
+          <span className="cv2-toggle-label">
+            <strong>Add AI Pro</strong>
+            <span className="cv2-toggle-sub">More AI credits, priority model access</span>
+          </span>
           <button
-            key={entry.id}
             type="button"
-            className="plan-button"
-            data-active={entry.id === plan}
-            onClick={() => setPlan(entry.id)}
-            role="radio"
-            aria-checked={entry.id === plan}
+            role="switch"
+            aria-checked={addAiPro}
+            className="cv2-toggle"
+            data-on={addAiPro}
+            onClick={() => setAddAiPro((v) => !v)}
           >
-            <span className="plan-top">
-              <span>{entry.name}</span>
-              <span>{entry.price}</span>
-            </span>
-            <span className="plan-copy">{entry.copy}</span>
+            <span className="cv2-toggle-thumb" />
           </button>
-        ))}
+        </label>
+
+        {addAiPro && (
+          <div className="cv2-cycle-wrap">
+            <button
+              type="button"
+              className="cv2-cycle-btn"
+              data-active={aiCycle === 'monthly'}
+              onClick={() => setAiCycle('monthly')}
+            >
+              <span className="cv2-cycle-name">Monthly</span>
+              <span className="cv2-cycle-price">{aiMonthly?.price ?? '—'}</span>
+              <span className="cv2-cycle-note">Billed monthly · cancel anytime</span>
+            </button>
+            <button
+              type="button"
+              className="cv2-cycle-btn"
+              data-active={aiCycle === 'yearly'}
+              onClick={() => setAiCycle('yearly')}
+            >
+              <span className="cv2-cycle-name">Yearly</span>
+              <span className="cv2-cycle-price">{aiYearly?.price ?? '—'}</span>
+              <span className="cv2-cycle-note">Best value · ~38% off</span>
+              <span className="cv2-cycle-badge">Save 38%</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="field">
-        <label htmlFor="email">License email</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          required
-        />
-      </div>
+      {/* ── Email + CTA ── */}
+      <div className="cv2-foot">
+        <div className="field">
+          <label htmlFor="cv2-email">Email for license delivery</label>
+          <input
+            id="cv2-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+          />
+        </div>
 
-      <button className="primary" type="submit" disabled={loading}>
-        {loading ? 'Opening Paymob...' : `Buy ${selectedPlan?.name ?? 'Plan'}`}
-      </button>
+        <button className="primary" type="submit" disabled={loading}>
+          {loading ? 'Opening Paymob…' : (
+            addAiPro
+              ? `Buy Desktop + AI Pro — ${ctaPrice}`
+              : `Buy Desktop License — ${ctaPrice}`
+          )}
+        </button>
 
-      {error && <div className="error">{error}</div>}
-      <div className="fine-print">
-        Paymob is the payment source of truth. License delivery happens only after
-        the signed webhook confirms a successful transaction.
+        {error && <div className="error">{error}</div>}
+
+        <p className="fine-print">
+          {addAiPro
+            ? 'Includes the desktop license. AI Pro subscription starts immediately.'
+            : 'One-time purchase. Add AI Pro anytime from your dashboard.'}
+        </p>
       </div>
     </form>
   );

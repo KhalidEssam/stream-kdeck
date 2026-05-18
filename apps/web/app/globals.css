@@ -236,6 +236,237 @@ a {
   font-size: 13px;
 }
 
+/* ─── Purchase panel v2 ─────────────────────────────────────────── */
+
+.checkout-v2 {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cv2-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 0;
+}
+
+.cv2-step-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Base card — desktop license (always selected) */
+.cv2-base-card {
+  position: relative;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--accent-strong);
+  background: oklch(from var(--accent) l c h / 0.1);
+}
+
+.cv2-base-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.cv2-base-name {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--foreground);
+}
+
+.cv2-base-price {
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.cv2-base-desc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.cv2-base-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-strong);
+  text-transform: uppercase;
+}
+
+/* Divider */
+.cv2-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.cv2-divider::before,
+.cv2-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* AI Pro toggle row */
+.cv2-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  transition: border-color 0.15s;
+}
+
+.cv2-toggle-row:has(.cv2-toggle[data-on='true']) {
+  border-color: var(--accent-strong);
+  background: oklch(from var(--accent) l c h / 0.07);
+}
+
+.cv2-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cv2-toggle-label strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.cv2-toggle-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Toggle switch */
+.cv2-toggle {
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  padding: 3px;
+  cursor: pointer;
+  background: var(--line);
+  transition: background 0.2s;
+}
+
+.cv2-toggle[data-on='true'] {
+  background: var(--accent-strong);
+}
+
+.cv2-toggle-thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.cv2-toggle[data-on='true'] .cv2-toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* Monthly / Yearly cycle picker */
+.cv2-cycle-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cv2-cycle-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cv2-cycle-btn[data-active='true'] {
+  border-color: var(--accent-strong);
+  background: oklch(from var(--accent) l c h / 0.1);
+}
+
+.cv2-cycle-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cv2-cycle-price {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.cv2-cycle-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.cv2-cycle-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: oklch(from var(--accent) l c h / 0.2);
+  color: var(--accent-strong);
+}
+
+/* Footer */
+.cv2-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.cv2-foot .field {
+  margin-top: 0;
+}
+
 .field {
   display: grid;
   gap: 8px;
