@@ -270,9 +270,10 @@ export class AppRegistryService {
 
   private persist(): void {
     try {
+      fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8');
-    } catch {
-      // Non-fatal: config directory may be read-only (e.g. unsigned macOS bundle)
+    } catch (e) {
+      console.warn('[AppRegistry] persist failed:', e);
     }
   }
 
