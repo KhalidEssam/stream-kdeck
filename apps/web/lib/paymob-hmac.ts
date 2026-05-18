@@ -50,6 +50,10 @@ function getCallbackObject(payload: unknown): unknown {
 }
 
 function getPath(value: unknown, path: string): unknown {
+  if (isRecord(value) && path in value) {
+    return value[path];
+  }
+
   return path.split('.').reduce<unknown>((current, key) => {
     if (!isRecord(current)) return undefined;
     return current[key];

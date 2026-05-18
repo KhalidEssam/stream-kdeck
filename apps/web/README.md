@@ -29,6 +29,13 @@ the sample value from `.env.example`, will make Paymob return a 404.
   - Inserts the `licenses` row.
   - Sends the deterministic license key by email.
 
+- `GET /api/paymob/return?...&hmac=...`
+  - Browser return URL for Paymob hosted checkout.
+  - Verifies Paymob HMAC-SHA512.
+  - Provisions idempotently, then redirects to a clean success/failure page.
+  - Useful during local/ngrok testing; production should still rely on the webhook
+    as the source of truth.
+
 - `POST /api/paymob/subscription-webhook?hmac=...`
   - Verifies Paymob HMAC-SHA512.
   - Updates existing `subscriptions` rows for renewal/cancel/past-due events.

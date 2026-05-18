@@ -32,7 +32,10 @@ export async function createPaymobCheckoutSession(input: {
     special_reference: reference,
     merchant_order_id: reference,
     notification_url: `${siteUrl}/api/paymob/webhook`,
-    redirection_url: `${siteUrl}/checkout/success?order=${encodeURIComponent(reference)}`,
+    redirection_url:
+      `${siteUrl}/api/paymob/return?reference=${encodeURIComponent(reference)}` +
+      `&plan=${encodeURIComponent(input.plan)}` +
+      `&email=${encodeURIComponent(input.email)}`,
     extras: {
       plan: input.plan,
       email: input.email,
