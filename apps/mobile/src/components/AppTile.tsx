@@ -69,11 +69,19 @@ interface Props {
   tile: TileConfig;
   isLoading?: boolean;
   isSelected?: boolean;
+  creditsRemaining?: number;
   onTap: (tile: TileConfig) => void;
   onLongPress?: (tile: TileConfig) => void;
 }
 
-export function AppTile({ tile, isLoading, isSelected, onTap, onLongPress }: Props) {
+export function AppTile({
+  tile,
+  isLoading,
+  isSelected,
+  creditsRemaining,
+  onTap,
+  onLongPress,
+}: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const didLongPress = useRef(false);
   const [logoError, setLogoError] = useState(false);
@@ -157,8 +165,20 @@ export function AppTile({ tile, isLoading, isSelected, onTap, onLongPress }: Pro
           {tile.label}
         </Text>
 
-        {/* AI badge */}
-        {tile.kind === 'ai' && (
+        {/* AI badge + credit counter */}
+        {tile.kind === 'ai' && creditsRemaining !== undefined && (
+          <View style={styles.creditBadge}>
+            <Text
+              style={[
+                styles.creditBadgeText,
+                creditsRemaining === 0 && styles.creditBadgeEmpty,
+              ]}
+            >
+              {creditsRemaining}
+            </Text>
+          </View>
+        )}
+        {tile.kind === 'ai' && creditsRemaining === undefined && (
           <View style={styles.aiBadge}>
             <Text style={styles.aiBadgeText}>✦</Text>
           </View>
@@ -221,6 +241,19 @@ const styles = StyleSheet.create({
   },
   aiBadge: { position: 'absolute', top: 6, right: 6 },
   aiBadgeText: { color: 'rgba(255,255,255,0.6)', fontSize: 10 },
+  creditBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  creditBadgeText: { color: '#AAAACC', fontSize: 9, fontWeight: '800' },
+  creditBadgeEmpty: { color: '#FF6B6B' },
   pinBadge: {
     position: 'absolute',
     top: 6,

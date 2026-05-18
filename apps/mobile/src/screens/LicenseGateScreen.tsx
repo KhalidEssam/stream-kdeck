@@ -12,7 +12,8 @@ interface Props {
   onRequestActivation: () => void;
 }
 
-const PURCHASE_URL = 'https://placeholder-website.example/buy';
+const PURCHASE_URL =
+  process.env.EXPO_PUBLIC_PURCHASE_URL ?? 'https://placeholder-website.example/buy';
 
 export function LicenseGateScreen({ onRequestActivation }: Props) {
   return (

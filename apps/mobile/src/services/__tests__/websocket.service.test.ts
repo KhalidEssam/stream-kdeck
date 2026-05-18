@@ -1,6 +1,6 @@
 import WS from 'jest-websocket-mock';
 import { WebSocketService } from '../websocket.service';
-import { ConnectedMessage, ActionResultMessage } from '../../types/schema';
+import { ConnectedMessage, ActionResultMessage, LicenseStatusMessage } from '../../types/schema';
 
 describe('WebSocketService', () => {
   let server: WS;
@@ -54,6 +54,53 @@ describe('WebSocketService', () => {
     expect(results).toHaveLength(1);
     expect(results[0].output).toBe('summarized text');
     expect(results[0].buttonId).toBe('btn-1');
+  });
+
+  it('calls onLicenseStatus callback when server sends LICENSE_STATUS', async () => {
+    const statuses: LicenseStatusMessage[] = [];
+    const unsubscribe = service.onLicenseStatus((msg) => statuses.push(msg));
+
+    const msg: LicenseStatusMessage = {
+      type: 'LICENSE_STATUS',
+      licensed: true,
+      aiPro: false,
+      creditsRemaining: 42,
+    };
+    server.send(JSON.stringify(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(statuses).toEqual([msg]);
+
+    unsubscribe();
+    server.send(JSON.stringify({ ...msg, creditsRemaining: 41 }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(statuses).toEqual([msg]);
+  });
+
+  it('sends OPEN_ACTIVATION_DIALOG when openActivationDialog is called', async () => {
+    service.openActivationDialog();
+    await expect(server).toReceiveMessage(JSON.stringify({ type: 'OPEN_ACTIVATION_DIALOG' }));
+  });
+
+  it('sends GET_LICENSE_STATUS when requestLicenseStatus is called', async () => {
+    service.requestLicenseStatus();
+    await expect(server).toReceiveMessage(JSON.stringify({ type: 'GET_LICENSE_STATUS' }));
+  });
+
+  it('calls onAiQuotaExceeded callback when server sends AI_QUOTA_EXCEEDED', async () => {
+    const cb = jest.fn();
+    const unsubscribe = service.onAiQuotaExceeded(cb);
+
+    const msg = { type: 'AI_QUOTA_EXCEEDED', reason: 'credits_exhausted' };
+    server.send(JSON.stringify(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cb).toHaveBeenCalledWith(msg);
+
+    unsubscribe();
+    server.send(JSON.stringify(msg));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cb).toHaveBeenCalledTimes(1);
   });
 
   it('emits "disconnected" status when server closes', async () => {

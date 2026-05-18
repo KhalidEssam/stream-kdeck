@@ -12,6 +12,10 @@ import {
   ValidatePathMessage,
   SearchAppsResultMessage,
   ValidatePathResultMessage,
+  LicenseStatusMessage,
+  AiQuotaExceededMessage,
+  OpenActivationDialogMessage,
+  GetLicenseStatusMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -20,6 +24,8 @@ type ResultCallback = (msg: ActionResultMessage) => void;
 type DeckConfigCallback = (msg: DeckConfigMessage) => void;
 type SearchAppsResultCallback = (msg: SearchAppsResultMessage) => void;
 type ValidatePathResultCallback = (msg: ValidatePathResultMessage) => void;
+type LicenseStatusCallback = (msg: LicenseStatusMessage) => void;
+type AiQuotaExceededCallback = (msg: AiQuotaExceededMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -28,6 +34,8 @@ export class WebSocketService {
   private deckConfigCallbacks: DeckConfigCallback[] = [];
   private searchAppsCallbacks: SearchAppsResultCallback[] = [];
   private validatePathCallbacks: ValidatePathResultCallback[] = [];
+  private licenseStatusCallbacks: LicenseStatusCallback[] = [];
+  private aiQuotaExceededCallbacks: AiQuotaExceededCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -52,6 +60,10 @@ export class WebSocketService {
         this.searchAppsCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'VALIDATE_PATH_RESULT') {
         this.validatePathCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'LICENSE_STATUS') {
+        this.licenseStatusCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'AI_QUOTA_EXCEEDED') {
+        this.aiQuotaExceededCallbacks.forEach((cb) => cb(msg));
       }
     };
 
@@ -96,6 +108,18 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  openActivationDialog(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: OpenActivationDialogMessage = { type: 'OPEN_ACTIVATION_DIALOG' };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  requestLicenseStatus(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: GetLicenseStatusMessage = { type: 'GET_LICENSE_STATUS' };
+    this.ws.send(JSON.stringify(msg));
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -106,6 +130,20 @@ export class WebSocketService {
 
   onDeckConfig(cb: DeckConfigCallback): void {
     this.deckConfigCallbacks.push(cb);
+  }
+
+  onLicenseStatus(cb: LicenseStatusCallback): () => void {
+    this.licenseStatusCallbacks.push(cb);
+    return () => {
+      this.licenseStatusCallbacks = this.licenseStatusCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onAiQuotaExceeded(cb: AiQuotaExceededCallback): () => void {
+    this.aiQuotaExceededCallbacks.push(cb);
+    return () => {
+      this.aiQuotaExceededCallbacks = this.aiQuotaExceededCallbacks.filter((c) => c !== cb);
+    };
   }
 
   onSearchAppsResult(cb: SearchAppsResultCallback): () => void {
