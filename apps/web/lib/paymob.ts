@@ -23,12 +23,12 @@ export async function createPaymobCheckoutSession(input: {
   const plan = getPlanConfig(input.plan);
   const reference = createReference(input.plan);
   const currency = getEnv('PAYMOB_CURRENCY', 'USD');
-  const integrationIds = getPaymentMethodIds();
+  const paymentMethods = getPaymentMethods();
 
   const payload = {
     amount: plan.amountCents,
     currency,
-    payment_methods: integrationIds,
+    payment_methods: paymentMethods,
     special_reference: reference,
     merchant_order_id: reference,
     notification_url: `${siteUrl}/api/paymob/webhook`,
@@ -81,6 +81,11 @@ export async function createPaymobCheckoutSession(input: {
   const responseText = await response.text();
   const data = safeJsonParse<PaymobIntentionResponse>(responseText);
   if (!response.ok) {
+    if (response.status === 404 && responseText.includes('Integration ID')) {
+      throw new Error(
+        'Invalid Paymob integration id. Set PAYMOB_CARD_INTEGRATION_ID in apps/web/.env.local to an enabled integration ID from Paymob Dashboard -> Developers -> Payment Integrations, using the same Paymob account/mode as PAYMOB_SECRET_KEY.',
+      );
+    }
     throw new Error(`Paymob intention failed (${response.status}): ${responseText.slice(0, 240)}`);
   }
 
@@ -111,12 +116,28 @@ function createReference(plan: PlanId): string {
   return `cs_${plan}_${crypto.randomUUID()}`;
 }
 
-function getPaymentMethodIds(): number[] {
+function getPaymentMethods(): Array<number | string> {
   const raw = getEnv('PAYMOB_CARD_INTEGRATION_ID');
-  return raw
+  if (raw.trim() === '123456' || raw.includes('your-paymob')) {
+    throw new Error(
+      'PAYMOB_CARD_INTEGRATION_ID is still a placeholder. Copy the card integration ID from Paymob Dashboard -> Developers -> Payment Integrations.',
+    );
+  }
+
+  const values = raw
     .split(',')
-    .map((part) => Number.parseInt(part.trim(), 10))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const numeric = Number.parseInt(part, 10);
+      return String(numeric) === part ? numeric : part;
+    });
+
+  if (values.length === 0) {
+    throw new Error('PAYMOB_CARD_INTEGRATION_ID must contain at least one Paymob integration ID.');
+  }
+
+  return values;
 }
 
 function safeJsonParse<T>(text: string): T | null {

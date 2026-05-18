@@ -12,6 +12,11 @@ Next.js App Router website and serverless API layer for the SaaS licensing cycle
 npm run web
 ```
 
+`PAYMOB_CARD_INTEGRATION_ID` must be copied from Paymob Dashboard under
+Developers -> Payment Integrations. It must belong to the same Paymob
+account/mode as `PAYMOB_SECRET_KEY`; a test key with a live integration id, or
+the sample value from `.env.example`, will make Paymob return a 404.
+
 ## Serverless routes
 
 - `POST /api/paymob/create-order`
