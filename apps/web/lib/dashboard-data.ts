@@ -120,11 +120,15 @@ async function getCreditSummary(
     return { total: 0, used: 0, remaining: 0, label: 'AI credits' };
   }
 
-  const remaining = Math.max(0, license.monthlyAiCredits - license.creditsUsed);
+  // Always read quota from platform_config — the licenses.monthly_ai_credits column
+  // is a snapshot taken at purchase time and does not update when the admin changes
+  // the platform setting.
+  const plan = await getPlanConfig('desktop_license');
+  const quota = plan.monthlyAiCredits;
   return {
-    total: license.monthlyAiCredits,
+    total: quota,
     used: license.creditsUsed,
-    remaining,
+    remaining: Math.max(0, quota - license.creditsUsed),
     label: 'Desktop credits',
   };
 }
