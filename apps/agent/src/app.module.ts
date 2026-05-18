@@ -8,9 +8,10 @@ import { AppRegistryService } from './app-launch/app-registry.service';
 import { KeystrokeService } from './keystroke/keystroke.service';
 import { AppSearchService } from './app-search/app-search.service';
 import { LicenseModule } from './license/license.module';
+import { NetworkModule } from './network/network.module';
 
 @Module({
-  imports: [LicenseModule],
+  imports: [LicenseModule, NetworkModule],
   providers: [
     WsGateway,
     ClipboardService,
