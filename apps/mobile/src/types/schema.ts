@@ -91,12 +91,36 @@ export interface ValidatePathResultMessage {
   error?: string;
 }
 
+// --- Licensing messages ---
+
+export interface LicenseStatusMessage {
+  type: 'LICENSE_STATUS';
+  licensed: boolean;
+  aiPro: boolean;
+  creditsRemaining: number;
+}
+
+export interface AiQuotaExceededMessage {
+  type: 'AI_QUOTA_EXCEEDED';
+  reason: 'credits_exhausted';
+}
+
+export interface OpenActivationDialogMessage {
+  type: 'OPEN_ACTIVATION_DIALOG';
+}
+
+export interface GetLicenseStatusMessage {
+  type: 'GET_LICENSE_STATUS';
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
   | DeckConfigMessage
   | SearchAppsResultMessage
-  | ValidatePathResultMessage;
+  | ValidatePathResultMessage
+  | LicenseStatusMessage
+  | AiQuotaExceededMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
@@ -104,4 +128,6 @@ export type MobileMessage =
   | RemoveTileMessage
   | SetTilePinnedMessage
   | SearchAppsMessage
-  | ValidatePathMessage;
+  | ValidatePathMessage
+  | OpenActivationDialogMessage
+  | GetLicenseStatusMessage;
