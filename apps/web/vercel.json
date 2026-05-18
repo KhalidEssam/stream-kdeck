@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "app/api/paymob/webhook/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/paymob/subscription-webhook/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
