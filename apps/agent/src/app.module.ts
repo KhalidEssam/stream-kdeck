@@ -7,8 +7,10 @@ import { AppLaunchService } from './app-launch/app-launch.service';
 import { AppRegistryService } from './app-launch/app-registry.service';
 import { KeystrokeService } from './keystroke/keystroke.service';
 import { AppSearchService } from './app-search/app-search.service';
+import { LicenseModule } from './license/license.module';
 
 @Module({
+  imports: [LicenseModule],
   providers: [
     WsGateway,
     ClipboardService,
