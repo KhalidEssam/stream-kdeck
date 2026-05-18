@@ -24,6 +24,7 @@ export function discoverAgent(
     const host = ipv4 ?? service.host;
     const port = service.port ?? DEFAULT_PORT;
     zc.stop();
+    zc.removeDeviceListeners();
     onFound(`ws://${host}:${port}`);
   });
 
@@ -31,6 +32,7 @@ export function discoverAgent(
     if (!resolved) {
       resolved = true;
       zc.stop();
+      zc.removeDeviceListeners();
       onTimeout(String(err));
     }
   });
@@ -41,12 +43,13 @@ export function discoverAgent(
     if (!resolved) {
       resolved = true;
       zc.stop();
+      zc.removeDeviceListeners();
       onTimeout('No Control Surface agent found on this network.');
     }
   }, timeoutMs);
 
   return () => {
     clearTimeout(timer);
-    if (!resolved) { resolved = true; zc.stop(); }
+    if (!resolved) { resolved = true; zc.stop(); zc.removeDeviceListeners(); }
   };
 }
