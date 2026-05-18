@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Navbar } from '../components/navbar';
+import { NavbarWrapper } from '../components/navbar-wrapper';
 import { Footer } from '../components/footer';
 import { SetupClient } from './setup-client';
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function SetupPage() {
   return (
     <>
-      <Navbar />
+      <NavbarWrapper />
       <div className="public-layout-body">
         <SetupClient />
         <Footer />

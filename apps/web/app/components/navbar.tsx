@@ -11,7 +11,11 @@ const NAV_LINKS = [
   { href: '/#pricing', label: 'Pricing' },
 ];
 
-export function Navbar() {
+interface NavbarProps {
+  isLoggedIn?: boolean;
+}
+
+export function Navbar({ isLoggedIn = false }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
@@ -57,9 +61,15 @@ export function Navbar() {
 
           {/* CTA */}
           <div className="navbar-actions">
-            <Link href="/dashboard" className="navbar-cta-ghost">
-              Sign in
-            </Link>
+            {isLoggedIn ? (
+              <Link href="/dashboard" className="navbar-cta-ghost">
+                Dashboard
+              </Link>
+            ) : (
+              <Link href="/login" className="navbar-cta-ghost">
+                Sign in
+              </Link>
+            )}
             <Link href="/#pricing" className="navbar-cta">
               Get KDeck
             </Link>
@@ -119,9 +129,15 @@ export function Navbar() {
                 </motion.div>
               ))}
               <div className="mobile-menu-actions">
-                <Link href="/dashboard" className="navbar-cta-ghost mobile-full" onClick={() => setMenuOpen(false)}>
-                  Sign in
-                </Link>
+                {isLoggedIn ? (
+                  <Link href="/dashboard" className="navbar-cta-ghost mobile-full" onClick={() => setMenuOpen(false)}>
+                    Dashboard
+                  </Link>
+                ) : (
+                  <Link href="/login" className="navbar-cta-ghost mobile-full" onClick={() => setMenuOpen(false)}>
+                    Sign in
+                  </Link>
+                )}
                 <Link href="/#pricing" className="navbar-cta mobile-full" onClick={() => setMenuOpen(false)}>
                   Get KDeck
                 </Link>

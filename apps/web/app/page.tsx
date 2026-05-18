@@ -1,4 +1,4 @@
-import { Navbar } from './components/navbar';
+import { NavbarWrapper } from './components/navbar-wrapper';
 import { Footer } from './components/footer';
 import { LandingClient } from './landing-client';
 import { getEnv } from '@/lib/env';
@@ -14,7 +14,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Navbar />
+      <NavbarWrapper />
       <div className="public-layout-body">
         <LandingClient
           plans={toPurchaseOptions(plans, currency)}
