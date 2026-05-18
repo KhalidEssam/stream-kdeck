@@ -18,6 +18,5 @@ export async function bootstrapNestJS(): Promise<{ nestApp: INestApplication }> 
   nestApp.useWebSocketAdapter(new WsAdapter(nestApp));
   await nestApp.listen(AGENT_PORT);
   console.log(`[Agent] WebSocket server ready on ws://localhost:${AGENT_PORT}`);
-  console.log('[Agent] GEMINI_API_KEY loaded:', !!process.env.GEMINI_API_KEY);
   return { nestApp };
 }
