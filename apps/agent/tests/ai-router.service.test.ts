@@ -1,12 +1,20 @@
 import { Test } from '@nestjs/testing';
 import { AiRouterService } from '../src/ai/ai-router.service';
+import { LicenseService } from '../src/license/license.service';
 
 describe('AiRouterService', () => {
   let service: AiRouterService;
 
+  const mockLicenseService = {
+    decrementCredit: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
-      providers: [AiRouterService],
+      providers: [
+        AiRouterService,
+        { provide: LicenseService, useValue: mockLicenseService },
+      ],
     }).compile();
     service = moduleRef.get(AiRouterService);
   });

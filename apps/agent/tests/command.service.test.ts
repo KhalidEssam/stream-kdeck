@@ -4,6 +4,7 @@ import { ClipboardService } from '../src/clipboard/clipboard.service';
 import { AiRouterService } from '../src/ai/ai-router.service';
 import { AppLaunchService } from '../src/app-launch/app-launch.service';
 import { KeystrokeService } from '../src/keystroke/keystroke.service';
+import { LicenseService } from '../src/license/license.service';
 import { shell } from 'electron';
 
 describe('CommandService', () => {
@@ -12,6 +13,7 @@ describe('CommandService', () => {
   let mockAiRouter: { call: jest.Mock };
   let mockAppLaunch: { launch: jest.Mock; openUrl: jest.Mock };
   let mockKeystroke: { execute: jest.Mock };
+  let mockLicenseService: { creditsRemaining: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -20,18 +22,20 @@ describe('CommandService', () => {
       openUrl: jest.fn().mockResolvedValue(undefined),
     };
     mockKeystroke = { execute: jest.fn().mockResolvedValue(undefined) };
+    mockLicenseService = { creditsRemaining: jest.fn().mockReturnValue(10) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         CommandService,
         ClipboardService,
-        { provide: AiRouterService, useValue: mockAiRouter },
+        { provide: AiRouterService,  useValue: mockAiRouter },
         { provide: AppLaunchService, useValue: mockAppLaunch },
         { provide: KeystrokeService, useValue: mockKeystroke },
+        { provide: LicenseService,   useValue: mockLicenseService },
       ],
     }).compile();
 
-    commandService = moduleRef.get(CommandService);
+    commandService   = moduleRef.get(CommandService);
     clipboardService = moduleRef.get(ClipboardService);
   });
 
@@ -122,5 +126,29 @@ describe('CommandService', () => {
     const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Bad\\game.exe' });
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Failed to launch/);
+  });
+
+  it('returns quotaExceeded when AI_CLIPBOARD is called with 0 credits', async () => {
+    mockLicenseService.creditsRemaining.mockReturnValue(0);
+    const result = await commandService.execute({
+      kind: 'AI_CLIPBOARD',
+      prompt: 'Summarize this',
+      outputMode: 'clipboard',
+    });
+    expect(result.success).toBe(false);
+    expect(result.quotaExceeded).toBe(true);
+    expect(mockAiRouter.call).not.toHaveBeenCalled();
+  });
+
+  it('calls AI when credits are available (1+)', async () => {
+    mockLicenseService.creditsRemaining.mockReturnValue(1);
+    await clipboardService.write('some text');
+    const result = await commandService.execute({
+      kind: 'AI_CLIPBOARD',
+      prompt: 'Fix grammar',
+      outputMode: 'clipboard',
+    });
+    expect(result.success).toBe(true);
+    expect(mockAiRouter.call).toHaveBeenCalled();
   });
 });

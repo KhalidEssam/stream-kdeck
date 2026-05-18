@@ -5,11 +5,13 @@ import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
 import { KeystrokeService } from '../keystroke/keystroke.service';
+import { LicenseService } from '../license/license.service';
 
 export interface CommandResult {
   success: boolean;
   output?: string;
   error?: string;
+  quotaExceeded?: boolean;
 }
 
 @Injectable()
@@ -19,6 +21,7 @@ export class CommandService {
     private readonly aiRouter: AiRouterService,
     private readonly appLaunch: AppLaunchService,
     private readonly keystroke: KeystrokeService,
+    private readonly licenseService: LicenseService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -29,6 +32,9 @@ export class CommandService {
           return { success: true };
 
         case 'AI_CLIPBOARD': {
+          if (this.licenseService.creditsRemaining() <= 0) {
+            return { success: false, quotaExceeded: true };
+          }
           const context = await this.clipboard.read();
           const result = await this.aiRouter.call(action.prompt, context);
           if (action.outputMode === 'viewer') {
