@@ -36,6 +36,10 @@ app.whenReady().then(async () => {
     console.warn('[Agent] Could not load tray icon — continuing without tray');
   }
 
+  activationDialog.onActivated(() => {
+    tray?.setContextMenu(buildTrayMenu());
+  });
+
   if (!licenseService.hasRefreshToken()) {
     activationDialog.open();
   }

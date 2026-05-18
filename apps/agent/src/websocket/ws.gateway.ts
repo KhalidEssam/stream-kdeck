@@ -28,7 +28,9 @@ export class WsGateway implements OnGatewayConnection {
     private readonly appSearch: AppSearchService,
     private readonly licenseService: LicenseService,
     private readonly activationDialog: ActivationDialogService,
-  ) {}
+  ) {
+    this.activationDialog.onActivated(() => this.broadcastLicenseStatus());
+  }
 
   private sendDeckConfig(client: WebSocket): void {
     const msg: DeckConfigMessage = {
@@ -38,15 +40,27 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(msg));
   }
 
-  private sendLicenseStatus(client: WebSocket): void {
+  private broadcastLicenseStatus(): void {
+    const payload = JSON.stringify(this.buildLicenseStatusMsg());
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    });
+  }
+
+  private buildLicenseStatusMsg(): LicenseStatusMessage {
     const claims = this.licenseService.getClaims();
-    const msg: LicenseStatusMessage = {
+    return {
       type:             'LICENSE_STATUS',
       licensed:         claims.licensed,
       aiPro:            claims.ai_pro,
       creditsRemaining: claims.credits_remaining,
     };
-    client.send(JSON.stringify(msg));
+  }
+
+  private sendLicenseStatus(client: WebSocket): void {
+    client.send(JSON.stringify(this.buildLicenseStatusMsg()));
   }
 
   handleConnection(client: WebSocket): void {

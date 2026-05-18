@@ -10,6 +10,11 @@ const SUPABASE_EDGE_URL = process.env.SUPABASE_URL
 @Injectable()
 export class ActivationDialogService {
   private window: BrowserWindow | null = null;
+  private activatedCallbacks: Array<() => void> = [];
+
+  onActivated(cb: () => void): void {
+    this.activatedCallbacks.push(cb);
+  }
 
   constructor(
     private readonly licenseService: LicenseService,
@@ -45,28 +50,42 @@ export class ActivationDialogService {
   }
 
   private async handleActivation(key: string): Promise<{ success: boolean; error?: string }> {
+    if (!SUPABASE_EDGE_URL) {
+      return { success: false, error: 'Agent not configured. Set SUPABASE_URL in .env file.' };
+    }
+
     try {
       const fp   = this.fingerprint.getFingerprint();
       const name = this.fingerprint.getDeviceName();
 
+      const anonKey = process.env.SUPABASE_ANON_KEY ?? '';
       const res = await fetch(SUPABASE_EDGE_URL, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ key: key.trim(), deviceFingerprint: fp, deviceName: name }),
+        headers: {
+          'Content-Type':  'application/json',
+          'apikey':        anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ key: key.trim(), deviceFingerprint: fp, deviceName: name }),
       });
 
-      const json = await res.json() as { hashed_token?: string; error?: string };
+      const json = await res.json() as { hashed_token?: string; error?: string; message?: string };
 
       if (!res.ok || !json.hashed_token) {
+        const code = json.error ?? json.message ?? '';
+        console.error(`[License] Activation failed — HTTP ${res.status}, code: ${code}`);
         const msg: Record<string, string> = {
-          INVALID_KEY:     'Invalid license key. Check your purchase email.',
-          REVOKED:         'This license has been revoked. Contact support.',
-          DEVICE_MISMATCH: 'Key is already activated on another machine. Contact support.',
+          INVALID_KEY:              'Invalid license key. Check your purchase email.',
+          REVOKED:                  'This license has been revoked. Contact support.',
+          DEVICE_MISMATCH:          'Key is already activated on another machine. Contact support.',
+          USER_NOT_FOUND:           'Account not found for this license. Contact support.',
+          SESSION_GENERATION_FAILED:'Server error creating session. Contact support.',
         };
-        return { success: false, error: msg[json.error ?? ''] ?? 'Activation failed. Try again.' };
+        return { success: false, error: msg[code] ?? `Activation failed (${code || res.status}). Contact support.` };
       }
 
       await this.licenseService.activateWithHashedToken(json.hashed_token);
+      this.activatedCallbacks.forEach((cb) => cb());
       this.window?.close();
       return { success: true };
     } catch {
