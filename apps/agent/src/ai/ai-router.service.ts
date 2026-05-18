@@ -1,32 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LicenseService } from '../license/license.service';
+
+export class AiQuotaError extends Error {
+  constructor() { super('AI quota exceeded'); }
+}
 
 @Injectable()
 export class AiRouterService {
   constructor(private readonly licenseService: LicenseService) {}
 
   async call(prompt: string, context: string): Promise<string> {
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-      throw new Error(
-        'No AI provider configured. Set GEMINI_API_KEY in environment or .env file.',
-      );
+    const accessToken = await this.licenseService.getAccessToken();
+    if (!accessToken) {
+      throw new Error('Not authenticated. Activate your license first.');
     }
 
-    const genAI     = new GoogleGenerativeAI(geminiKey);
-    const modelName = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
-    const model     = genAI.getGenerativeModel({ model: modelName });
+    const supabaseUrl = process.env.SUPABASE_URL ?? '';
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL not configured.');
+    }
 
-    const fullPrompt = context
-      ? `Clipboard content:\n${context}\n\nInstruction:\n${prompt}`
-      : prompt;
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ prompt, context }),
+    });
 
-    const result = await model.generateContent(fullPrompt);
-    const text   = result.response.text();
+    if (response.status === 402) {
+      throw new AiQuotaError();
+    }
 
-    this.licenseService.decrementCredit().catch(() => {});
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? `AI proxy error: ${response.status}`);
+    }
 
-    return text;
+    const data = await response.json() as { text?: string };
+    return data.text ?? '';
   }
 }

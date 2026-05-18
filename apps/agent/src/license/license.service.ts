@@ -36,6 +36,7 @@ export class LicenseService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     this.loadCachedClaims();
     await this.refreshSession();
+    console.log('[License] Boot claims:', this.getClaims());
   }
 
   async refreshSession(): Promise<void> {
@@ -102,6 +103,11 @@ export class LicenseService implements OnApplicationBootstrap {
     return !!this.storage.get(REFRESH_TOKEN_KEY);
   }
 
+  async getAccessToken(): Promise<string | null> {
+    const { data } = await this.supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  }
+
   isLicensed(): boolean          { return this.claims.licensed; }
   isAiPro(): boolean             { return this.claims.ai_pro; }
   creditsRemaining(): number     { return this.claims.credits_remaining; }
@@ -118,6 +124,7 @@ export class LicenseService implements OnApplicationBootstrap {
       const payload = JSON.parse(
         Buffer.from(accessToken.split('.')[1], 'base64url').toString(),
       );
+      console.log('[License] JWT claims:', { licensed: payload.licensed, ai_pro: payload.ai_pro, credits_remaining: payload.credits_remaining });
       this.claims = {
         licensed:          payload.licensed          ?? false,
         ai_pro:            payload.ai_pro            ?? false,

@@ -1,15 +1,16 @@
 import { Test } from '@nestjs/testing';
-import { AiRouterService } from '../src/ai/ai-router.service';
+import { AiRouterService, AiQuotaError } from '../src/ai/ai-router.service';
 import { LicenseService } from '../src/license/license.service';
+
+const mockLicenseService = {
+  getAccessToken: jest.fn<Promise<string | null>, []>(),
+};
 
 describe('AiRouterService', () => {
   let service: AiRouterService;
 
-  const mockLicenseService = {
-    decrementCredit: jest.fn().mockResolvedValue(undefined),
-  };
-
   beforeEach(async () => {
+    jest.resetAllMocks();
     const moduleRef = await Test.createTestingModule({
       providers: [
         AiRouterService,
@@ -19,25 +20,47 @@ describe('AiRouterService', () => {
     service = moduleRef.get(AiRouterService);
   });
 
-  afterEach(() => {
-    delete process.env.GEMINI_API_KEY;
+  it('throws when not authenticated', async () => {
+    mockLicenseService.getAccessToken.mockResolvedValue(null);
+    await expect(service.call('hello', '')).rejects.toThrow('Not authenticated');
   });
 
-  it('throws a descriptive error when no API key is configured', async () => {
-    await expect(service.call('hello', '')).rejects.toThrow(
-      'No AI provider configured'
-    );
+  it('throws when SUPABASE_URL is missing', async () => {
+    mockLicenseService.getAccessToken.mockResolvedValue('tok');
+    const saved = process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_URL;
+    await expect(service.call('hello', '')).rejects.toThrow('SUPABASE_URL not configured');
+    process.env.SUPABASE_URL = saved;
   });
 
-  // Integration test — runs only when GEMINI_API_KEY is set in the environment.
-  // Run: GEMINI_API_KEY=your_key npx jest tests/ai-router.service.test.ts
-  it('returns a non-empty string from Gemini Flash (integration)', async () => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn('Skipping integration test: GEMINI_API_KEY not set');
-      return;
-    }
-    const result = await service.call('Say only the word "hello".', '');
-    expect(typeof result).toBe('string');
-    expect(result.trim().length).toBeGreaterThan(0);
-  }, 15_000);
+  it('throws AiQuotaError on 402 from proxy', async () => {
+    mockLicenseService.getAccessToken.mockResolvedValue('tok');
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 402 } as Response);
+    await expect(service.call('hello', '')).rejects.toBeInstanceOf(AiQuotaError);
+    delete process.env.SUPABASE_URL;
+  });
+
+  it('throws on non-ok proxy response', async () => {
+    mockLicenseService.getAccessToken.mockResolvedValue('tok');
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false, status: 500,
+      json: jest.fn().mockResolvedValue({ error: 'AI_NOT_CONFIGURED' }),
+    } as unknown as Response);
+    await expect(service.call('hello', '')).rejects.toThrow('AI_NOT_CONFIGURED');
+    delete process.env.SUPABASE_URL;
+  });
+
+  it('returns text from successful proxy response', async () => {
+    mockLicenseService.getAccessToken.mockResolvedValue('tok');
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: jest.fn().mockResolvedValue({ text: 'hello world' }),
+    } as unknown as Response);
+    const result = await service.call('say hello', '');
+    expect(result).toBe('hello world');
+    delete process.env.SUPABASE_URL;
+  });
 });

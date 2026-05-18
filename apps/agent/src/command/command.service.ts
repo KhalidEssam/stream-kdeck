@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ButtonAction } from '@control-surface/shared';
 import { shell } from 'electron';
 import { ClipboardService } from '../clipboard/clipboard.service';
-import { AiRouterService } from '../ai/ai-router.service';
+import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
 import { KeystrokeService } from '../keystroke/keystroke.service';
 import { LicenseService } from '../license/license.service';
@@ -68,6 +68,7 @@ export class CommandService {
         }
       }
     } catch (err: unknown) {
+      if (err instanceof AiQuotaError) return { success: false, quotaExceeded: true };
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
