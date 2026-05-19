@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { mouse, Button, Point } from '@nut-tree-fork/nut-js';
 
+const MAX_DELTA = 200;
+const clamp = (v: number) => Math.max(-MAX_DELTA, Math.min(MAX_DELTA, v));
+
 @Injectable()
 export class MouseService {
   async moveMouse(dx: number, dy: number): Promise<void> {
-    if (dx === 0 && dy === 0) return;
+    const cdx = clamp(Math.round(dx));
+    const cdy = clamp(Math.round(dy));
+    if (cdx === 0 && cdy === 0) return;
     const pos = await mouse.getPosition();
-    await mouse.setPosition(new Point(pos.x + dx, pos.y + dy));
+    await mouse.setPosition(new Point(pos.x + cdx, pos.y + cdy));
   }
 
   async clickMouse(
@@ -25,10 +30,13 @@ export class MouseService {
   }
 
   async scrollMouse(dx: number, dy: number): Promise<void> {
-    if (dy < 0) await mouse.scrollUp(Math.abs(dy));
-    else if (dy > 0) await mouse.scrollDown(dy);
+    const cdx = clamp(Math.round(dx));
+    const cdy = clamp(Math.round(dy));
 
-    if (dx < 0) await mouse.scrollLeft(Math.abs(dx));
-    else if (dx > 0) await mouse.scrollRight(dx);
+    if (cdy < 0) await mouse.scrollUp(Math.abs(cdy));
+    else if (cdy > 0) await mouse.scrollDown(cdy);
+
+    if (cdx < 0) await mouse.scrollLeft(Math.abs(cdx));
+    else if (cdx > 0) await mouse.scrollRight(cdx);
   }
 }
