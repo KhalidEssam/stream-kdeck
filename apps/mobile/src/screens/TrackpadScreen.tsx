@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebSocketService } from '../services/websocket.service';
 
 const SENSITIVITY_KEY = 'trackpad_sensitivity';
+const ORIENTATION_KEY = 'trackpad_orientation';
 const SENSITIVITY_MIN = 0.3;
 const SENSITIVITY_MAX = 10.0;
 const SENSITIVITY_STEP = 0.1;
@@ -50,6 +51,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const cancelLongPressRef = useRef<() => void>(() => {});
   const twoFingerStartRef = useRef<{ x: number; y: number } | null>(null);
   const sensitivityRef = useRef(SENSITIVITY_DEFAULT);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const isLandscapeRef = useRef(false);
   // Fix 4: track finger count at gesture start for reliable Android two-finger detection
   const fingerCountRef = useRef(0);
 
@@ -62,6 +65,14 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
             setSensitivity(parsed);
             sensitivityRef.current = parsed;
           }
+        }
+      })
+      .catch(console.warn);
+    AsyncStorage.getItem(ORIENTATION_KEY)
+      .then((val) => {
+        if (val === 'landscape') {
+          setIsLandscape(true);
+          isLandscapeRef.current = true;
         }
       })
       .catch(console.warn);
@@ -78,6 +89,13 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
     setSensitivity(clamped);
     sensitivityRef.current = clamped;
     AsyncStorage.setItem(SENSITIVITY_KEY, String(clamped)).catch(console.warn);
+  }, []);
+
+  const toggleOrientation = useCallback(() => {
+    const next = !isLandscapeRef.current;
+    isLandscapeRef.current = next;
+    setIsLandscape(next);
+    AsyncStorage.setItem(ORIENTATION_KEY, next ? 'landscape' : 'portrait').catch(console.warn);
   }, []);
 
   // Fix 2: cancelLongPress wrapped in useCallback; ref kept in sync below
@@ -153,8 +171,13 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           }
 
           if (now - lastSentRef.current >= THROTTLE_MS) {
-            const dx = Math.round(rawDx * sensitivityRef.current * 2);
-            const dy = Math.round(rawDy * sensitivityRef.current * 2);
+            const scale = sensitivityRef.current * 2;
+            const dx = isLandscapeRef.current
+              ? Math.round(rawDy * scale)
+              : Math.round(rawDx * scale);
+            const dy = isLandscapeRef.current
+              ? Math.round(rawDx * scale)
+              : Math.round(rawDy * scale);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.moveMouse(dx, dy);
               lastSentRef.current = now;
@@ -233,6 +256,13 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         </TouchableOpacity>
         <Text style={styles.title}>Trackpad</Text>
         <TouchableOpacity
+          onPress={toggleOrientation}
+          style={[styles.keyboardButton, isLandscape && styles.keyboardButtonActive]}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.keyboardIcon}>{isLandscape ? '⬛' : '📱'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={toggleKeyboard}
           style={[styles.keyboardButton, showKeyboard && styles.keyboardButtonActive]}
           activeOpacity={0.7}
@@ -243,7 +273,9 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
 
       {/* Gesture surface */}
       <View style={styles.surface} {...panResponder.panHandlers}>
-        <Text style={styles.hint}>Drag to move  ·  Tap to click  ·  2-finger scroll</Text>
+        <Text style={styles.hint}>
+          {isLandscape ? 'Landscape mode' : 'Portrait mode'}{'  ·  '}Drag to move  ·  Tap to click
+        </Text>
       </View>
 
       {/* Sensitivity control */}
