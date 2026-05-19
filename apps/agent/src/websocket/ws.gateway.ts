@@ -10,12 +10,19 @@ import {
   AiQuotaExceededMessage,
   SearchAppsResultMessage,
   ValidatePathResultMessage,
+  ContextShortcutsMessage,
+  ContextProfilesMessage,
+  AddContextShortcutMessage,
+  RemoveContextShortcutMessage,
 } from '@control-surface/shared';
 import { CommandService } from '../command/command.service';
 import { AppRegistryService } from '../app-launch/app-registry.service';
 import { AppSearchService } from '../app-search/app-search.service';
 import { LicenseService } from '../license/license.service';
 import { ActivationDialogService } from '../license/activation-dialog.service';
+import { ActiveWindowService } from '../active-window/active-window.service';
+import { ContextProfileService } from '../context-profile/context-profile.service';
+import { ContextProfile } from '../context-profile/context-profile.service';
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
@@ -28,8 +35,13 @@ export class WsGateway implements OnGatewayConnection {
     private readonly appSearch: AppSearchService,
     private readonly licenseService: LicenseService,
     private readonly activationDialog: ActivationDialogService,
+    private readonly activeWindow: ActiveWindowService,
+    private readonly contextProfile: ContextProfileService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
+    this.activeWindow.on('appChanged', (processName: string | null) => {
+      void this.handleAppChanged(processName);
+    });
   }
 
   private sendDeckConfig(client: WebSocket): void {
@@ -64,6 +76,47 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(this.buildLicenseStatusMsg()));
   }
 
+  private async handleAppChanged(processName: string | null): Promise<void> {
+    // Only generate for curated apps that have no cached profile yet
+    if (processName && !this.contextProfile.getProfile(processName) && this.contextProfile.isCurated(processName)) {
+      const meta = this.contextProfile.getCuratedMeta(processName)!;
+      console.log(`[Agent] appChanged: ${processName} → generating shortcuts...`);
+      await this.contextProfile.generateAndCache(processName, meta.appLabel, meta.iconId, platform());
+    }
+    const profile = this.contextProfile.getProfile(processName);
+    this.broadcastContextShortcuts(processName, profile);
+  }
+
+  private buildContextMsg(
+    processName: string | null,
+    profile: ContextProfile | null,
+  ): ContextShortcutsMessage {
+    const hasContent = profile && profile.source !== 'llm-failed' && profile.shortcuts.length > 0;
+    return {
+      type:        'CONTEXT_SHORTCUTS',
+      processName: processName ?? '',
+      appLabel:    hasContent ? profile.appLabel : '',
+      iconId:      hasContent ? profile.iconId   : '',
+      shortcuts:   hasContent ? profile.shortcuts : [],
+    };
+  }
+
+  private broadcastContextShortcuts(
+    processName: string | null,
+    profile: ContextProfile | null,
+  ): void {
+    const payload = JSON.stringify(this.buildContextMsg(processName, profile));
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+  }
+
+  private sendContextShortcuts(client: WebSocket): void {
+    const pn = this.activeWindow.current;
+    const profile = this.contextProfile.getProfile(pn);
+    client.send(JSON.stringify(this.buildContextMsg(pn, profile)));
+  }
+
   handleConnection(client: WebSocket): void {
     const connected: ConnectedMessage = {
       type:         'CONNECTED',
@@ -73,6 +126,7 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(connected));
     this.sendDeckConfig(client);
     this.sendLicenseStatus(client);
+    this.sendContextShortcuts(client);
 
     console.log('[Agent] Mobile client connected');
 
@@ -133,6 +187,31 @@ export class WsGateway implements OnGatewayConnection {
         console.log(`[Agent] VALIDATE_PATH_RESULT "${data.exePath}": ${outcome.valid ? 'valid' : outcome.error}`);
         const response: ValidatePathResultMessage = { type: 'VALIDATE_PATH_RESULT', ...outcome };
         client.send(JSON.stringify(response));
+        return;
+      }
+
+      if (data.type === 'ADD_CONTEXT_SHORTCUT') {
+        const d = data as AddContextShortcutMessage;
+        this.contextProfile.addShortcut(d.processName, d.appLabel, d.iconId, d.shortcut);
+        const profile = this.contextProfile.getProfile(d.processName);
+        client.send(JSON.stringify(this.buildContextMsg(d.processName, profile)));
+        return;
+      }
+
+      if (data.type === 'REMOVE_CONTEXT_SHORTCUT') {
+        const d = data as RemoveContextShortcutMessage;
+        this.contextProfile.removeShortcut(d.processName, d.shortcutId);
+        const profile = this.contextProfile.getProfile(d.processName);
+        client.send(JSON.stringify(this.buildContextMsg(d.processName, profile)));
+        return;
+      }
+
+      if (data.type === 'GET_CONTEXT_PROFILES') {
+        const msg: ContextProfilesMessage = {
+          type:     'CONTEXT_PROFILES',
+          profiles: this.contextProfile.getAllProfiles(),
+        };
+        client.send(JSON.stringify(msg));
         return;
       }
 
