@@ -8,6 +8,7 @@ import { LicenseService } from '../src/license/license.service';
 import { ActivationDialogService } from '../src/license/activation-dialog.service';
 import { ConnectedMessage, ActionResultMessage, DeckConfigMessage, LicenseStatusMessage } from '@control-surface/shared';
 
+jest.mock('active-win', () => jest.fn().mockResolvedValue(undefined));
 jest.mock('fs');
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
@@ -79,7 +80,8 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 3) {
+      // Connection now sends: CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS
+      if (messages.length === 4) {
         ws.send(JSON.stringify({
           type: 'BUTTON_TAP',
           buttonId: 'btn-test',
@@ -87,8 +89,8 @@ describe('WsGateway', () => {
         }));
       }
 
-      if (messages.length === 4) {
-        const result: ActionResultMessage = JSON.parse(messages[3]);
+      if (messages.length === 5) {
+        const result: ActionResultMessage = JSON.parse(messages[4]);
         expect(result.type).toBe('ACTION_RESULT');
         expect(result.buttonId).toBe('btn-test');
         expect(result.success).toBe(true);
@@ -123,15 +125,15 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 3) {
+      if (messages.length === 4) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Test Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } },
         }));
       }
 
-      if (messages.length === 4) {
-        const updated: DeckConfigMessage = JSON.parse(messages[3]);
+      if (messages.length === 5) {
+        const updated: DeckConfigMessage = JSON.parse(messages[4]);
         expect(updated.type).toBe('DECK_CONFIG');
         expect(updated.tiles.some((t) => t.label === 'Test Site')).toBe(true);
         ws.close();
@@ -147,22 +149,22 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 3) {
+      if (messages.length === 4) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Remove Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://remove-me.example.com' } },
         }));
       }
 
-      if (messages.length === 4) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[3]);
+      if (messages.length === 5) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[4]);
         const tile = withTile.tiles.find((t) => t.label === 'Remove Me');
         expect(tile).toBeDefined();
         ws.send(JSON.stringify({ type: 'REMOVE_TILE', tileId: tile!.id }));
       }
 
-      if (messages.length === 5) {
-        const updated: DeckConfigMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const updated: DeckConfigMessage = JSON.parse(messages[5]);
         expect(updated.tiles.some((t) => t.label === 'Remove Me')).toBe(false);
         ws.close();
         done();
@@ -177,22 +179,22 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 3) {
+      if (messages.length === 4) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Pin Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://pin-me.example.com' } },
         }));
       }
 
-      if (messages.length === 4) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[3]);
+      if (messages.length === 5) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[4]);
         const tile = withTile.tiles.find((t) => t.label === 'Pin Me');
         expect(tile).toBeDefined();
         ws.send(JSON.stringify({ type: 'SET_TILE_PINNED', tileId: tile!.id, pinned: true }));
       }
 
-      if (messages.length === 5) {
-        const updated: DeckConfigMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const updated: DeckConfigMessage = JSON.parse(messages[5]);
         expect(updated.tiles[0]).toMatchObject({ label: 'Pin Me', pinned: true });
         ws.close();
         done();
