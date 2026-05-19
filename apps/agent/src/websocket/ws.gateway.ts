@@ -77,11 +77,14 @@ export class WsGateway implements OnGatewayConnection {
   }
 
   private async handleAppChanged(processName: string | null): Promise<void> {
-    // Only generate for curated apps that have no cached profile yet
-    if (processName && !this.contextProfile.getProfile(processName) && this.contextProfile.isCurated(processName)) {
-      const meta = this.contextProfile.getCuratedMeta(processName)!;
-      console.log(`[Agent] appChanged: ${processName} → generating shortcuts...`);
-      await this.contextProfile.generateAndCache(processName, meta.appLabel, meta.iconId, platform());
+    if (processName && this.contextProfile.isCurated(processName)) {
+      const existing = this.contextProfile.getProfile(processName);
+      const shouldGenerate = !existing || (existing.source === 'llm-failed' && existing.shortcuts.length === 0);
+      if (shouldGenerate) {
+        const meta = this.contextProfile.getCuratedMeta(processName)!;
+        console.log(`[Agent] appChanged: ${processName} → generating shortcuts...`);
+        await this.contextProfile.generateAndCache(processName, meta.appLabel, meta.iconId, platform());
+      }
     }
     const profile = this.contextProfile.getProfile(processName);
     this.broadcastContextShortcuts(processName, profile);
@@ -91,7 +94,7 @@ export class WsGateway implements OnGatewayConnection {
     processName: string | null,
     profile: ContextProfile | null,
   ): ContextShortcutsMessage {
-    const hasContent = profile && profile.source !== 'llm-failed' && profile.shortcuts.length > 0;
+    const hasContent = profile && profile.shortcuts.length > 0;
     return {
       type:        'CONTEXT_SHORTCUTS',
       processName: processName ?? '',

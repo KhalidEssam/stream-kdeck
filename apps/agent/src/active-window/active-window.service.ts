@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { ChildProcess, spawn } from 'child_process';
+import path from 'path';
 
 const POLL_MS = 500;
 const DEBOUNCE_MS = 1500;
@@ -8,7 +9,7 @@ const DEBOUNCE_MS = 1500;
 // Dynamically load active-win so Electron's ffi-napi absence on Windows is caught at runtime.
 // On macOS active-win uses a Swift binary (no native addon). On Windows ffi-napi must be
 // rebuilt for the Electron ABI — if it's missing we fall back to a PowerShell subprocess.
-let _activeWin: ((opts?: unknown) => Promise<{ owner?: { name?: string } } | undefined>) | null = null;
+let _activeWin: ((opts?: unknown) => Promise<{ owner?: { name?: string; path?: string } } | undefined>) | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require('active-win');
@@ -30,7 +31,6 @@ export class ActiveWindowService extends EventEmitter implements OnModuleInit, O
   private psCb: ((name: string | null) => void) | null = null;
 
   onModuleInit(): void {
-    if (!_activeWin && process.platform === 'win32') this.startPs();
     this.pollInterval = setInterval(() => void this.poll(), POLL_MS);
   }
 
@@ -88,8 +88,30 @@ export class ActiveWindowService extends EventEmitter implements OnModuleInit, O
     let name: string | null = null;
 
     if (_activeWin) {
-      const win = await _activeWin().catch(() => undefined);
-      name = win?.owner?.name ?? null;
+      // active-win/index.js lazily requires windows.js on first call, not at module load.
+      // If ffi-napi is absent, calling _activeWin() throws synchronously. Catch that here
+      // so the async function gets a Promise to await instead of an unhandled sync throw.
+      let callResult: Promise<{ owner?: { name?: string; path?: string } } | undefined>;
+      try {
+        callResult = _activeWin();
+      } catch {
+        _activeWin = null;
+        if (process.platform === 'win32' && !this.ps) this.startPs();
+        callResult = Promise.resolve(undefined);
+      }
+      const win = await callResult.catch(() => undefined);
+      if (win) {
+        // active-win on Windows returns owner.name as the FileDescription (e.g. "Visual Studio Code")
+        // rather than the exe filename. Use owner.path basename ("Code.exe") to match CURATED_APPS keys.
+        if (process.platform === 'win32' && win.owner?.path) {
+          name = path.basename(win.owner.path);
+        } else {
+          name = win.owner?.name ?? null;
+          if (name && process.platform === 'win32' && !name.endsWith('.exe')) {
+            name = `${name}.exe`;
+          }
+        }
+      }
     } else if (process.platform === 'win32') {
       name = await this.queryWin32();
     }
