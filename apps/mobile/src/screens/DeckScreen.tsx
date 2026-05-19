@@ -18,6 +18,8 @@ import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
 import { TileConfig } from '../types/schema';
 import { supabase } from '../lib/supabase';
+import { ContextStrip } from '../components/ContextStrip';
+import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
 import { discoverAgent } from '../services/discovery.service';
 
 const UPGRADE_URL =
@@ -49,6 +51,7 @@ export function DeckScreen() {
   const retryCancelRef = useRef<(() => void) | null>(null);
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -111,10 +114,15 @@ export function DeckScreen() {
       setCreditsRemaining(0);
       setShowUpsell(true);
     });
+    const unsubscribeContext = ws.onContextShortcuts((msg) => {
+      setContextMsg(msg.shortcuts.length > 0 ? msg : null);
+    });
 
     return () => {
       unsubscribeLicense();
       unsubscribeQuota();
+      unsubscribeContext();
+      setContextMsg(null);
       ws.disconnect();
       wsRef.current = null;
       setWsService(null);
@@ -156,6 +164,20 @@ export function DeckScreen() {
     if (!actionTile || actionTile.id.startsWith('builtin-')) return;
     wsRef.current?.setTilePinned(actionTile.id, !actionTile.pinned);
     setActionTile(null);
+  };
+
+  const handleContextShortcutTap = (shortcut: ContextShortcut) => {
+    wsRef.current?.tap(`ctx-${shortcut.id}`, { kind: 'KEYSTROKE', keys: shortcut.keys });
+  };
+
+  const handleAddContextShortcut = (shortcut: Omit<ContextShortcut, 'id'>) => {
+    if (!contextMsg) return;
+    wsRef.current?.addContextShortcut(
+      contextMsg.processName,
+      contextMsg.appLabel,
+      contextMsg.iconId,
+      shortcut,
+    );
   };
 
   const handleConfirmRemoveTile = () => {
@@ -450,6 +472,12 @@ export function DeckScreen() {
           </View>
         </View>
       </Modal>
+
+      <ContextStrip
+        msg={contextMsg}
+        onTapShortcut={handleContextShortcutTap}
+        onAddShortcut={handleAddContextShortcut}
+      />
     </SafeAreaView>
   );
 }
@@ -491,7 +519,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: '#FFFFFF' },
   tabCount: { color: '#6B6B8A', fontSize: 11, fontWeight: '700', marginTop: 2 },
   tabCountActive: { color: 'rgba(255,255,255,0.78)' },
-  grid: { padding: 8, paddingBottom: 80 },
+  grid: { padding: 8, paddingBottom: 140 },
   tileRow: { flexDirection: 'row', flexWrap: 'wrap' },
   tileCell: { width: '33.33%' },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
