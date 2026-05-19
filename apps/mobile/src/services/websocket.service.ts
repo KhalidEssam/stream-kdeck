@@ -16,6 +16,12 @@ import {
   AiQuotaExceededMessage,
   OpenActivationDialogMessage,
   GetLicenseStatusMessage,
+  ContextShortcutsMessage,
+  ContextProfilesMessage,
+  AddContextShortcutMessage,
+  RemoveContextShortcutMessage,
+  GetContextProfilesMessage,
+  ContextShortcut,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -26,6 +32,8 @@ type SearchAppsResultCallback = (msg: SearchAppsResultMessage) => void;
 type ValidatePathResultCallback = (msg: ValidatePathResultMessage) => void;
 type LicenseStatusCallback = (msg: LicenseStatusMessage) => void;
 type AiQuotaExceededCallback = (msg: AiQuotaExceededMessage) => void;
+type ContextShortcutsCallback = (msg: ContextShortcutsMessage) => void;
+type ContextProfilesCallback  = (msg: ContextProfilesMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -36,6 +44,8 @@ export class WebSocketService {
   private validatePathCallbacks: ValidatePathResultCallback[] = [];
   private licenseStatusCallbacks: LicenseStatusCallback[] = [];
   private aiQuotaExceededCallbacks: AiQuotaExceededCallback[] = [];
+  private contextShortcutsCallbacks: ContextShortcutsCallback[] = [];
+  private contextProfilesCallbacks:  ContextProfilesCallback[]  = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -64,6 +74,10 @@ export class WebSocketService {
         this.licenseStatusCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'AI_QUOTA_EXCEEDED') {
         this.aiQuotaExceededCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'CONTEXT_SHORTCUTS') {
+        this.contextShortcutsCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'CONTEXT_PROFILES') {
+        this.contextProfilesCallbacks.forEach((cb) => cb(msg));
       }
     };
 
@@ -120,6 +134,35 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  addContextShortcut(
+    processName: string,
+    appLabel: string,
+    iconId: string,
+    shortcut: Omit<ContextShortcut, 'id'>,
+  ): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: AddContextShortcutMessage = {
+      type: 'ADD_CONTEXT_SHORTCUT',
+      processName,
+      appLabel,
+      iconId,
+      shortcut,
+    };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  removeContextShortcut(processName: string, shortcutId: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: RemoveContextShortcutMessage = { type: 'REMOVE_CONTEXT_SHORTCUT', processName, shortcutId };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  requestContextProfiles(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: GetContextProfilesMessage = { type: 'GET_CONTEXT_PROFILES' };
+    this.ws.send(JSON.stringify(msg));
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -157,6 +200,20 @@ export class WebSocketService {
     this.validatePathCallbacks.push(cb);
     return () => {
       this.validatePathCallbacks = this.validatePathCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onContextShortcuts(cb: ContextShortcutsCallback): () => void {
+    this.contextShortcutsCallbacks.push(cb);
+    return () => {
+      this.contextShortcutsCallbacks = this.contextShortcutsCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onContextProfiles(cb: ContextProfilesCallback): () => void {
+    this.contextProfilesCallbacks.push(cb);
+    return () => {
+      this.contextProfilesCallbacks = this.contextProfilesCallbacks.filter((c) => c !== cb);
     };
   }
 
