@@ -1,6 +1,30 @@
 {
   "tiles": [
     {
+      "kind": "custom",
+      "label": "Discord",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAPvSURBVFhHtVfNbxNHFN9zBFJ65lSJRhx6qMqB/6B/gdflgNTdAL0EiXDpAQ5FahMoUgOIAxIg1AouUFUoTdU2RYKk+cCQ4BRjBfxtx/grWdtJ8W5ie9eveuPd9e4b27HT9Cf9pNW8md97M/P2zYwg9I5BQRBOiJJ6R5RUvyiriiirukn8XkYb9jH77huGREm9K8oVzTusQS/EvjhGEIQjVKwfDHikyoRHqtSog16JY1EDtaj4bhjyymqQCu6VoqwGUZM66YRPvbKqUJH/SlHWFNSmziiGxOH9d27RDKLjSgzgUtFB+01zO/ic8EqVCdr5/6KZmC4cEXfJ9lNnNbh5twoz83UYn9jh7Jeu7jAb9jk9yo93Ev8O11Z4ZPUH2smidEaDpRUddL0BFoqlBkQTBuQLBuQKBkTjBpTKLTv2xTHSCK9n0awTDIPdisyfT+u2cL+YflLn9OwA5IpmVcwT1Gjx3IVtMIzWzPoFjkUNqmuRlW2s39RgcWZh77O3MLvQZRXw7MBDhBqQ8hkNqrW9z95CrdZgWlTfDMCPAbQtPDduV6kWS7SpP2qwGtKpCd6EdWZzJqMF1KL6LABZVTAAnRqQT+fcy4/7OXq+uZ+fn9QgHDNsWyRusDa0nT3P5w1qUX0zAL1jAPFUywECfz2nffK3mm375feay6YU3QGgFtV3BtB2C95X3CLOjMbZRhwrgHXg+KnmOFwlugKoRfXNABT8C/zUgKQiiPJmA36drrP9pngb0WFqun0OoBbVNwNYFqaf/BPMb2xBDrm+Cdn1TcgUyozv8iVI50qwlitCKluEVEaB0qZK9XdFxwDwN0Sn/SC2tkGbbGxvN1jtwPLsxIbSPgdYIcKZ9oNIsgAXv9uBO/eq8NNkjRG/se3Lc+7caDQaMO+rs3bq3CurzVKMy+vEVtWAzx7l4NiDLOPR++9g5PG6bQ/F87yYg74lnRWfOV8dvrrYuQzbh1Eyo7gCQHztK8PorAKHb6fgg2tx+PhW0ratRrOcmJNfjDRJ2530SCoex80bczzdfk8vPyvB4PdROHQ1Ch9dj9ntwXCGE+yXHklrXUgiqYLLMeLSYgkOXonA+HwRhn/OwIdXwrYt8DbNCfZD7koWSuRdzscXinDgchjG/mpuzehUDj65HrXtK6trnGivZIWHXkpXY1lbfGxOgYGxEHw7686L8nYrs18Gk5xwLzSd89fyYCRji5+ezME3M+1zwsKLQIIT341dHyaBUJr66Arf33HOQSf29DRbebNGfXTFoj/KOaJ0PE7bz9qJpUDi2vLrJCwhAwm2xM9fxdlMn63EYBHpj8KCyR8fpoPsKU6f5/hk38Pz/F9JWacrjyvT8QAAAABJRU5ErkJggg==",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\Users\\PC\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Discord Inc\\Discord.lnk"
+      },
+      "id": "ad2e5c62-5629-4410-be74-1043b00092b6",
+      "pinned": true
+    },
+    {
+      "kind": "custom",
+      "label": "VALORANT",
+      "iconId": "custom",
+      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHwSURBVFhH7ZU7S8NQGIadRVFHcRJ1cxAc/AeCP0BwFpxc/AcOWhVBrKsuDi6CIuLo4qUX79VYqm3SNL0k6b3qIg7yyYntwe+cNvWkKgh94YWS7+v7PjkNTUtLU2WVxibgL832WwAd3X1/4iZAE6AJ8P8A7Ga1bPcdRwB2c9b19h0D2O2I7DYEkBod5+YVk9mvA/zUHtsvBFBtl51X23EMUK+Avf6dLLa/LoCTolpGAJncy2o69wwmcfYJjOwT6JmS5VS6CEmzCAmzAHGjAHE9D+bmDgKweyhrGQGQUhFFE7mGTwEBkDsVkaxlOABRCARAjvernt/eYXTPhJFtw/LwVgqmD7N0HlbTXKCoEYCm5xEA0exZCWaO89C/EYcutwqD6xqdhRSDCxQ1AlCTOVRe0ZK/CJ0rCvSsKjCwFqXXgxGdCxQ1ApDjGVRMtOgrQvuyDAueAkzu6tC7HKEz6THJBYoaAYRjaVS+4C1A21IEXCefP83MgQlDawqdB0IJLlDUCCAUNWi46zQPra4wzB/j56L0+k4/Xwc1LlDUCCAo6zR8at+EuaPqz0RFF1KMCxQ1ApDCSbbDVme3Kvcf4MQUIPCQYDts5btR+BdJI7qUYu6rew0uiaWYdcTnd6p1p/5AFHzENwp4y/Zcy242oxF9ABi/hOxSBSaFAAAAAElFTkSuQmCC",
+      "action": {
+        "kind": "EXEC",
+        "exePath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Riot Games\\VALORANT.lnk"
+      },
+      "id": "e8138558-10eb-43da-9e90-348d91db3855",
+      "pinned": true
+    },
+    {
       "kind": "app",
       "label": "YouTube",
       "iconId": "youtube",
@@ -131,28 +155,6 @@
         "exePath": "D:\\Battlefield 6\\bf6.exe"
       },
       "id": "bfae664d-5a17-4c42-84de-a4f1aac44969"
-    },
-    {
-      "kind": "custom",
-      "label": "VALORANT",
-      "iconId": "custom",
-      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHwSURBVFhH7ZU7S8NQGIadRVFHcRJ1cxAc/AeCP0BwFpxc/AcOWhVBrKsuDi6CIuLo4qUX79VYqm3SNL0k6b3qIg7yyYntwe+cNvWkKgh94YWS7+v7PjkNTUtLU2WVxibgL832WwAd3X1/4iZAE6AJ8P8A7Ga1bPcdRwB2c9b19h0D2O2I7DYEkBod5+YVk9mvA/zUHtsvBFBtl51X23EMUK+Avf6dLLa/LoCTolpGAJncy2o69wwmcfYJjOwT6JmS5VS6CEmzCAmzAHGjAHE9D+bmDgKweyhrGQGQUhFFE7mGTwEBkDsVkaxlOABRCARAjvernt/eYXTPhJFtw/LwVgqmD7N0HlbTXKCoEYCm5xEA0exZCWaO89C/EYcutwqD6xqdhRSDCxQ1AlCTOVRe0ZK/CJ0rCvSsKjCwFqXXgxGdCxQ1ApDjGVRMtOgrQvuyDAueAkzu6tC7HKEz6THJBYoaAYRjaVS+4C1A21IEXCefP83MgQlDawqdB0IJLlDUCCAUNWi46zQPra4wzB/j56L0+k4/Xwc1LlDUCCAo6zR8at+EuaPqz0RFF1KMCxQ1ApDCSbbDVme3Kvcf4MQUIPCQYDts5btR+BdJI7qUYu6rew0uiaWYdcTnd6p1p/5AFHzENwp4y/Zcy242oxF9ABi/hOxSBSaFAAAAAElFTkSuQmCC",
-      "action": {
-        "kind": "EXEC",
-        "exePath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Riot Games\\VALORANT.lnk"
-      },
-      "id": "e8138558-10eb-43da-9e90-348d91db3855"
-    },
-    {
-      "kind": "custom",
-      "label": "Discord",
-      "iconId": "custom",
-      "iconBase64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAPvSURBVFhHtVfNbxNHFN9zBFJ65lSJRhx6qMqB/6B/gdflgNTdAL0EiXDpAQ5FahMoUgOIAxIg1AouUFUoTdU2RYKk+cCQ4BRjBfxtx/grWdtJ8W5ie9eveuPd9e4b27HT9Cf9pNW8md97M/P2zYwg9I5BQRBOiJJ6R5RUvyiriiirukn8XkYb9jH77huGREm9K8oVzTusQS/EvjhGEIQjVKwfDHikyoRHqtSog16JY1EDtaj4bhjyymqQCu6VoqwGUZM66YRPvbKqUJH/SlHWFNSmziiGxOH9d27RDKLjSgzgUtFB+01zO/ic8EqVCdr5/6KZmC4cEXfJ9lNnNbh5twoz83UYn9jh7Jeu7jAb9jk9yo93Ev8O11Z4ZPUH2smidEaDpRUddL0BFoqlBkQTBuQLBuQKBkTjBpTKLTv2xTHSCK9n0awTDIPdisyfT+u2cL+YflLn9OwA5IpmVcwT1Gjx3IVtMIzWzPoFjkUNqmuRlW2s39RgcWZh77O3MLvQZRXw7MBDhBqQ8hkNqrW9z95CrdZgWlTfDMCPAbQtPDduV6kWS7SpP2qwGtKpCd6EdWZzJqMF1KL6LABZVTAAnRqQT+fcy4/7OXq+uZ+fn9QgHDNsWyRusDa0nT3P5w1qUX0zAL1jAPFUywECfz2nffK3mm375feay6YU3QGgFtV3BtB2C95X3CLOjMbZRhwrgHXg+KnmOFwlugKoRfXNABT8C/zUgKQiiPJmA36drrP9pngb0WFqun0OoBbVNwNYFqaf/BPMb2xBDrm+Cdn1TcgUyozv8iVI50qwlitCKluEVEaB0qZK9XdFxwDwN0Sn/SC2tkGbbGxvN1jtwPLsxIbSPgdYIcKZ9oNIsgAXv9uBO/eq8NNkjRG/se3Lc+7caDQaMO+rs3bq3CurzVKMy+vEVtWAzx7l4NiDLOPR++9g5PG6bQ/F87yYg74lnRWfOV8dvrrYuQzbh1Eyo7gCQHztK8PorAKHb6fgg2tx+PhW0ratRrOcmJNfjDRJ2530SCoex80bczzdfk8vPyvB4PdROHQ1Ch9dj9ntwXCGE+yXHklrXUgiqYLLMeLSYgkOXonA+HwRhn/OwIdXwrYt8DbNCfZD7koWSuRdzscXinDgchjG/mpuzehUDj65HrXtK6trnGivZIWHXkpXY1lbfGxOgYGxEHw7686L8nYrs18Gk5xwLzSd89fyYCRji5+ezME3M+1zwsKLQIIT341dHyaBUJr66Arf33HOQSf29DRbebNGfXTFoj/KOaJ0PE7bz9qJpUDi2vLrJCwhAwm2xM9fxdlMn63EYBHpj8KCyR8fpoPsKU6f5/hk38Pz/F9JWacrjyvT8QAAAABJRU5ErkJggg==",
-      "action": {
-        "kind": "EXEC",
-        "exePath": "C:\\Users\\PC\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Discord Inc\\Discord.lnk"
-      },
-      "id": "ad2e5c62-5629-4410-be74-1043b00092b6"
     },
     {
       "kind": "custom",

@@ -2,6 +2,22 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "android": {
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+      ]
+    },
+    "ios": {
+      "infoPlist": {
+        "NSBonjourServices": [
+          "_controlsurface._tcp."
+        ],
+        "NSLocalNetworkUsageDescription": "KDeck uses the local network to discover and connect to the desktop agent."
+      }
+    }
   }
 }

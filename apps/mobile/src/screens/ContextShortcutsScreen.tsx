@@ -49,7 +49,20 @@ export function ContextShortcutsScreen({ ws, onDismiss }: Props) {
     return unsub;
   }, [ws]);
 
+  function closeAddShortcutForm() {
+    setAddLabel('');
+    setAddKeys([]);
+    setAddKeyInput('');
+    setShowAddShortcut(false);
+  }
+
+  function closeSelectedProfile() {
+    closeAddShortcutForm();
+    setSelectedProfile(null);
+  }
+
   const handleSelectProfile = (summary: ContextProfileSummary) => {
+    closeAddShortcutForm();
     setSelectedProfile({
       type:        'CONTEXT_SHORTCUTS',
       processName: summary.processName,
@@ -87,9 +100,7 @@ export function ContextShortcutsScreen({ ws, onDismiss }: Props) {
       keys: addKeys,
       description: '',
     });
-    setAddLabel('');
-    setAddKeys([]);
-    setShowAddShortcut(false);
+    closeAddShortcutForm();
     // Refresh to show new shortcut
     const unsub = ws.onContextProfiles((msg) => {
       const updated = msg.profiles.find((p) => p.processName === selectedProfile.processName);
@@ -163,11 +174,11 @@ export function ContextShortcutsScreen({ ws, onDismiss }: Props) {
       />
 
       {/* Profile detail modal */}
-      <Modal visible={selectedProfile !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSelectedProfile(null)}>
+      <Modal visible={selectedProfile !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeSelectedProfile}>
         {selectedProfile && (
           <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => setSelectedProfile(null)}>
+              <TouchableOpacity onPress={closeSelectedProfile}>
                 <Text style={styles.back}>←</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{selectedProfile.appLabel}</Text>
@@ -193,29 +204,27 @@ export function ContextShortcutsScreen({ ws, onDismiss }: Props) {
                 </TouchableOpacity>
               }
             />
+            {showAddShortcut && (
+              <View style={styles.inlineFormBackdrop}>
+                <View style={styles.formSheet}>
+                  <Text style={styles.formTitle}>Add Shortcut</Text>
+                  <TextInput style={styles.formInput} value={addLabel} onChangeText={setAddLabel} placeholder="Label" placeholderTextColor="#555" />
+                  <View style={styles.modifierRow}>
+                    {MODIFIERS.map((mod) => (
+                      <TouchableOpacity key={mod} style={[styles.chip, addKeys.includes(mod) && styles.chipActive]} onPress={() => toggleModifier(mod, addKeys, setAddKeys)}>
+                        <Text style={[styles.chipText, addKeys.includes(mod) && styles.chipTextActive]}>{mod}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput style={styles.formInput} value={addKeyInput} onChangeText={setAddKeyInput} onSubmitEditing={() => { if (addKeyInput.trim()) { setAddKeys((k) => [...k, addKeyInput.trim()]); setAddKeyInput(''); } }} placeholder="Key (press return to add)" placeholderTextColor="#555" autoCapitalize="none" />
+                  {addKeys.length > 0 && <Text style={styles.preview}>{addKeys.join(' + ')}</Text>}
+                  <TouchableOpacity style={styles.saveButton} onPress={handleAddShortcut}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={closeAddShortcutForm}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                </View>
+              </View>
+            )}
           </SafeAreaView>
         )}
-      </Modal>
-
-      {/* Add shortcut modal */}
-      <Modal visible={showAddShortcut} transparent animationType="slide" onRequestClose={() => setShowAddShortcut(false)}>
-        <View style={styles.formBackdrop}>
-          <View style={styles.formSheet}>
-            <Text style={styles.formTitle}>Add Shortcut</Text>
-            <TextInput style={styles.formInput} value={addLabel} onChangeText={setAddLabel} placeholder="Label" placeholderTextColor="#555" />
-            <View style={styles.modifierRow}>
-              {MODIFIERS.map((mod) => (
-                <TouchableOpacity key={mod} style={[styles.chip, addKeys.includes(mod) && styles.chipActive]} onPress={() => toggleModifier(mod, addKeys, setAddKeys)}>
-                  <Text style={[styles.chipText, addKeys.includes(mod) && styles.chipTextActive]}>{mod}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput style={styles.formInput} value={addKeyInput} onChangeText={setAddKeyInput} onSubmitEditing={() => { if (addKeyInput.trim()) { setAddKeys((k) => [...k, addKeyInput.trim()]); setAddKeyInput(''); } }} placeholder="Key (press return to add)" placeholderTextColor="#555" autoCapitalize="none" />
-            {addKeys.length > 0 && <Text style={styles.preview}>{addKeys.join(' + ')}</Text>}
-            <TouchableOpacity style={styles.saveButton} onPress={handleAddShortcut}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddShortcut(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
-          </View>
-        </View>
       </Modal>
 
       {/* Add app modal */}
@@ -282,6 +291,7 @@ const styles = StyleSheet.create({
   shortcutKeys:  { color: '#5B4FE8', fontSize: 11, marginTop: 2 },
   deleteBtn:    { color: '#6B6B8A', fontSize: 14, padding: 4 },
   formBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  inlineFormBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end', zIndex: 1, elevation: 1 },
   formSheet:    { backgroundColor: '#1A1A2E', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
   formTitle:    { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 16 },
   formInput:    { backgroundColor: '#0F0F1E', borderRadius: 8, padding: 12, color: '#FFFFFF', fontSize: 14, borderWidth: 1, borderColor: '#2A2A4A', marginBottom: 10 },

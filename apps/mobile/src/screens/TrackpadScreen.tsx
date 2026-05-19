@@ -16,9 +16,9 @@ import { WebSocketService } from '../services/websocket.service';
 
 const SENSITIVITY_KEY = 'trackpad_sensitivity';
 const SENSITIVITY_MIN = 0.3;
-const SENSITIVITY_MAX = 3.0;
+const SENSITIVITY_MAX = 10.0;
 const SENSITIVITY_STEP = 0.1;
-const SENSITIVITY_DEFAULT = 1.0;
+const SENSITIVITY_DEFAULT = 2.0;
 const THROTTLE_MS = 16;
 const TAP_MOVEMENT_THRESHOLD = 5;
 const LONG_PRESS_DELAY_MS = 500;
@@ -222,7 +222,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor="#0A0A0F" />
 
       {/* Header */}

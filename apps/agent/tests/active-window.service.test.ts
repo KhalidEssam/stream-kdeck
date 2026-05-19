@@ -50,7 +50,9 @@ describe('ActiveWindowService', () => {
     jest.advanceTimersByTime(600);  // poll fires: Discord.exe
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve(); // extra flush for Promise.resolve().then() wrapper
     jest.advanceTimersByTime(600);  // poll fires: Code.exe — debounce resets
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -67,6 +69,7 @@ describe('ActiveWindowService', () => {
     // Advance past poll interval (500ms) to trigger first poll
     jest.advanceTimersByTime(600);
     await Promise.resolve(); // flush: setInterval callback starts
+    await Promise.resolve(); // flush: Promise.resolve().then() wrapper resolves
     await Promise.resolve(); // flush: activeWin() promise resolves, sets debounce timer
 
     // Now advance past debounce (1500ms)
