@@ -25,6 +25,7 @@ import {
   MouseMoveMessage,
   MouseClickMessage,
   MouseScrollMessage,
+  PackRegistryMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -37,6 +38,7 @@ type LicenseStatusCallback = (msg: LicenseStatusMessage) => void;
 type AiQuotaExceededCallback = (msg: AiQuotaExceededMessage) => void;
 type ContextShortcutsCallback = (msg: ContextShortcutsMessage) => void;
 type ContextProfilesCallback  = (msg: ContextProfilesMessage) => void;
+type PackRegistryCallback = (msg: PackRegistryMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -49,6 +51,7 @@ export class WebSocketService {
   private aiQuotaExceededCallbacks: AiQuotaExceededCallback[] = [];
   private contextShortcutsCallbacks: ContextShortcutsCallback[] = [];
   private contextProfilesCallbacks:  ContextProfilesCallback[]  = [];
+  private packRegistryCallbacks: PackRegistryCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -81,6 +84,8 @@ export class WebSocketService {
         this.contextShortcutsCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'CONTEXT_PROFILES') {
         this.contextProfilesCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'PACK_REGISTRY') {
+        this.packRegistryCallbacks.forEach((cb) => cb(msg));
       }
     };
 
@@ -235,6 +240,13 @@ export class WebSocketService {
     this.contextProfilesCallbacks.push(cb);
     return () => {
       this.contextProfilesCallbacks = this.contextProfilesCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onPackRegistry(cb: PackRegistryCallback): () => void {
+    this.packRegistryCallbacks.push(cb);
+    return () => {
+      this.packRegistryCallbacks = this.packRegistryCallbacks.filter((c) => c !== cb);
     };
   }
 
