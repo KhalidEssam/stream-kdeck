@@ -13,9 +13,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { AppTile } from '../components/AppTile';
-import { TileConfig } from '../types/schema';
+import { TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { GamesTab } from './GamesTab';
+import { AiToolsTab } from './AiToolsTab';
 
 // ─── Curated Apps ─────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'apps' | 'shortcut' | 'games';
+type Tab = 'apps' | 'shortcut' | 'ai' | 'games';
 
 type Modifier = 'ctrl' | 'alt' | 'win' | 'shift';
 
@@ -54,11 +55,12 @@ interface Props {
   onRemove: (tileId: string) => void;
   onDismiss: () => void;
   ws: WebSocketService;
+  packRegistry: Pack[] | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws }: Props) {
+export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, packRegistry }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('apps');
 
   return (
@@ -75,14 +77,14 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws }: 
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['apps', 'shortcut', 'games'] as Tab[]).map((tab) => (
+        {(['apps', 'shortcut', 'ai', 'games'] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === 'apps' ? 'Apps' : tab === 'shortcut' ? 'Shortcut' : 'Games'}
+              {tab === 'apps' ? 'Apps' : tab === 'shortcut' ? 'Shortcut' : tab === 'ai' ? 'AI Tools' : 'Games'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -94,6 +96,14 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws }: 
         )}
         {activeTab === 'shortcut' && (
           <ShortcutTab currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
+        )}
+        {activeTab === 'ai' && (
+          <AiToolsTab
+            packs={packRegistry ?? []}
+            currentTiles={currentTiles}
+            onAdd={onAdd}
+            onRemove={onRemove}
+          />
         )}
         {activeTab === 'games' && (
           <GamesTab
