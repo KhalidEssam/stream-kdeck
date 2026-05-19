@@ -11,7 +11,8 @@ interface RegistryEntry {
   label: string;
   iconId: string;
   // Windows: try exePaths first (shell.openPath), then protocol, then url
-  windowsExePaths?: string[]; // %HOME% is replaced with homedir() at runtime
+  windowsExePaths?: string[];     // %HOME% is replaced with homedir() at runtime
+  windowsIconPaths?: string[];    // checked only for icon extraction, not for launch
   windowsProtocol?: string;
   windowsUrl?: string;
   // macOS: try protocol first, then url
@@ -105,6 +106,7 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   spotify: {
     label: 'Spotify', iconId: 'spotify',
     windowsProtocol: 'spotify://',
+    windowsIconPaths: ['%HOME%\\AppData\\Roaming\\Spotify\\Spotify.exe'],
     macProtocol: 'spotify://',
   },
   obs: {
@@ -138,11 +140,14 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   discord: {
     label: 'Discord', iconId: 'discord',
     windowsProtocol: 'discord://',
+    // Update.exe lives at a fixed path (Squirrel installer) and carries the Discord icon
+    windowsIconPaths: ['%HOME%\\AppData\\Local\\Discord\\Update.exe'],
     macProtocol: 'discord://',
   },
   slack: {
     label: 'Slack', iconId: 'slack',
     windowsProtocol: 'slack://',
+    windowsIconPaths: ['%HOME%\\AppData\\Local\\slack\\slack.exe'],
     macProtocol: 'slack://',
   },
   notion: {
@@ -187,8 +192,8 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   },
   twitch: {
     label: 'Twitch', iconId: 'twitch',
-    // Try protocol first — opens app if installed, else browser handles it
     windowsProtocol: 'twitch://',
+    windowsIconPaths: ['%HOME%\\AppData\\Local\\Twitch\\Twitch.exe'],
     windowsUrl: 'https://twitch.tv',
     macProtocol: 'twitch://',
     macUrl: 'https://twitch.tv',
@@ -214,6 +219,10 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   steam: {
     label: 'Steam', iconId: 'steam',
     windowsProtocol: 'steam://',
+    windowsIconPaths: [
+      'C:\\Program Files (x86)\\Steam\\steam.exe',
+      'C:\\Program Files\\Steam\\steam.exe',
+    ],
     macProtocol: 'steam://',
   },
   postman: {
@@ -261,9 +270,10 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
     const home = homedir();
     let anyExtracted = false;
 
+    // Enrich built-in app tiles: check exePaths then iconPaths
     for (const [appId, entry] of Object.entries(BUILT_IN_REGISTRY)) {
-      if (!entry.windowsExePaths) continue;
-      for (const pattern of entry.windowsExePaths) {
+      const candidates = [...(entry.windowsExePaths ?? []), ...(entry.windowsIconPaths ?? [])];
+      for (const pattern of candidates) {
         const resolved = pattern.replace(/%HOME%/g, home).replace(/%USERPROFILE%/g, home);
         if (!fs.existsSync(resolved)) continue;
         try {
@@ -273,6 +283,23 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
         break; // use first found path
       }
     }
+
+    // Enrich custom config tiles that have an exe path but no icon yet
+    let customUpdated = false;
+    for (const tile of this.config.tiles) {
+      if (tile.iconBase64 || tile.action.kind !== 'EXEC') continue;
+      const exePath = tile.action.exePath;
+      if (!exePath || !fs.existsSync(exePath)) continue;
+      try {
+        const icon = this.appSearch.extractIcon(exePath);
+        if (icon) {
+          (tile as TileConfig & { iconBase64: string }).iconBase64 = icon;
+          customUpdated = true;
+          anyExtracted = true;
+        }
+      } catch { /* icon is optional */ }
+    }
+    if (customUpdated) this.persist();
 
     if (anyExtracted) this.emit('tilesUpdated');
   }
