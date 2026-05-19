@@ -1,31 +1,49 @@
-create table public.packs (
-  id          uuid primary key default gen_random_uuid(),
-  slug        text unique not null,
-  name        text not null,
+CREATE TABLE IF NOT EXISTS public.packs (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug        text UNIQUE NOT NULL,
+  name        text NOT NULL,
   description text,
-  icon        text not null,
+  icon        text NOT NULL,
   color       text,
-  "order"     int not null default 0
+  "order"     int NOT NULL DEFAULT 0
 );
 
-create table public.pack_tools (
-  id          uuid primary key default gen_random_uuid(),
-  pack_id     uuid not null references public.packs(id) on delete cascade,
-  label       text not null,
-  prompt      text not null,
-  output_mode text not null check (output_mode in ('clipboard','autopaste','viewer')),
-  source      text not null default 'clipboard'
-                check (source in ('clipboard','active_window','shell')),
+CREATE TABLE IF NOT EXISTS public.pack_tools (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pack_id     uuid NOT NULL REFERENCES public.packs(id) ON DELETE CASCADE,
+  label       text NOT NULL,
+  prompt      text NOT NULL,
+  output_mode text NOT NULL CHECK (output_mode IN ('clipboard','autopaste','viewer')),
+  source      text NOT NULL DEFAULT 'clipboard'
+                CHECK (source IN ('clipboard','active_window','shell')),
   icon        text,
   color       text,
-  "order"     int not null default 0,
-  phase       int not null default 1,
+  "order"     int NOT NULL DEFAULT 0,
+  phase       int NOT NULL DEFAULT 1,
   builtin_id  text
 );
 
 -- Public read for catalog (anon key is safe — these are not user data)
-alter table public.packs    enable row level security;
-alter table public.pack_tools enable row level security;
+ALTER TABLE public.packs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pack_tools ENABLE ROW LEVEL SECURITY;
 
-create policy "packs_public_read"      on public.packs      for select using (true);
-create policy "pack_tools_public_read" on public.pack_tools  for select using (true);
+-- RLS: SELECT is open to anon/authenticated via the policies below.
+-- INSERT/UPDATE/DELETE are intentionally left without policies; only the
+-- service-role key (used server-side) can write to these tables.
+DO $$ BEGIN
+  CREATE POLICY "packs_public_read"
+    ON public.packs
+    FOR SELECT
+    USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "pack_tools_public_read"
+    ON public.pack_tools
+    FOR SELECT
+    USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS pack_tools_pack_id_idx ON public.pack_tools(pack_id);
