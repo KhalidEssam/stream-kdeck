@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Pack, PackTool } from '@control-surface/shared';
+import ws from 'ws';
 
 export const AGENT_CAPABILITY = 1;
 
@@ -39,6 +40,8 @@ export class PackRegistryService {
     this.supabase = createClient(
       process.env.SUPABASE_URL ?? '',
       process.env.SUPABASE_ANON_KEY ?? '',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { realtime: { transport: ws as any } },
     );
   }
 
