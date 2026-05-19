@@ -9,9 +9,10 @@ import { KeystrokeService } from './keystroke/keystroke.service';
 import { AppSearchService } from './app-search/app-search.service';
 import { LicenseModule } from './license/license.module';
 import { NetworkModule } from './network/network.module';
+import { ContextModule } from './context-profile/context.module';
 
 @Module({
-  imports: [LicenseModule, NetworkModule],
+  imports: [LicenseModule, NetworkModule, ContextModule],
   providers: [
     WsGateway,
     ClipboardService,
