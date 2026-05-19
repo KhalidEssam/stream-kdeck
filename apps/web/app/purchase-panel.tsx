@@ -9,6 +9,8 @@ export interface PurchasePlanOption {
   id: PlanId;
   name: string;
   price: string;
+  /** First-payment total when this AI Pro plan is bundled with the desktop license. */
+  combinedPrice?: string;
   copy: string;
 }
 
@@ -27,8 +29,9 @@ export function PurchasePanel({ plans }: { plans: PurchasePlanOption[] }) {
     ? aiCycle === 'yearly' ? 'ai_pro_yearly' : 'ai_pro_monthly'
     : 'desktop_license';
 
+  const addonPlan = addAiPro ? (aiCycle === 'yearly' ? aiYearly : aiMonthly) : null;
   const ctaPrice = addAiPro
-    ? aiCycle === 'yearly' ? aiYearly?.price : aiMonthly?.price
+    ? (addonPlan?.combinedPrice ?? addonPlan?.price)
     : desktop?.price;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -154,7 +157,7 @@ export function PurchasePanel({ plans }: { plans: PurchasePlanOption[] }) {
 
         <p className="fine-print">
           {addAiPro
-            ? 'Includes the desktop license. AI Pro subscription starts immediately.'
+            ? `First charge includes the one-time desktop license (${desktop?.price}) + first ${aiCycle === 'yearly' ? 'year' : 'month'} of AI Pro (${addonPlan?.price}). Subscription renews automatically.`
             : 'One-time purchase. Add AI Pro anytime from your dashboard.'}
         </p>
       </div>

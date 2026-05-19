@@ -25,8 +25,22 @@ export async function createPaymobCheckoutSession(input: {
   const currency = getEnv('PAYMOB_CURRENCY', 'USD');
   const paymentMethods = getPaymentMethods();
 
+  // For AI Pro plans the order charges desktop license + AI Pro addon together.
+  const isAiPro = plan.includesAiPro;
+  const desktopPlan = isAiPro ? await getPlanConfig('desktop_license') : null;
+  const totalAmount = isAiPro
+    ? (desktopPlan?.amountCents ?? 0) + plan.amountCents
+    : plan.amountCents;
+
+  const items = isAiPro && desktopPlan
+    ? [
+        { name: desktopPlan.name, amount: desktopPlan.amountCents, description: desktopPlan.name, quantity: 1 },
+        { name: plan.name, amount: plan.amountCents, description: plan.name, quantity: 1 },
+      ]
+    : [{ name: plan.name, amount: plan.amountCents, description: plan.name, quantity: 1 }];
+
   const payload = {
-    amount: plan.amountCents,
+    amount: totalAmount,
     currency,
     payment_methods: paymentMethods,
     special_reference: reference,
@@ -42,8 +56,8 @@ export async function createPaymobCheckoutSession(input: {
       reference,
     },
     billing_data: {
-      first_name: 'Control',
-      last_name: 'Surface',
+      first_name: 'KDeck',
+      last_name: 'Customer',
       email: input.email,
       phone_number: '+10000000000',
       apartment: 'NA',
@@ -57,18 +71,11 @@ export async function createPaymobCheckoutSession(input: {
       state: 'NA',
     },
     customer: {
-      first_name: 'Control',
-      last_name: 'Surface',
+      first_name: 'KDeck',
+      last_name: 'Customer',
       email: input.email,
     },
-    items: [
-      {
-        name: plan.name,
-        amount: plan.amountCents,
-        description: plan.name,
-        quantity: 1,
-      },
-    ],
+    items,
   };
 
   const baseUrl = getEnv('PAYMOB_BASE_URL', 'https://accept.paymob.com').replace(/\/+$/, '');

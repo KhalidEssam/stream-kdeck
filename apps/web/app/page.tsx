@@ -29,20 +29,29 @@ export default async function HomePage() {
 }
 
 function toPurchaseOptions(plans: PlanConfig[], currency: string) {
-  return plans.map((plan) => ({
-    id:    plan.id as 'desktop_license' | 'ai_pro_monthly' | 'ai_pro_yearly',
-    name:  plan.id === 'desktop_license'
-             ? 'Desktop License'
-             : plan.id === 'ai_pro_monthly'
-               ? 'Desktop + AI Pro'
-               : 'Desktop + AI Pro Yearly',
-    price: formatPrice(plan.amountCents, currency) +
-           (plan.id === 'ai_pro_monthly' ? '/mo' : plan.id === 'ai_pro_yearly' ? '/yr' : ''),
-    copy:  plan.includesAiPro
-             ? `Desktop license plus ${plan.monthlyAiCredits} AI calls per month.`
-             : `Full deck access and ${plan.desktopMonthlyAiCredits} AI calls each month.`,
-    highlighted: plan.id === 'ai_pro_monthly',
-  }));
+  const desktopPlan = plans.find((p) => p.id === 'desktop_license');
+  return plans.map((plan) => {
+    const suffix = plan.id === 'ai_pro_monthly' ? '/mo' : plan.id === 'ai_pro_yearly' ? '/yr' : '';
+    const combinedAmountCents = plan.includesAiPro && desktopPlan
+      ? desktopPlan.amountCents + plan.amountCents
+      : undefined;
+    return {
+      id:            plan.id as 'desktop_license' | 'ai_pro_monthly' | 'ai_pro_yearly',
+      name:          plan.id === 'desktop_license'
+                       ? 'Desktop License'
+                       : plan.id === 'ai_pro_monthly'
+                         ? 'Desktop + AI Pro'
+                         : 'Desktop + AI Pro Yearly',
+      price:         formatPrice(plan.amountCents, currency) + suffix,
+      combinedPrice: combinedAmountCents !== undefined
+                       ? formatPrice(combinedAmountCents, currency) + suffix
+                       : undefined,
+      copy:          plan.includesAiPro
+                       ? `Desktop license plus ${plan.monthlyAiCredits} AI calls per month.`
+                       : `Full deck access and ${plan.desktopMonthlyAiCredits} AI calls each month.`,
+      highlighted:   plan.id === 'ai_pro_monthly',
+    };
+  });
 }
 
 function formatPrice(amountCents: number, currency: string): string {
