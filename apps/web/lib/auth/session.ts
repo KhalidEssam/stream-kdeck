@@ -51,6 +51,16 @@ export async function requireSession(): Promise<CurrentSession> {
   return session;
 }
 
+export async function requireLicensed(): Promise<CurrentSession> {
+  const session = await requireSession();
+  const { user } = session;
+  // Staff bypass: admins/owners may access the customer dashboard without a license.
+  if (!user.licensed && user.role !== 'admin' && user.role !== 'owner') {
+    redirect('/?reason=no_license');
+  }
+  return session;
+}
+
 export async function requireStaff(): Promise<CurrentSession & { user: VerifiedAccessToken & { role: StaffRole } }> {
   const session = await getCurrentSession();
   if (!session) {

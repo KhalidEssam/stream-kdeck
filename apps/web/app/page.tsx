@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { NavbarWrapper } from './components/navbar-wrapper';
 import { Footer } from './components/footer';
 import { LandingClient } from './landing-client';
+import { NoLicenseBanner } from './components/no-license-banner';
 import { getEnv } from '@/lib/env';
 import { getPlanConfigs, PlanConfig } from '@/lib/plans';
 
@@ -16,6 +18,9 @@ export default async function HomePage() {
     <>
       <NavbarWrapper />
       <div className="public-layout-body">
+        <Suspense>
+          <NoLicenseBanner />
+        </Suspense>
         <LandingClient
           plans={toPurchaseOptions(plans, currency)}
           currency={currency}

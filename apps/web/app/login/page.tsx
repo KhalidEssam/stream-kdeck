@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 
 export default function LoginPage() {
@@ -52,7 +53,7 @@ export default function LoginPage() {
     const data = (await response.json()) as { error?: string };
 
     if (!response.ok) {
-      setError(data.error ?? 'Could not send sign-in link.');
+      setError(data.error === 'NO_ACCOUNT' ? 'NO_ACCOUNT' : (data.error ?? 'Could not send sign-in link.'));
       setStatus('idle');
       return;
     }
@@ -80,9 +81,16 @@ export default function LoginPage() {
             required
           />
         </label>
-        {error && <div className="error">{error}</div>}
+        {error && error !== 'NO_ACCOUNT' && <div className="error">{error}</div>}
+        {error === 'NO_ACCOUNT' && (
+          <div className="error">
+            No account found for that email.{' '}
+            <Link href="/#pricing" className="error-link">Get a license</Link>{' '}
+            or check the email on your purchase confirmation.
+          </div>
+        )}
         {status === 'sent' && (
-          <div className="fine-print">Check your inbox for the sign-in link.</div>
+          <div className="fine-print">Check your inbox — the sign-in link expires in 10 minutes.</div>
         )}
         <button className="primary" type="submit" disabled={status === 'loading'}>
           {status === 'loading' ? 'Sending...' : 'Send sign-in link'}

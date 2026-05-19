@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireSession } from '@/lib/auth/session';
+import { requireLicensed } from '@/lib/auth/session';
 import { LogoutButton } from './dashboard-actions';
 
 const navItems = [
@@ -11,7 +11,7 @@ const navItems = [
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireSession();
+  const session = await requireLicensed();
 
   return (
     <main className="workspace-page">

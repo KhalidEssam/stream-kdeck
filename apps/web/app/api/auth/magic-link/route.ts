@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getSiteUrl } from '@/lib/env';
 import { getSupabaseAuth } from '@/lib/supabase-auth';
+import { findAuthUserByEmail } from '@/lib/supabase-users';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,11 @@ export async function POST(request: NextRequest) {
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (!isValidEmail(email)) {
     return Response.json({ error: 'INVALID_EMAIL' }, { status: 400 });
+  }
+
+  const existing = await findAuthUserByEmail(email);
+  if (!existing) {
+    return Response.json({ error: 'NO_ACCOUNT' }, { status: 404 });
   }
 
   const { error } = await getSupabaseAuth().auth.signInWithOtp({
