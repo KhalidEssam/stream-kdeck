@@ -23,6 +23,8 @@ import { ActivationDialogService } from '../license/activation-dialog.service';
 import { ActiveWindowService } from '../active-window/active-window.service';
 import { ContextProfileService } from '../context-profile/context-profile.service';
 import { ContextProfile } from '../context-profile/context-profile.service';
+import { MouseService } from '../mouse/mouse.service';
+import { MouseMoveMessage, MouseClickMessage, MouseScrollMessage } from '@control-surface/shared';
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
@@ -37,6 +39,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly activationDialog: ActivationDialogService,
     private readonly activeWindow: ActiveWindowService,
     private readonly contextProfile: ContextProfileService,
+    private readonly mouseService: MouseService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
@@ -212,6 +215,24 @@ export class WsGateway implements OnGatewayConnection {
           profiles: this.contextProfile.getAllProfiles(),
         };
         client.send(JSON.stringify(msg));
+        return;
+      }
+
+      if (data.type === 'MOUSE_MOVE') {
+        const d = data as MouseMoveMessage;
+        await this.mouseService.moveMouse(d.dx, d.dy);
+        return;
+      }
+
+      if (data.type === 'MOUSE_CLICK') {
+        const d = data as MouseClickMessage;
+        await this.mouseService.clickMouse(d.button, d.action);
+        return;
+      }
+
+      if (data.type === 'MOUSE_SCROLL') {
+        const d = data as MouseScrollMessage;
+        await this.mouseService.scrollMouse(d.dx, d.dy);
         return;
       }
 

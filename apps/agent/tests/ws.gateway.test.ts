@@ -7,8 +7,30 @@ import { AppModule } from '../src/app.module';
 import { LicenseService } from '../src/license/license.service';
 import { ActivationDialogService } from '../src/license/activation-dialog.service';
 import { ConnectedMessage, ActionResultMessage, DeckConfigMessage, LicenseStatusMessage } from '@control-surface/shared';
+import { mouse } from '@nut-tree-fork/nut-js';
+const mockedMouse = mouse as jest.Mocked<typeof mouse>;
 
 jest.mock('active-win', () => jest.fn().mockResolvedValue(undefined));
+jest.mock('@nut-tree-fork/nut-js', () => ({
+  mouse: {
+    getPosition:   jest.fn().mockResolvedValue({ x: 0, y: 0 }),
+    setPosition:   jest.fn().mockResolvedValue(undefined),
+    click:         jest.fn().mockResolvedValue(undefined),
+    pressButton:   jest.fn().mockResolvedValue(undefined),
+    releaseButton: jest.fn().mockResolvedValue(undefined),
+    scrollUp:    jest.fn().mockResolvedValue(undefined),
+    scrollDown:  jest.fn().mockResolvedValue(undefined),
+    scrollLeft:  jest.fn().mockResolvedValue(undefined),
+    scrollRight: jest.fn().mockResolvedValue(undefined),
+  },
+  keyboard: {
+    pressKey:   jest.fn().mockResolvedValue(undefined),
+    releaseKey: jest.fn().mockResolvedValue(undefined),
+  },
+  Key:    new Proxy({}, { get: (_t, prop) => prop }),
+  Button: { LEFT: 'LEFT', RIGHT: 'RIGHT', MIDDLE: 'MIDDLE' },
+  Point:  jest.fn().mockImplementation((x: number, y: number) => ({ x, y })),
+}));
 jest.mock('fs');
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
@@ -200,5 +222,51 @@ describe('WsGateway', () => {
         done();
       }
     });
+  });
+
+  it('moves mouse when MOUSE_MOVE is received', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'MOUSE_MOVE', dx: 5, dy: -3 }));
+      setTimeout(() => {
+        expect(mockedMouse.setPosition).toHaveBeenCalled();
+        ws.close();
+        done();
+      }, 100);
+    });
+
+    // drain handshake messages
+    ws.on('message', () => {});
+  });
+
+  it('clicks mouse when MOUSE_CLICK is received', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'MOUSE_CLICK', button: 'left', action: 'click' }));
+      setTimeout(() => {
+        expect(mockedMouse.click).toHaveBeenCalled();
+        ws.close();
+        done();
+      }, 100);
+    });
+
+    ws.on('message', () => {});
+  });
+
+  it('scrolls mouse when MOUSE_SCROLL is received', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'MOUSE_SCROLL', dx: 0, dy: 2 }));
+      setTimeout(() => {
+        expect(mockedMouse.scrollDown).toHaveBeenCalledWith(2);
+        ws.close();
+        done();
+      }, 100);
+    });
+
+    ws.on('message', () => {});
   });
 });
