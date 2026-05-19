@@ -5,6 +5,7 @@ import { AiRouterService } from '../src/ai/ai-router.service';
 import { AppLaunchService } from '../src/app-launch/app-launch.service';
 import { KeystrokeService } from '../src/keystroke/keystroke.service';
 import { LicenseService } from '../src/license/license.service';
+import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { shell } from 'electron';
 
 describe('CommandService', () => {
@@ -13,7 +14,8 @@ describe('CommandService', () => {
   let mockAiRouter: { call: jest.Mock };
   let mockAppLaunch: { launch: jest.Mock; openUrl: jest.Mock };
   let mockKeystroke: { execute: jest.Mock };
-  let mockLicenseService: { creditsRemaining: jest.Mock };
+  let mockLicenseService: { creditsRemaining: jest.Mock; decrementCredit: jest.Mock };
+  let mockPackRegistry: { getById: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -22,16 +24,21 @@ describe('CommandService', () => {
       openUrl: jest.fn().mockResolvedValue(undefined),
     };
     mockKeystroke = { execute: jest.fn().mockResolvedValue(undefined) };
-    mockLicenseService = { creditsRemaining: jest.fn().mockReturnValue(10) };
+    mockLicenseService = {
+      creditsRemaining: jest.fn().mockReturnValue(10),
+      decrementCredit: jest.fn(),
+    };
+    mockPackRegistry = { getById: jest.fn().mockReturnValue(undefined) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         CommandService,
         ClipboardService,
-        { provide: AiRouterService,  useValue: mockAiRouter },
-        { provide: AppLaunchService, useValue: mockAppLaunch },
-        { provide: KeystrokeService, useValue: mockKeystroke },
-        { provide: LicenseService,   useValue: mockLicenseService },
+        { provide: AiRouterService,     useValue: mockAiRouter },
+        { provide: AppLaunchService,    useValue: mockAppLaunch },
+        { provide: KeystrokeService,    useValue: mockKeystroke },
+        { provide: LicenseService,      useValue: mockLicenseService },
+        { provide: PackRegistryService, useValue: mockPackRegistry },
       ],
     }).compile();
 
@@ -150,5 +157,50 @@ describe('CommandService', () => {
     });
     expect(result.success).toBe(true);
     expect(mockAiRouter.call).toHaveBeenCalled();
+  });
+
+  describe('toolId resolution', () => {
+    async function buildWithRegistry(tool: object | undefined) {
+      mockPackRegistry = { getById: jest.fn().mockReturnValue(tool) };
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          CommandService,
+          ClipboardService,
+          { provide: AiRouterService,     useValue: mockAiRouter },
+          { provide: AppLaunchService,    useValue: mockAppLaunch },
+          { provide: KeystrokeService,    useValue: mockKeystroke },
+          { provide: LicenseService,      useValue: mockLicenseService },
+          { provide: PackRegistryService, useValue: mockPackRegistry },
+        ],
+      }).compile();
+      clipboardService = moduleRef.get(ClipboardService);
+      return moduleRef.get(CommandService);
+    }
+
+    it('resolves prompt and outputMode from registry when toolId is present', async () => {
+      const registryTool = { prompt: 'Registry prompt', outputMode: 'viewer' };
+      const svc = await buildWithRegistry(registryTool);
+      await clipboardService.write('some text');
+      const result = await svc.execute({
+        kind: 'AI_CLIPBOARD',
+        prompt: '',
+        outputMode: 'clipboard',
+        toolId: 'tool-uuid-1',
+      });
+      expect(result.success).toBe(true);
+      expect(mockAiRouter.call).toHaveBeenCalledWith('Registry prompt', 'some text');
+      expect(result.output).toBe('AI result text');
+    });
+
+    it('falls back to inline prompt when toolId is absent', async () => {
+      const svc = await buildWithRegistry(undefined);
+      await clipboardService.write('some text');
+      await svc.execute({
+        kind: 'AI_CLIPBOARD',
+        prompt: 'Inline prompt',
+        outputMode: 'clipboard',
+      });
+      expect(mockAiRouter.call).toHaveBeenCalledWith('Inline prompt', 'some text');
+    });
   });
 });

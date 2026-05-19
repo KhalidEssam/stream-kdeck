@@ -6,6 +6,7 @@ import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
 import { KeystrokeService } from '../keystroke/keystroke.service';
 import { LicenseService } from '../license/license.service';
+import { PackRegistryService } from '../packs/pack-registry.service';
 
 export interface CommandResult {
   success: boolean;
@@ -22,6 +23,7 @@ export class CommandService {
     private readonly appLaunch: AppLaunchService,
     private readonly keystroke: KeystrokeService,
     private readonly licenseService: LicenseService,
+    private readonly packRegistry: PackRegistryService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -35,10 +37,22 @@ export class CommandService {
           if (this.licenseService.creditsRemaining() <= 0) {
             return { success: false, quotaExceeded: true };
           }
+
+          let prompt = action.prompt;
+          let outputMode = action.outputMode;
+
+          if (action.toolId) {
+            const tool = this.packRegistry.getById(action.toolId);
+            if (tool) {
+              prompt = tool.prompt;
+              outputMode = tool.outputMode;
+            }
+          }
+
           const context = await this.clipboard.read();
-          const result = await this.aiRouter.call(action.prompt, context);
+          const result = await this.aiRouter.call(prompt, context);
           this.licenseService.decrementCredit();
-          if (action.outputMode === 'viewer') {
+          if (outputMode === 'viewer') {
             return { success: true, output: result };
           }
           await this.clipboard.write(result);
