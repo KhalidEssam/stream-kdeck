@@ -16,6 +16,7 @@ import { WebSocketService } from '../services/websocket.service';
 
 const SENSITIVITY_KEY = 'trackpad_sensitivity';
 const ORIENTATION_KEY = 'trackpad_orientation';
+type OrientationMode = 'portrait' | 'landscape' | 'landscape-flip';
 const SENSITIVITY_MIN = 0.3;
 const SENSITIVITY_MAX = 10.0;
 const SENSITIVITY_STEP = 0.1;
@@ -51,10 +52,12 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const cancelLongPressRef = useRef<() => void>(() => {});
   const twoFingerStartRef = useRef<{ x: number; y: number } | null>(null);
   const sensitivityRef = useRef(SENSITIVITY_DEFAULT);
-  const [isLandscape, setIsLandscape] = useState(false);
-  const isLandscapeRef = useRef(false);
+  const [orientation, setOrientation] = useState<OrientationMode>('portrait');
+  const orientationRef = useRef<OrientationMode>('portrait');
   // Fix 4: track finger count at gesture start for reliable Android two-finger detection
   const fingerCountRef = useRef(0);
+  // tracks whether a two-finger scroll actually fired, to suppress right-click on lift
+  const twoFingerScrolledRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SENSITIVITY_KEY)
@@ -70,9 +73,9 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       .catch(console.warn);
     AsyncStorage.getItem(ORIENTATION_KEY)
       .then((val) => {
-        if (val === 'landscape') {
-          setIsLandscape(true);
-          isLandscapeRef.current = true;
+        if (val === 'landscape' || val === 'landscape-flip') {
+          setOrientation(val);
+          orientationRef.current = val;
         }
       })
       .catch(console.warn);
@@ -91,11 +94,13 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
     AsyncStorage.setItem(SENSITIVITY_KEY, String(clamped)).catch(console.warn);
   }, []);
 
-  const toggleOrientation = useCallback(() => {
-    const next = !isLandscapeRef.current;
-    isLandscapeRef.current = next;
-    setIsLandscape(next);
-    AsyncStorage.setItem(ORIENTATION_KEY, next ? 'landscape' : 'portrait').catch(console.warn);
+  const cycleOrientation = useCallback(() => {
+    const next: OrientationMode =
+      orientationRef.current === 'portrait' ? 'landscape' :
+      orientationRef.current === 'landscape' ? 'landscape-flip' : 'portrait';
+    orientationRef.current = next;
+    setOrientation(next);
+    AsyncStorage.setItem(ORIENTATION_KEY, next).catch(console.warn);
   }, []);
 
   // Fix 2: cancelLongPress wrapped in useCallback; ref kept in sync below
@@ -116,6 +121,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         const touches = evt.nativeEvent.touches;
         totalMovementRef.current = 0;
         twoFingerStartRef.current = null;
+        twoFingerScrolledRef.current = false;
         // Fix 4: capture finger count at grant time
         fingerCountRef.current = touches.length;
 
@@ -153,6 +159,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
             const dy = Math.round(rawDy * sensitivityRef.current * 2);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.scrollMouse(-dx, -dy);
+              twoFingerScrolledRef.current = true;
               lastSentRef.current = now;
               twoFingerStartRef.current = { x: centerX, y: centerY };
             }
@@ -172,12 +179,15 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
 
           if (now - lastSentRef.current >= THROTTLE_MS) {
             const scale = sensitivityRef.current * 2;
-            const dx = isLandscapeRef.current
-              ? Math.round(rawDy * scale)
-              : Math.round(rawDx * scale);
-            const dy = isLandscapeRef.current
-              ? Math.round(rawDx * scale)
-              : Math.round(rawDy * scale);
+            const mode = orientationRef.current;
+            const dx =
+              mode === 'landscape'      ? Math.round( rawDy * scale) :
+              mode === 'landscape-flip' ? Math.round(-rawDy * scale) :
+                                          Math.round( rawDx * scale);
+            const dy =
+              mode === 'landscape'      ? Math.round( rawDx * scale) :
+              mode === 'landscape-flip' ? Math.round(-rawDx * scale) :
+                                          Math.round( rawDy * scale);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.moveMouse(dx, dy);
               lastSentRef.current = now;
@@ -193,8 +203,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         const changed = evt.nativeEvent.changedTouches;
         twoFingerStartRef.current = null;
 
-        // Two-finger tap → right click (Fix 4: use fingerCountRef for Android compatibility)
-        if (fingerCountRef.current === 2 && totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
+        // Two-finger tap → right click (only if no scroll fired during this gesture)
+        if (fingerCountRef.current === 2 && totalMovementRef.current < TAP_MOVEMENT_THRESHOLD && !twoFingerScrolledRef.current) {
           wsRef.current.clickMouse('right', 'click');
           lastPosRef.current = null;
           totalMovementRef.current = 0;
@@ -256,11 +266,13 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         </TouchableOpacity>
         <Text style={styles.title}>Trackpad</Text>
         <TouchableOpacity
-          onPress={toggleOrientation}
-          style={[styles.keyboardButton, isLandscape && styles.keyboardButtonActive]}
+          onPress={cycleOrientation}
+          style={[styles.keyboardButton, orientation !== 'portrait' && styles.keyboardButtonActive]}
           activeOpacity={0.7}
         >
-          <Text style={styles.keyboardIcon}>{isLandscape ? '⬛' : '📱'}</Text>
+          <Text style={styles.keyboardIcon}>
+            {orientation === 'portrait' ? '📱' : orientation === 'landscape' ? '⬛' : '⬛↩'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={toggleKeyboard}
@@ -274,7 +286,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       {/* Gesture surface */}
       <View style={styles.surface} {...panResponder.panHandlers}>
         <Text style={styles.hint}>
-          {isLandscape ? 'Landscape mode' : 'Portrait mode'}{'  ·  '}Drag to move  ·  Tap to click
+          {orientation === 'portrait' ? 'Portrait' : orientation === 'landscape' ? 'Landscape ↺' : 'Landscape ↻'}{'  ·  '}Drag to move  ·  Tap to click
         </Text>
       </View>
 
