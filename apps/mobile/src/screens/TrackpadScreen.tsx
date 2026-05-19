@@ -16,6 +16,7 @@ import { WebSocketService } from '../services/websocket.service';
 
 const SENSITIVITY_KEY = 'trackpad_sensitivity';
 const ORIENTATION_KEY = 'trackpad_orientation';
+const KEYBOARD_SENTINEL = ' '; // one space kept in input so backspace shrinks it
 type OrientationMode = 'portrait' | 'landscape' | 'landscape-flip';
 const SENSITIVITY_MIN = 0.3;
 const SENSITIVITY_MAX = 10.0;
@@ -39,7 +40,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const [sensitivity, setSensitivity] = useState(SENSITIVITY_DEFAULT);
   const [showKeyboard, setShowKeyboard] = useState(false);
   // Fix 3: controlled input value
-  const [keyboardText, setKeyboardText] = useState('');
+  const [keyboardText, setKeyboardText] = useState(KEYBOARD_SENTINEL);
   const keyboardInputRef = useRef<TextInput>(null);
 
   // Gesture state refs (not state — no re-render on each frame)
@@ -249,10 +250,15 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
 
   // Fix 3: controlled input — clear by resetting state; no setNativeProps needed
   const handleKeyboardChange = useCallback((text: string) => {
-    if (!text) return;
-    const char = text[text.length - 1];
-    wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: [char] });
-    setKeyboardText('');
+    if (text.length < KEYBOARD_SENTINEL.length) {
+      wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: ['Backspace'] });
+    } else {
+      const newChars = text.slice(KEYBOARD_SENTINEL.length);
+      for (const char of newChars) {
+        wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: [char] });
+      }
+    }
+    setKeyboardText(KEYBOARD_SENTINEL);
   }, []);
 
   return (
