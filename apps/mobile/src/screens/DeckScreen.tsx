@@ -20,6 +20,7 @@ import { TileConfig } from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
+import { ContextShortcutsScreen } from './ContextShortcutsScreen';
 import { discoverAgent } from '../services/discovery.service';
 
 const UPGRADE_URL =
@@ -52,6 +53,7 @@ export function DeckScreen() {
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
+  const [showContextSettings, setShowContextSettings] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -297,6 +299,11 @@ export function DeckScreen() {
 
       <View style={styles.header}>
         <Text style={styles.title}>KDeck</Text>
+        {wsService && (
+          <TouchableOpacity onPress={() => setShowContextSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
+            <Text style={{ color: '#6B6B8A', fontSize: 18 }}>⚙</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.statusBadge} onPress={handleRefresh} activeOpacity={0.7}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
@@ -471,6 +478,20 @@ export function DeckScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showContextSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowContextSettings(false)}
+      >
+        {wsService && (
+          <ContextShortcutsScreen
+            ws={wsService}
+            onDismiss={() => setShowContextSettings(false)}
+          />
+        )}
       </Modal>
 
       <ContextStrip
