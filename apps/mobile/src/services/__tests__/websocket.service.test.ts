@@ -65,6 +65,7 @@ describe('WebSocketService', () => {
       licensed: true,
       aiPro: false,
       creditsRemaining: 42,
+      creditQuota: 100,
     };
     server.send(JSON.stringify(msg));
 

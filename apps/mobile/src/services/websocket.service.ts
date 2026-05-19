@@ -22,6 +22,9 @@ import {
   RemoveContextShortcutMessage,
   GetContextProfilesMessage,
   ContextShortcut,
+  MouseMoveMessage,
+  MouseClickMessage,
+  MouseScrollMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -160,6 +163,24 @@ export class WebSocketService {
   requestContextProfiles(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: GetContextProfilesMessage = { type: 'GET_CONTEXT_PROFILES' };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  moveMouse(dx: number, dy: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MouseMoveMessage = { type: 'MOUSE_MOVE', dx, dy };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  clickMouse(button: 'left' | 'right' | 'middle', action: 'down' | 'up' | 'click'): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MouseClickMessage = { type: 'MOUSE_CLICK', button, action };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  scrollMouse(dx: number, dy: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MouseScrollMessage = { type: 'MOUSE_SCROLL', dx, dy };
     this.ws.send(JSON.stringify(msg));
   }
 

@@ -60,6 +60,25 @@ export interface SetTilePinnedMessage {
   pinned: boolean;
 }
 
+// Trackpad/Mouse messages (Mobile → Agent)
+export interface MouseMoveMessage {
+  type: 'MOUSE_MOVE';
+  dx: number;
+  dy: number;
+}
+
+export interface MouseClickMessage {
+  type: 'MOUSE_CLICK';
+  button: 'left' | 'right' | 'middle';
+  action: 'down' | 'up' | 'click';
+}
+
+export interface MouseScrollMessage {
+  type: 'MOUSE_SCROLL';
+  dx: number;
+  dy: number;
+}
+
 // Custom launcher messages
 export interface AppSearchResult {
   name: string;
@@ -185,4 +204,7 @@ export type MobileMessage =
   | GetLicenseStatusMessage
   | AddContextShortcutMessage
   | RemoveContextShortcutMessage
-  | GetContextProfilesMessage;
+  | GetContextProfilesMessage
+  | MouseMoveMessage
+  | MouseClickMessage
+  | MouseScrollMessage;
