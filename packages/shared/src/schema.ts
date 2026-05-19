@@ -6,12 +6,43 @@ export interface ButtonTapMessage {
 }
 
 export type ButtonAction =
-  | { kind: 'AI_CLIPBOARD'; prompt: string; outputMode: 'clipboard' | 'autopaste' | 'viewer' }
+  | { kind: 'AI_CLIPBOARD'; prompt: string; outputMode: 'clipboard' | 'autopaste' | 'viewer'; toolId?: string }
   | { kind: 'KEYSTROKE'; keys: string[] }
   | { kind: 'APP_LAUNCH'; appId: string }
   | { kind: 'URL_OPEN'; url: string }
   | { kind: 'CLIPBOARD_WRITE'; text: string }
   | { kind: 'EXEC'; exePath: string };
+
+// Pack catalog types (Agent → Mobile via PACK_REGISTRY)
+export interface PackTool {
+  id: string;
+  packId: string;
+  label: string;
+  prompt: string;
+  outputMode: 'clipboard' | 'autopaste' | 'viewer';
+  source: 'clipboard' | 'active_window' | 'shell';
+  icon: string;
+  color?: string;
+  order: number;
+  phase: number;
+  builtinId?: string;
+}
+
+export interface Pack {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  icon: string;
+  color?: string;
+  order: number;
+  tools: PackTool[];
+}
+
+export interface PackRegistryMessage {
+  type: 'PACK_REGISTRY';
+  packs: Pack[];
+}
 
 // Agent → Mobile
 export interface ActionResultMessage {
@@ -192,7 +223,8 @@ export type AgentMessage =
   | LicenseStatusMessage
   | AiQuotaExceededMessage
   | ContextShortcutsMessage
-  | ContextProfilesMessage;
+  | ContextProfilesMessage
+  | PackRegistryMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
