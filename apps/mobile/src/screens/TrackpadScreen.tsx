@@ -275,7 +275,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         autoCorrect={false}
         autoCapitalize="none"
         spellCheck={false}
-        blurOnSubmit={false}
+        submitBehavior="newline"
         onBlur={() => setShowKeyboard(false)}
       />
     </SafeAreaView>
