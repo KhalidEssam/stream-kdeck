@@ -543,6 +543,20 @@ a {
   text-underline-offset: 3px;
 }
 
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 8px;
+}
+.link-btn:hover {
+  color: var(--foreground);
+}
+
 .notice-banner {
   margin: 16px auto 0;
   max-width: 680px;

@@ -15,3 +15,13 @@ export function getSupabaseAuth(): SupabaseClient {
 
   return authClient;
 }
+
+/** Returns a fresh (non-singleton) Supabase client for per-request use cases such as MFA flows. */
+export function createUserSupabaseClient(): SupabaseClient {
+  return createClient(getEnv('SUPABASE_URL'), getEnv('SUPABASE_ANON_KEY'), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
