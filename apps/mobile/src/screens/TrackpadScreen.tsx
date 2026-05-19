@@ -185,8 +185,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
               mode === 'landscape-flip' ? Math.round(-rawDy * scale) :
                                           Math.round( rawDx * scale);
             const dy =
-              mode === 'landscape'      ? Math.round( rawDx * scale) :
-              mode === 'landscape-flip' ? Math.round(-rawDx * scale) :
+              mode === 'landscape'      ? Math.round(-rawDx * scale) :
+              mode === 'landscape-flip' ? Math.round( rawDx * scale) :
                                           Math.round( rawDy * scale);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.moveMouse(dx, dy);
