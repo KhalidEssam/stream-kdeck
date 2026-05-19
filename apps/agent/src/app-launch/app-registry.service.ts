@@ -25,83 +25,6 @@ interface AppConfig {
   overrides: Record<string, string>;
 }
 
-// Built-in AI clipboard tiles are not stored in config; pinned user tiles can appear before them.
-// Users cannot remove them (they are not in apps.config.json).
-const DEFAULT_AI_TILES: TileConfig[] = [
-  {
-    id: 'builtin-ai-explain',
-    kind: 'ai',
-    label: 'Explain Error',
-    iconId: 'ai',
-    color: '#2D1B69',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Explain this error clearly and concisely. What is the root cause and how do I fix it?',
-      outputMode: 'viewer',
-    },
-  },
-  {
-    id: 'builtin-ai-grammar',
-    kind: 'ai',
-    label: 'Fix Grammar',
-    iconId: 'ai',
-    color: '#0D3B2E',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Fix all grammar and spelling errors. Return only the corrected text, no commentary.',
-      outputMode: 'autopaste',
-    },
-  },
-  {
-    id: 'builtin-ai-tweet',
-    kind: 'ai',
-    label: 'Write Tweet',
-    iconId: 'ai',
-    color: '#1A237E',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Write a compelling tweet based on this content. Max 280 characters. No hashtags unless relevant.',
-      outputMode: 'clipboard',
-    },
-  },
-  {
-    id: 'builtin-ai-shorten',
-    kind: 'ai',
-    label: 'Make Shorter',
-    iconId: 'ai',
-    color: '#2C1654',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Rewrite this to be shorter and more concise. Cut filler. Keep the core message intact.',
-      outputMode: 'autopaste',
-    },
-  },
-  {
-    id: 'builtin-ai-tests',
-    kind: 'ai',
-    label: 'Write Tests',
-    iconId: 'ai',
-    color: '#1B2631',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Write comprehensive unit tests for this code. Use the same language and testing framework visible in the code.',
-      outputMode: 'viewer',
-    },
-  },
-  {
-    id: 'builtin-ai-translate',
-    kind: 'ai',
-    label: 'Translate ES',
-    iconId: 'ai',
-    color: '#1A3C34',
-    action: {
-      kind: 'AI_CLIPBOARD',
-      prompt: 'Translate this text to Spanish. Return only the translation.',
-      outputMode: 'clipboard',
-    },
-  },
-];
-
 const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
   spotify: {
     label: 'Spotify', iconId: 'spotify',
@@ -337,7 +260,7 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
   getTiles(): TileConfig[] {
     const pinnedTiles = this.config.tiles.filter((tile) => tile.pinned);
     const unpinnedTiles = this.config.tiles.filter((tile) => !tile.pinned);
-    const all = [...pinnedTiles, ...DEFAULT_AI_TILES, ...unpinnedTiles];
+    const all = [...pinnedTiles, ...unpinnedTiles];
     return all.map((tile) => {
       if (tile.kind === 'app' && !tile.iconBase64 && tile.action.kind === 'APP_LAUNCH') {
         const icon = this.appIconCache.get(tile.action.appId);
@@ -359,7 +282,6 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
   }
 
   removeTile(tileId: string): void {
-    // Built-in AI tile IDs start with 'builtin-' — they are not in config.tiles and cannot be removed
     this.config.tiles = this.config.tiles.filter((t) => t.id !== tileId);
     this.persist();
   }

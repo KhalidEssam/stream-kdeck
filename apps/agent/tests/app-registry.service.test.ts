@@ -8,14 +8,14 @@ jest.mock('fs');
 
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
+const mockAppSearch = { extractIcon: jest.fn().mockReturnValue(null) } as any;
+
 function makeService(config: { tiles: any[]; overrides: Record<string, string> } = { tiles: [], overrides: {} }): AppRegistryService {
   mockedFs.existsSync.mockReturnValue(true);
   mockedFs.readFileSync.mockReturnValue(JSON.stringify(config));
   mockedFs.writeFileSync.mockImplementation(() => undefined);
-  return new AppRegistryService();
+  return new AppRegistryService(mockAppSearch);
 }
-
-const AI_TILE_COUNT = 6;
 
 describe('AppRegistryService', () => {
   beforeEach(() => {
@@ -42,21 +42,19 @@ describe('AppRegistryService', () => {
   });
 
   describe('getTiles', () => {
-    it('always includes the 6 built-in AI tiles even with empty config', () => {
+    it('returns an empty array with empty config', () => {
       const svc = makeService({ tiles: [], overrides: {} });
       const tiles = svc.getTiles();
-      expect(tiles).toHaveLength(AI_TILE_COUNT);
-      expect(tiles.every((t) => t.kind === 'ai')).toBe(true);
-      expect(tiles[0].id).toBe('builtin-ai-explain');
+      expect(tiles).toHaveLength(0);
     });
 
-    it('prepends AI tiles before user-configured tiles', () => {
+    it('returns user-configured tiles', () => {
       const svc = makeService({
         tiles: [{ kind: 'app', label: 'Spotify', iconId: 'spotify', action: { kind: 'APP_LAUNCH', appId: 'spotify' } }],
         overrides: {},
       });
       const tiles = svc.getTiles();
-      expect(tiles).toHaveLength(AI_TILE_COUNT + 1);
+      expect(tiles).toHaveLength(1);
       const spotifyTile = tiles.find((t) => t.label === 'Spotify');
       expect(spotifyTile).toBeDefined();
       expect(spotifyTile!.id).toMatch(/^[0-9a-f-]{36}$/);
@@ -64,7 +62,7 @@ describe('AppRegistryService', () => {
       expect(svc.getTiles().find((t) => t.label === 'Spotify')!.id).toBe(spotifyTile!.id);
     });
 
-    it('puts pinned user tiles before built-in AI tiles', () => {
+    it('puts pinned user tiles before unpinned user tiles', () => {
       const svc = makeService({
         tiles: [
           {
@@ -88,7 +86,6 @@ describe('AppRegistryService', () => {
 
       const tiles = svc.getTiles();
       expect(tiles[0].id).toBe('tile-pinned');
-      expect(tiles[1].id).toBe('builtin-ai-explain');
       expect(tiles.at(-1)!.id).toBe('tile-unpinned');
     });
   });
@@ -99,7 +96,7 @@ describe('AppRegistryService', () => {
       svc.addTile({ kind: 'url', label: 'My Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } });
       expect(mockedFs.writeFileSync).toHaveBeenCalled();
       const tiles = svc.getTiles();
-      expect(tiles).toHaveLength(AI_TILE_COUNT + 1);
+      expect(tiles).toHaveLength(1);
       const mySite = tiles.find((t) => t.label === 'My Site')!;
       expect(mySite).toBeDefined();
       expect(mySite.id).toMatch(/^[0-9a-f-]{36}$/);
@@ -110,7 +107,7 @@ describe('AppRegistryService', () => {
       const tile = { kind: 'app' as const, label: 'Spotify', iconId: 'spotify', action: { kind: 'APP_LAUNCH' as const, appId: 'spotify' } };
       svc.addTile(tile);
       svc.addTile(tile);
-      expect(svc.getTiles()).toHaveLength(AI_TILE_COUNT + 1);
+      expect(svc.getTiles()).toHaveLength(1);
     });
 
     it('persists a custom EXEC tile with iconBase64 to config', () => {
@@ -149,15 +146,8 @@ describe('AppRegistryService', () => {
       svc.addTile({ kind: 'url', label: 'My Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } });
       const id = svc.getTiles().find((t) => t.label === 'My Site')!.id;
       svc.removeTile(id);
-      expect(svc.getTiles()).toHaveLength(AI_TILE_COUNT);
+      expect(svc.getTiles()).toHaveLength(0);
       expect(mockedFs.writeFileSync).toHaveBeenCalledTimes(2); // add + remove
-    });
-
-    it('cannot remove built-in AI tiles (they are not in config)', () => {
-      const svc = makeService({ tiles: [], overrides: {} });
-      svc.removeTile('builtin-ai-explain');
-      // Still has all AI tiles
-      expect(svc.getTiles()).toHaveLength(AI_TILE_COUNT);
     });
 
     it('is a no-op for an unknown id', () => {
@@ -202,11 +192,11 @@ describe('AppRegistryService', () => {
       expect(saved.tiles[0].pinned).toBeUndefined();
     });
 
-    it('is a no-op for a built-in tile id', () => {
+    it('is a no-op for an unknown tile id', () => {
       const svc = makeService({ tiles: [], overrides: {} });
-      svc.setTilePinned('builtin-ai-explain', true);
+      svc.setTilePinned('unknown-tile-id', true);
       expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
-      expect(svc.getTiles()[0].id).toBe('builtin-ai-explain');
+      expect(svc.getTiles()).toHaveLength(0);
     });
   });
 
