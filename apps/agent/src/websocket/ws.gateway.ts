@@ -14,6 +14,7 @@ import {
   ContextProfilesMessage,
   AddContextShortcutMessage,
   RemoveContextShortcutMessage,
+  PackRegistryMessage,
 } from '@control-surface/shared';
 import { CommandService } from '../command/command.service';
 import { AppRegistryService } from '../app-launch/app-registry.service';
@@ -25,6 +26,7 @@ import { ContextProfileService } from '../context-profile/context-profile.servic
 import { ContextProfile } from '../context-profile/context-profile.service';
 import { MouseService } from '../mouse/mouse.service';
 import { MouseMoveMessage, MouseClickMessage, MouseScrollMessage } from '@control-surface/shared';
+import { PackRegistryService } from '../packs/pack-registry.service';
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
@@ -40,12 +42,14 @@ export class WsGateway implements OnGatewayConnection {
     private readonly activeWindow: ActiveWindowService,
     private readonly contextProfile: ContextProfileService,
     private readonly mouseService: MouseService,
+    private readonly packRegistry: PackRegistryService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
       void this.handleAppChanged(processName);
     });
     this.appRegistry.on('tilesUpdated', () => this.broadcastDeckConfig());
+    void this.packRegistry.load();
   }
 
   private sendDeckConfig(client: WebSocket): void {
@@ -147,6 +151,11 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(this.buildContextMsg(pn, profile)));
   }
 
+  private sendPackRegistry(client: WebSocket): void {
+    const msg: PackRegistryMessage = { type: 'PACK_REGISTRY', packs: this.packRegistry.getPacks() };
+    client.send(JSON.stringify(msg));
+  }
+
   handleConnection(client: WebSocket): void {
     const connected: ConnectedMessage = {
       type:         'CONNECTED',
@@ -157,6 +166,7 @@ export class WsGateway implements OnGatewayConnection {
     this.sendDeckConfig(client);
     this.sendLicenseStatus(client);
     this.sendContextShortcuts(client);
+    this.sendPackRegistry(client);
 
     console.log('[Agent] Mobile client connected');
 

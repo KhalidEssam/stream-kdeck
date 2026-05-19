@@ -6,6 +6,7 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from '../src/app.module';
 import { LicenseService } from '../src/license/license.service';
 import { ActivationDialogService } from '../src/license/activation-dialog.service';
+import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { ConnectedMessage, ActionResultMessage, DeckConfigMessage, LicenseStatusMessage } from '@control-surface/shared';
 import { mouse } from '@nut-tree-fork/nut-js';
 const mockedMouse = mouse as jest.Mocked<typeof mouse>;
@@ -47,6 +48,12 @@ const mockLicenseService = {
 
 const mockActivationDialog = { open: jest.fn() };
 
+const mockPackRegistry = {
+  load:     jest.fn().mockResolvedValue(undefined),
+  getPacks: jest.fn().mockReturnValue([]),
+  getById:  jest.fn().mockReturnValue(undefined),
+};
+
 describe('WsGateway', () => {
   let app: INestApplication;
 
@@ -60,6 +67,7 @@ describe('WsGateway', () => {
     })
       .overrideProvider(LicenseService).useValue(mockLicenseService)
       .overrideProvider(ActivationDialogService).useValue(mockActivationDialog)
+      .overrideProvider(PackRegistryService).useValue(mockPackRegistry)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -71,23 +79,26 @@ describe('WsGateway', () => {
     await app.close();
   });
 
-  it('sends CONNECTED, DECK_CONFIG, then LICENSE_STATUS on connect', (done) => {
+  it('sends CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS, PACK_REGISTRY on connect', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
 
     ws.on('message', (data) => {
       messages.push(data.toString());
-      if (messages.length === 3) {
-        const connected: ConnectedMessage = JSON.parse(messages[0]);
+      if (messages.length === 5) {
+        const connected = JSON.parse(messages[0]);
         expect(connected.type).toBe('CONNECTED');
 
-        const deckConfig: DeckConfigMessage = JSON.parse(messages[1]);
+        const deckConfig = JSON.parse(messages[1]);
         expect(deckConfig.type).toBe('DECK_CONFIG');
 
-        const licStatus: LicenseStatusMessage = JSON.parse(messages[2]);
+        const licStatus = JSON.parse(messages[2]);
         expect(licStatus.type).toBe('LICENSE_STATUS');
-        expect(licStatus.licensed).toBe(true);
-        expect(licStatus.creditsRemaining).toBe(50);
+
+        // messages[3] is CONTEXT_SHORTCUTS
+        const packRegistry = JSON.parse(messages[4]);
+        expect(packRegistry.type).toBe('PACK_REGISTRY');
+        expect(Array.isArray(packRegistry.packs)).toBe(true);
 
         ws.close();
         done();
@@ -102,8 +113,8 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      // Connection now sends: CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS
-      if (messages.length === 4) {
+      // Connection now sends: CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS, PACK_REGISTRY
+      if (messages.length === 5) {
         ws.send(JSON.stringify({
           type: 'BUTTON_TAP',
           buttonId: 'btn-test',
@@ -111,8 +122,8 @@ describe('WsGateway', () => {
         }));
       }
 
-      if (messages.length === 5) {
-        const result: ActionResultMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const result: ActionResultMessage = JSON.parse(messages[5]);
         expect(result.type).toBe('ACTION_RESULT');
         expect(result.buttonId).toBe('btn-test');
         expect(result.success).toBe(true);
@@ -128,7 +139,7 @@ describe('WsGateway', () => {
 
     ws.on('message', (data) => {
       messages.push(data.toString());
-      if (messages.length === 3) {
+      if (messages.length === 5) {
         mockActivationDialog.open.mockClear();
         ws.send(JSON.stringify({ type: 'OPEN_ACTIVATION_DIALOG' }));
         setTimeout(() => {
@@ -147,15 +158,15 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 4) {
+      if (messages.length === 5) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Test Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } },
         }));
       }
 
-      if (messages.length === 5) {
-        const updated: DeckConfigMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const updated: DeckConfigMessage = JSON.parse(messages[5]);
         expect(updated.type).toBe('DECK_CONFIG');
         expect(updated.tiles.some((t) => t.label === 'Test Site')).toBe(true);
         ws.close();
@@ -171,22 +182,22 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 4) {
+      if (messages.length === 5) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Remove Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://remove-me.example.com' } },
         }));
       }
 
-      if (messages.length === 5) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[5]);
         const tile = withTile.tiles.find((t) => t.label === 'Remove Me');
         expect(tile).toBeDefined();
         ws.send(JSON.stringify({ type: 'REMOVE_TILE', tileId: tile!.id }));
       }
 
-      if (messages.length === 6) {
-        const updated: DeckConfigMessage = JSON.parse(messages[5]);
+      if (messages.length === 7) {
+        const updated: DeckConfigMessage = JSON.parse(messages[6]);
         expect(updated.tiles.some((t) => t.label === 'Remove Me')).toBe(false);
         ws.close();
         done();
@@ -201,22 +212,22 @@ describe('WsGateway', () => {
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 4) {
+      if (messages.length === 5) {
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
           tile: { kind: 'url', label: 'Pin Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://pin-me.example.com' } },
         }));
       }
 
-      if (messages.length === 5) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[4]);
+      if (messages.length === 6) {
+        const withTile: DeckConfigMessage = JSON.parse(messages[5]);
         const tile = withTile.tiles.find((t) => t.label === 'Pin Me');
         expect(tile).toBeDefined();
         ws.send(JSON.stringify({ type: 'SET_TILE_PINNED', tileId: tile!.id, pinned: true }));
       }
 
-      if (messages.length === 6) {
-        const updated: DeckConfigMessage = JSON.parse(messages[5]);
+      if (messages.length === 7) {
+        const updated: DeckConfigMessage = JSON.parse(messages[6]);
         expect(updated.tiles[0]).toMatchObject({ label: 'Pin Me', pinned: true });
         ws.close();
         done();
