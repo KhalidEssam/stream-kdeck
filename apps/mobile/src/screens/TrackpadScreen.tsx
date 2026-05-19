@@ -327,7 +327,10 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         autoCapitalize="none"
         spellCheck={false}
         submitBehavior="submit"
-        onSubmitEditing={() => wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: ['Enter'] })}
+        onSubmitEditing={() => {
+          wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: ['Enter'] });
+          keyboardInputRef.current?.blur();
+        }}
         onBlur={() => setShowKeyboard(false)}
       />
     </View>
