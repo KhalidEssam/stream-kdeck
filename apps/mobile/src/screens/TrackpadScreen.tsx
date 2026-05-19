@@ -10,7 +10,7 @@ import {
   GestureResponderEvent,
   InteractionManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebSocketService } from '../services/websocket.service';
 
@@ -29,6 +29,7 @@ interface Props {
 }
 
 export function TrackpadScreen({ ws, onDismiss }: Props) {
+  const insets = useSafeAreaInsets();
   // Fix 1: wsRef keeps PanResponder closures from going stale when ws prop changes
   const wsRef = useRef(ws);
   wsRef.current = ws;
@@ -130,8 +131,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           if (now - lastSentRef.current >= THROTTLE_MS) {
             const rawDx = centerX - twoFingerStartRef.current.x;
             const rawDy = centerY - twoFingerStartRef.current.y;
-            const dx = Math.round(rawDx * sensitivityRef.current);
-            const dy = Math.round(rawDy * sensitivityRef.current);
+            const dx = Math.round(rawDx * sensitivityRef.current * 2);
+            const dy = Math.round(rawDy * sensitivityRef.current * 2);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.scrollMouse(-dx, -dy);
               lastSentRef.current = now;
@@ -152,8 +153,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           }
 
           if (now - lastSentRef.current >= THROTTLE_MS) {
-            const dx = Math.round(rawDx * sensitivityRef.current);
-            const dy = Math.round(rawDy * sensitivityRef.current);
+            const dx = Math.round(rawDx * sensitivityRef.current * 2);
+            const dy = Math.round(rawDy * sensitivityRef.current * 2);
             if (dx !== 0 || dy !== 0) {
               wsRef.current.moveMouse(dx, dy);
               lastSentRef.current = now;
@@ -222,11 +223,11 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0A0A0F" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
         <TouchableOpacity onPress={onDismiss} style={styles.backButton} activeOpacity={0.7}>
           <Text style={styles.backText}>←  Deck</Text>
         </TouchableOpacity>
@@ -278,7 +279,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         submitBehavior="newline"
         onBlur={() => setShowKeyboard(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
