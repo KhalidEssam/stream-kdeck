@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import { platform, homedir } from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TileConfig } from '@control-surface/shared';
 import { randomUUID } from 'crypto';
+import { AppSearchService } from '../app-search/app-search.service';
 
 interface RegistryEntry {
   label: string;
@@ -235,16 +237,44 @@ const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
 };
 
 @Injectable()
-export class AppRegistryService {
+export class AppRegistryService extends EventEmitter implements OnModuleInit {
   private config: AppConfig = { tiles: [], overrides: {} };
   private readonly configPath: string;
+  private readonly appIconCache = new Map<string, string>(); // appId → base64
 
-  constructor() {
+  constructor(private readonly appSearch: AppSearchService) {
+    super();
     this.configPath = path.join(
       process.env.USER_DATA_PATH ?? path.join(__dirname, '../../'),
       'apps.config.json',
     );
     this.loadConfig();
+  }
+
+  onModuleInit(): void {
+    // Defer icon enrichment so it doesn't delay startup
+    setTimeout(() => void this.enrichIcons(), 500);
+  }
+
+  private async enrichIcons(): Promise<void> {
+    if (platform() !== 'win32') return;
+    const home = homedir();
+    let anyExtracted = false;
+
+    for (const [appId, entry] of Object.entries(BUILT_IN_REGISTRY)) {
+      if (!entry.windowsExePaths) continue;
+      for (const pattern of entry.windowsExePaths) {
+        const resolved = pattern.replace(/%HOME%/g, home).replace(/%USERPROFILE%/g, home);
+        if (!fs.existsSync(resolved)) continue;
+        try {
+          const icon = this.appSearch.extractIcon(resolved);
+          if (icon) { this.appIconCache.set(appId, icon); anyExtracted = true; }
+        } catch { /* icon is optional */ }
+        break; // use first found path
+      }
+    }
+
+    if (anyExtracted) this.emit('tilesUpdated');
   }
 
   private loadConfig(): void {
@@ -278,10 +308,16 @@ export class AppRegistryService {
   }
 
   getTiles(): TileConfig[] {
-    // Pinned user tiles appear before the default AI tools; everything else keeps config order.
     const pinnedTiles = this.config.tiles.filter((tile) => tile.pinned);
     const unpinnedTiles = this.config.tiles.filter((tile) => !tile.pinned);
-    return [...pinnedTiles, ...DEFAULT_AI_TILES, ...unpinnedTiles];
+    const all = [...pinnedTiles, ...DEFAULT_AI_TILES, ...unpinnedTiles];
+    return all.map((tile) => {
+      if (tile.kind === 'app' && !tile.iconBase64 && tile.action.kind === 'APP_LAUNCH') {
+        const icon = this.appIconCache.get(tile.action.appId);
+        if (icon) return { ...tile, iconBase64: icon };
+      }
+      return tile;
+    });
   }
 
   addTile(tile: Omit<TileConfig, 'id'>): void {

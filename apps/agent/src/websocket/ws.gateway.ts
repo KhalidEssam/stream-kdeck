@@ -45,6 +45,7 @@ export class WsGateway implements OnGatewayConnection {
     this.activeWindow.on('appChanged', (processName: string | null) => {
       void this.handleAppChanged(processName);
     });
+    this.appRegistry.on('tilesUpdated', () => this.broadcastDeckConfig());
   }
 
   private sendDeckConfig(client: WebSocket): void {
@@ -53,6 +54,17 @@ export class WsGateway implements OnGatewayConnection {
       tiles: this.appRegistry.getTiles(),
     };
     client.send(JSON.stringify(msg));
+  }
+
+  private broadcastDeckConfig(): void {
+    const msg: DeckConfigMessage = {
+      type: 'DECK_CONFIG',
+      tiles: this.appRegistry.getTiles(),
+    };
+    const payload = JSON.stringify(msg);
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
   }
 
   private broadcastLicenseStatus(): void {
