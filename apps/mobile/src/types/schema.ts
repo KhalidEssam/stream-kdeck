@@ -114,6 +114,55 @@ export interface GetLicenseStatusMessage {
   type: 'GET_LICENSE_STATUS';
 }
 
+// --- Context-aware deck messages ---
+
+export interface ContextShortcut {
+  id: string;
+  label: string;
+  keys: string[];
+  description: string;
+}
+
+export interface ContextShortcutsMessage {
+  type: 'CONTEXT_SHORTCUTS';
+  processName: string;   // OS process name, e.g. "Discord.exe" — needed to key ADD_CONTEXT_SHORTCUT
+  appLabel: string;
+  iconId: string;
+  shortcuts: ContextShortcut[];
+}
+
+export interface AddContextShortcutMessage {
+  type: 'ADD_CONTEXT_SHORTCUT';
+  processName: string;
+  appLabel: string;
+  iconId: string;
+  shortcut: Omit<ContextShortcut, 'id'>;
+}
+
+export interface RemoveContextShortcutMessage {
+  type: 'REMOVE_CONTEXT_SHORTCUT';
+  processName: string;
+  shortcutId: string;
+}
+
+export interface GetContextProfilesMessage {
+  type: 'GET_CONTEXT_PROFILES';
+}
+
+export interface ContextProfileSummary {
+  processName: string;
+  appLabel: string;
+  iconId: string;
+  source: 'llm' | 'user' | 'llm-failed';
+  shortcutCount: number;
+  shortcuts: ContextShortcut[];  // full list — needed by ContextShortcutsScreen detail view
+}
+
+export interface ContextProfilesMessage {
+  type: 'CONTEXT_PROFILES';
+  profiles: ContextProfileSummary[];
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
@@ -121,7 +170,9 @@ export type AgentMessage =
   | SearchAppsResultMessage
   | ValidatePathResultMessage
   | LicenseStatusMessage
-  | AiQuotaExceededMessage;
+  | AiQuotaExceededMessage
+  | ContextShortcutsMessage
+  | ContextProfilesMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
@@ -131,4 +182,7 @@ export type MobileMessage =
   | SearchAppsMessage
   | ValidatePathMessage
   | OpenActivationDialogMessage
-  | GetLicenseStatusMessage;
+  | GetLicenseStatusMessage
+  | AddContextShortcutMessage
+  | RemoveContextShortcutMessage
+  | GetContextProfilesMessage;
