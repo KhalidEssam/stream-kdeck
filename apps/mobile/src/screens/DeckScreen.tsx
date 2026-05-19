@@ -21,6 +21,7 @@ import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
 import { ContextShortcutsScreen } from './ContextShortcutsScreen';
+import { TrackpadScreen } from './TrackpadScreen';
 import { discoverAgent } from '../services/discovery.service';
 
 const UPGRADE_URL =
@@ -54,6 +55,7 @@ export function DeckScreen() {
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
   const [showContextSettings, setShowContextSettings] = useState(false);
+  const [showTrackpad, setShowTrackpad] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -299,6 +301,11 @@ export function DeckScreen() {
 
       <View style={styles.header}>
         <Text style={styles.title}>KDeck</Text>
+        {status === 'connected' && (
+          <TouchableOpacity onPress={() => setShowTrackpad(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
+            <Text style={{ fontSize: 20 }}>🖱</Text>
+          </TouchableOpacity>
+        )}
         {wsService && (
           <TouchableOpacity onPress={() => setShowContextSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
             <Text style={{ color: '#6B6B8A', fontSize: 18 }}>⚙</Text>
@@ -491,6 +498,17 @@ export function DeckScreen() {
             ws={wsService}
             onDismiss={() => setShowContextSettings(false)}
           />
+        )}
+      </Modal>
+
+      <Modal
+        visible={showTrackpad}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowTrackpad(false)}
+      >
+        {wsService && (
+          <TrackpadScreen ws={wsService} onDismiss={() => setShowTrackpad(false)} />
         )}
       </Modal>
 
