@@ -8,6 +8,7 @@ import {
   TextInput,
   StatusBar,
   GestureResponderEvent,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,8 +29,14 @@ interface Props {
 }
 
 export function TrackpadScreen({ ws, onDismiss }: Props) {
+  // Fix 1: wsRef keeps PanResponder closures from going stale when ws prop changes
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+
   const [sensitivity, setSensitivity] = useState(SENSITIVITY_DEFAULT);
   const [showKeyboard, setShowKeyboard] = useState(false);
+  // Fix 3: controlled input value
+  const [keyboardText, setKeyboardText] = useState('');
   const keyboardInputRef = useRef<TextInput>(null);
 
   // Gesture state refs (not state — no re-render on each frame)
@@ -38,34 +45,48 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const lastSentRef = useRef(0);
   const isDraggingRef = useRef(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Fix 2: ref so PanResponder always calls the current cancelLongPress
+  const cancelLongPressRef = useRef<() => void>(() => {});
   const twoFingerStartRef = useRef<{ x: number; y: number } | null>(null);
   const sensitivityRef = useRef(SENSITIVITY_DEFAULT);
+  // Fix 4: track finger count at gesture start for reliable Android two-finger detection
+  const fingerCountRef = useRef(0);
 
   useEffect(() => {
-    AsyncStorage.getItem(SENSITIVITY_KEY).then((val) => {
-      if (val !== null) {
-        const parsed = parseFloat(val);
-        if (!isNaN(parsed)) {
-          setSensitivity(parsed);
-          sensitivityRef.current = parsed;
+    AsyncStorage.getItem(SENSITIVITY_KEY)
+      .then((val) => {
+        if (val !== null) {
+          const parsed = parseFloat(val);
+          if (!isNaN(parsed)) {
+            setSensitivity(parsed);
+            sensitivityRef.current = parsed;
+          }
         }
-      }
-    });
+      })
+      .catch(console.warn);
+    // Fix 5: unmount cleanup for longPress timer
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
   }, []);
 
-  const updateSensitivity = useCallback((next: number) => {
+  // Fix 7: updateSensitivity reads from ref to avoid stale state on rapid presses
+  const updateSensitivity = useCallback((delta: number) => {
+    const next = sensitivityRef.current + delta;
     const clamped = Math.round(Math.min(SENSITIVITY_MAX, Math.max(SENSITIVITY_MIN, next)) * 10) / 10;
     setSensitivity(clamped);
     sensitivityRef.current = clamped;
-    AsyncStorage.setItem(SENSITIVITY_KEY, String(clamped));
+    AsyncStorage.setItem(SENSITIVITY_KEY, String(clamped)).catch(console.warn);
   }, []);
 
-  const cancelLongPress = () => {
+  // Fix 2: cancelLongPress wrapped in useCallback; ref kept in sync below
+  const cancelLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-  };
+  }, []);
+  cancelLongPressRef.current = cancelLongPress;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -76,6 +97,8 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         const touches = evt.nativeEvent.touches;
         totalMovementRef.current = 0;
         twoFingerStartRef.current = null;
+        // Fix 4: capture finger count at grant time
+        fingerCountRef.current = touches.length;
 
         if (touches.length === 1) {
           lastPosRef.current = { x: touches[0].pageX, y: touches[0].pageY };
@@ -83,7 +106,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           longPressTimerRef.current = setTimeout(() => {
             if (totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
               isDraggingRef.current = true;
-              ws.clickMouse('left', 'down');
+              wsRef.current.clickMouse('left', 'down');
             }
             longPressTimerRef.current = null;
           }, LONG_PRESS_DELAY_MS);
@@ -95,7 +118,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         const now = Date.now();
 
         if (touches.length === 2) {
-          cancelLongPress();
+          cancelLongPressRef.current();
           const centerX = (touches[0].pageX + touches[1].pageX) / 2;
           const centerY = (touches[0].pageY + touches[1].pageY) / 2;
 
@@ -110,7 +133,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
             const dx = Math.round(rawDx * sensitivityRef.current);
             const dy = Math.round(rawDy * sensitivityRef.current);
             if (dx !== 0 || dy !== 0) {
-              ws.scrollMouse(-dx, -dy);
+              wsRef.current.scrollMouse(-dx, -dy);
               lastSentRef.current = now;
               twoFingerStartRef.current = { x: centerX, y: centerY };
             }
@@ -125,14 +148,14 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           totalMovementRef.current += Math.abs(rawDx) + Math.abs(rawDy);
 
           if (totalMovementRef.current > TAP_MOVEMENT_THRESHOLD) {
-            cancelLongPress();
+            cancelLongPressRef.current();
           }
 
           if (now - lastSentRef.current >= THROTTLE_MS) {
             const dx = Math.round(rawDx * sensitivityRef.current);
             const dy = Math.round(rawDy * sensitivityRef.current);
             if (dx !== 0 || dy !== 0) {
-              ws.moveMouse(dx, dy);
+              wsRef.current.moveMouse(dx, dy);
               lastSentRef.current = now;
             }
           }
@@ -142,23 +165,23 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       },
 
       onPanResponderRelease: (evt: GestureResponderEvent) => {
-        cancelLongPress();
+        cancelLongPressRef.current();
         const changed = evt.nativeEvent.changedTouches;
         twoFingerStartRef.current = null;
 
-        // Two-finger tap → right click
-        if (changed.length === 2 && totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
-          ws.clickMouse('right', 'click');
+        // Two-finger tap → right click (Fix 4: use fingerCountRef for Android compatibility)
+        if (fingerCountRef.current === 2 && totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
+          wsRef.current.clickMouse('right', 'click');
           lastPosRef.current = null;
           totalMovementRef.current = 0;
           return;
         }
 
         if (isDraggingRef.current) {
-          ws.clickMouse('left', 'up');
+          wsRef.current.clickMouse('left', 'up');
           isDraggingRef.current = false;
         } else if (totalMovementRef.current < TAP_MOVEMENT_THRESHOLD && changed.length === 1) {
-          ws.clickMouse('left', 'click');
+          wsRef.current.clickMouse('left', 'click');
         }
 
         lastPosRef.current = null;
@@ -166,9 +189,9 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       },
 
       onPanResponderTerminate: () => {
-        cancelLongPress();
+        cancelLongPressRef.current();
         if (isDraggingRef.current) {
-          ws.clickMouse('left', 'up');
+          wsRef.current.clickMouse('left', 'up');
           isDraggingRef.current = false;
         }
         lastPosRef.current = null;
@@ -181,19 +204,22 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const toggleKeyboard = () => {
     setShowKeyboard((prev) => {
       if (!prev) {
-        setTimeout(() => keyboardInputRef.current?.focus(), 50);
+        // Fix 6: use InteractionManager instead of setTimeout for reliable focus
+        InteractionManager.runAfterInteractions(() => {
+          keyboardInputRef.current?.focus();
+        });
       }
       return !prev;
     });
   };
 
-  const handleKeyboardChange = (text: string) => {
+  // Fix 3: controlled input — clear by resetting state; no setNativeProps needed
+  const handleKeyboardChange = useCallback((text: string) => {
     if (!text) return;
     const char = text[text.length - 1];
-    ws.tap('keyboard-key', { kind: 'KEYSTROKE', keys: [char] });
-    keyboardInputRef.current?.clear?.();
-    (keyboardInputRef.current as any)?.setNativeProps?.({ text: '' });
-  };
+    wsRef.current.tap('keyboard-key', { kind: 'KEYSTROKE', keys: [char] });
+    setKeyboardText('');
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -223,7 +249,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       <View style={styles.sensitivityRow}>
         <Text style={styles.sensitivityLabel}>Sensitivity</Text>
         <TouchableOpacity
-          onPress={() => updateSensitivity(sensitivity - SENSITIVITY_STEP)}
+          onPress={() => updateSensitivity(-SENSITIVITY_STEP)}
           style={styles.stepButton}
           activeOpacity={0.7}
         >
@@ -231,7 +257,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         </TouchableOpacity>
         <Text style={styles.sensitivityValue}>{sensitivity.toFixed(1)}×</Text>
         <TouchableOpacity
-          onPress={() => updateSensitivity(sensitivity + SENSITIVITY_STEP)}
+          onPress={() => updateSensitivity(SENSITIVITY_STEP)}
           style={styles.stepButton}
           activeOpacity={0.7}
         >
@@ -240,14 +266,16 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
       </View>
 
       {/* Hidden keyboard capture input */}
+      {/* Fix 3: controlled input — value driven by state so no setNativeProps needed */}
       <TextInput
         ref={keyboardInputRef}
         style={styles.hiddenInput}
+        value={keyboardText}
         onChangeText={handleKeyboardChange}
         autoCorrect={false}
         autoCapitalize="none"
         spellCheck={false}
-        blurOnSubmit={false}
+        submitBehavior="newline"
         onBlur={() => setShowKeyboard(false)}
       />
     </SafeAreaView>

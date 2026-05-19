@@ -112,4 +112,25 @@ describe('WebSocketService', () => {
     await new Promise((r) => setTimeout(r, 100));
     expect(statuses).toContain('disconnected');
   });
+
+  it('sends MOUSE_MOVE when moveMouse() is called', async () => {
+    service.moveMouse(10, -5);
+    await expect(server).toReceiveMessage(
+      JSON.stringify({ type: 'MOUSE_MOVE', dx: 10, dy: -5 }),
+    );
+  });
+
+  it('sends MOUSE_CLICK when clickMouse() is called', async () => {
+    service.clickMouse('right', 'click');
+    await expect(server).toReceiveMessage(
+      JSON.stringify({ type: 'MOUSE_CLICK', button: 'right', action: 'click' }),
+    );
+  });
+
+  it('sends MOUSE_SCROLL when scrollMouse() is called', async () => {
+    service.scrollMouse(0, 3);
+    await expect(server).toReceiveMessage(
+      JSON.stringify({ type: 'MOUSE_SCROLL', dx: 0, dy: 3 }),
+    );
+  });
 });

@@ -172,7 +172,7 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
-  clickMouse(button: 'left' | 'right' | 'middle', action: 'down' | 'up' | 'click'): void {
+  clickMouse(button: 'left' | 'right' | 'middle', action: 'click' | 'down' | 'up'): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: MouseClickMessage = { type: 'MOUSE_CLICK', button, action };
     this.ws.send(JSON.stringify(msg));

@@ -10,9 +10,10 @@ import { AppSearchService } from './app-search/app-search.service';
 import { LicenseModule } from './license/license.module';
 import { NetworkModule } from './network/network.module';
 import { ContextModule } from './context-profile/context.module';
+import { MouseModule } from './mouse/mouse.module';
 
 @Module({
-  imports: [LicenseModule, NetworkModule, ContextModule],
+  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule],
   providers: [
     WsGateway,
     ClipboardService,

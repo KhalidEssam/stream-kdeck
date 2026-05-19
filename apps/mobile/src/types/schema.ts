@@ -193,6 +193,26 @@ export type AgentMessage =
   | ContextShortcutsMessage
   | ContextProfilesMessage;
 
+// --- Trackpad / mouse messages ---
+
+export interface MouseMoveMessage {
+  type: 'MOUSE_MOVE';
+  dx: number;
+  dy: number;
+}
+
+export interface MouseClickMessage {
+  type: 'MOUSE_CLICK';
+  button: 'left' | 'right' | 'middle';
+  action: 'click' | 'down' | 'up';
+}
+
+export interface MouseScrollMessage {
+  type: 'MOUSE_SCROLL';
+  dx: number;
+  dy: number;
+}
+
 export type MobileMessage =
   | ButtonTapMessage
   | AddTileMessage
