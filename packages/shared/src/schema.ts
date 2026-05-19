@@ -153,7 +153,7 @@ export interface ContextProfileSummary {
   processName: string;
   appLabel: string;
   iconId: string;
-  source: 'llm' | 'user' | 'llm-failed';
+  source: 'llm' | 'user' | 'llm-failed' | 'llm-quota';
   shortcutCount: number;
   shortcuts: ContextShortcut[];  // full list — needed by ContextShortcutsScreen detail view
 }

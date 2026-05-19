@@ -86,11 +86,23 @@ export class WsGateway implements OnGatewayConnection {
       if (shouldGenerate) {
         const meta = this.contextProfile.getCuratedMeta(processName)!;
         console.log(`[Agent] appChanged: ${processName} → generating shortcuts...`);
-        await this.contextProfile.generateAndCache(processName, meta.appLabel, meta.iconId, platform());
+        const { quotaExceeded } = await this.contextProfile.generateAndCache(processName, meta.appLabel, meta.iconId, platform());
+        if (quotaExceeded) {
+          this.broadcastQuotaExceeded();
+        }
       }
     }
     const profile = this.contextProfile.getProfile(processName);
     this.broadcastContextShortcuts(processName, profile);
+  }
+
+  private broadcastQuotaExceeded(): void {
+    const quotaMsg: AiQuotaExceededMessage = { type: 'AI_QUOTA_EXCEEDED', reason: 'credits_exhausted' };
+    const payload = JSON.stringify(quotaMsg);
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+    this.broadcastLicenseStatus();
   }
 
   private buildContextMsg(

@@ -3,10 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ContextShortcut, ContextProfileSummary } from '@control-surface/shared';
-import { AiRouterService } from '../ai/ai-router.service';
+import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
 
 export interface ContextProfile {
-  source: 'llm' | 'user' | 'llm-failed';
+  source: 'llm' | 'user' | 'llm-failed' | 'llm-quota';
   generatedAt?: string;
   appLabel: string;
   iconId: string;
@@ -129,7 +129,7 @@ export class ContextProfileService {
     appLabel: string,
     iconId: string,
     platform: string,
-  ): Promise<void> {
+  ): Promise<{ quotaExceeded: boolean }> {
     const osName = platform === 'win32' ? 'Windows' : 'macOS';
     const prompt = `You are a keyboard shortcut assistant. List the most useful default keyboard shortcuts for ${appLabel} on ${osName}.
 
@@ -173,15 +173,19 @@ Rules:
         iconId,
         shortcuts,
       };
+      this.persist();
+      return { quotaExceeded: false };
     } catch (e) {
+      if (e instanceof AiQuotaError) {
+        console.warn(`[ContextProfile] quota exceeded generating shortcuts for ${appLabel}`);
+        this.data.profiles[processName] = { source: 'llm-quota', appLabel, iconId, shortcuts: [] };
+        this.persist();
+        return { quotaExceeded: true };
+      }
       console.warn(`[ContextProfile] generation failed for ${appLabel}:`, e);
-      this.data.profiles[processName] = {
-        source:    'llm-failed',
-        appLabel,
-        iconId,
-        shortcuts: [],
-      };
+      this.data.profiles[processName] = { source: 'llm-failed', appLabel, iconId, shortcuts: [] };
+      this.persist();
+      return { quotaExceeded: false };
     }
-    this.persist();
   }
 }
