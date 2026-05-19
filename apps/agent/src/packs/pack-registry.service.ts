@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Pack, PackTool } from '@control-surface/shared';
 
-const AGENT_CAPABILITY = 1;
+export const AGENT_CAPABILITY = 1;
 
 interface RawTool {
   id: string;
