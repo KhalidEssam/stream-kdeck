@@ -100,6 +100,8 @@ describe('MouseService', () => {
       await service.scrollMouse(0, 0);
       expect(mockedMouse.scrollUp).not.toHaveBeenCalled();
       expect(mockedMouse.scrollDown).not.toHaveBeenCalled();
+      expect(mockedMouse.scrollLeft).not.toHaveBeenCalled();
+      expect(mockedMouse.scrollRight).not.toHaveBeenCalled();
     });
   });
 });

@@ -18,9 +18,10 @@ export class MouseService {
       button === 'right'  ? Button.RIGHT :
                             Button.MIDDLE;
 
-    if (action === 'click')      await mouse.click(btn);
-    else if (action === 'down')  await mouse.pressButton(btn);
-    else                         await mouse.releaseButton(btn);
+    if (action === 'click')        await mouse.click(btn);
+    else if (action === 'down')    await mouse.pressButton(btn);
+    else if (action === 'up')      await mouse.releaseButton(btn);
+    else throw new Error(`Unknown mouse action: "${action as string}"`);
   }
 
   async scrollMouse(dx: number, dy: number): Promise<void> {
