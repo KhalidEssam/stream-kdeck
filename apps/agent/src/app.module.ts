@@ -11,6 +11,7 @@ import { LicenseModule } from './license/license.module';
 import { NetworkModule } from './network/network.module';
 import { ContextModule } from './context-profile/context.module';
 import { MouseModule } from './mouse/mouse.module';
+import { PackRegistryService } from './packs/pack-registry.service';
 
 @Module({
   imports: [LicenseModule, NetworkModule, ContextModule, MouseModule],
@@ -23,6 +24,7 @@ import { MouseModule } from './mouse/mouse.module';
     AppRegistryService,
     KeystrokeService,
     AppSearchService,
+    PackRegistryService,
   ],
 })
 export class AppModule {}
