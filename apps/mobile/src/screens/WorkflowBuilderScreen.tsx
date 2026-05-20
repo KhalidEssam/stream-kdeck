@@ -15,7 +15,6 @@ import DraggableFlatList, {
   RenderItemParams,
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { TileConfig, WorkflowStep, WorkflowStepAction } from '../types/schema';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -119,8 +118,7 @@ export function WorkflowBuilderScreen({
   const delayStep = steps.find(s => s.id === delayEditId);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
 
         {/* Header */}
@@ -225,7 +223,6 @@ export function WorkflowBuilderScreen({
           </View>
         </Modal>
       </SafeAreaView>
-    </GestureHandlerRootView>
   );
 }
 
