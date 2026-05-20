@@ -39,6 +39,9 @@ export function MediaTab({ sessions, platform, ws }: Props) {
 
   React.useEffect(() => {
     setLocalSessions(sessions);
+    setActiveProcessName(prev =>
+      sessions.some(s => s.processName === prev) ? prev : null,
+    );
   }, [sessions]);
 
   const activeSession = localSessions.find(s => s.processName === activeProcessName) ?? null;
@@ -85,7 +88,10 @@ export function MediaTab({ sessions, platform, ws }: Props) {
     setActionSession(null);
   };
 
-  const allItems: (MediaSession | 'add')[] = [...localSessions, 'add'];
+  const allItems: (MediaSession | 'add')[] =
+    localSessions.length === 0 || localSessions.length % PAGE_SIZE !== 0
+      ? [...localSessions, 'add']
+      : localSessions;
   const pages = chunk(allItems, PAGE_SIZE);
 
   const renderPage = ({ item: page }: { item: (MediaSession | 'add')[] }) => (
