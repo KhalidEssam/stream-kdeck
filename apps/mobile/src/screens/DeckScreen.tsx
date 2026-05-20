@@ -416,7 +416,10 @@ export function DeckScreen() {
         visible={showAddTile}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowAddTile(false)}
+        onRequestClose={() => {
+          setShowAddTile(false);
+          peekFabRef.current?.resetToPeeking();
+        }}
       >
         {wsService && (
           <AddTileScreen
