@@ -237,26 +237,6 @@ export type AgentMessage =
   | PackRegistryMessage
   | MediaStateMessage;
 
-// --- Trackpad / mouse messages ---
-
-export interface MouseMoveMessage {
-  type: 'MOUSE_MOVE';
-  dx: number;
-  dy: number;
-}
-
-export interface MouseClickMessage {
-  type: 'MOUSE_CLICK';
-  button: 'left' | 'right' | 'middle';
-  action: 'click' | 'down' | 'up';
-}
-
-export interface MouseScrollMessage {
-  type: 'MOUSE_SCROLL';
-  dx: number;
-  dy: number;
-}
-
 // --- Media / Audio Session messages ---
 
 export interface MediaSession {
