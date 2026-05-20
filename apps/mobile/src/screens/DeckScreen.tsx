@@ -25,6 +25,8 @@ import { TrackpadScreen } from './TrackpadScreen';
 import { discoverAgent } from '../services/discovery.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingScreen } from './OnboardingScreen';
+import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
+import { WorkflowStep, WorkflowStepAction } from '../types/schema';
 import { PeekFab, PeekFabHandle } from '../components/PeekFab';
 
 const UPGRADE_URL =
@@ -62,6 +64,7 @@ export function DeckScreen() {
   const [showTrackpad, setShowTrackpad] = useState(false);
   const [packRegistry, setPackRegistry] = useState<Pack[] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [convertingTile, setConvertingTile] = useState<TileConfig | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -200,6 +203,12 @@ export function DeckScreen() {
   const handleConfirmRemoveTile = () => {
     if (!actionTile || actionTile.id.startsWith('builtin-')) return;
     handleRemoveTile(actionTile.id);
+    setActionTile(null);
+  };
+
+  const handleConvertToWorkflow = () => {
+    if (!actionTile || actionTile.action.kind === 'AI_CLIPBOARD' || actionTile.action.kind === 'WORKFLOW') return;
+    setConvertingTile(actionTile);
     setActionTile(null);
   };
 
@@ -463,6 +472,17 @@ export function DeckScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              {!actionTile?.id.startsWith('builtin-') &&
+                actionTile?.kind !== 'workflow' &&
+                actionTile?.action.kind !== 'AI_CLIPBOARD' && (
+                <TouchableOpacity
+                  style={styles.optionButton}
+                  onPress={handleConvertToWorkflow}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.optionButtonText}>Convert to Workflow</Text>
+                </TouchableOpacity>
+              )}
               {!actionTile?.id.startsWith('builtin-') && (
                 <TouchableOpacity
                   style={[styles.optionButton, styles.dangerOptionButton]}
@@ -557,6 +577,31 @@ export function DeckScreen() {
           onComplete={handleOnboardingComplete}
           onSkip={handleOnboardingSkip}
         />
+      </Modal>
+
+      <Modal
+        visible={convertingTile !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setConvertingTile(null)}
+      >
+        {convertingTile && (
+          <WorkflowBuilderScreen
+            initialLabel={convertingTile.label}
+            initialSteps={[{
+              id: crypto.randomUUID(),
+              action: convertingTile.action as WorkflowStepAction,
+              delayBefore: 0,
+              label: convertingTile.label,
+            }]}
+            onSave={(tile) => {
+              handleRemoveTile(convertingTile.id);
+              handleAddTile(tile);
+              setConvertingTile(null);
+            }}
+            onDismiss={() => setConvertingTile(null)}
+          />
+        )}
       </Modal>
     </SafeAreaView>
   );
