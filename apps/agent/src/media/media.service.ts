@@ -19,8 +19,8 @@ interface MediaConfig {
 @Injectable()
 export class MediaService implements OnModuleInit, OnModuleDestroy {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
-  prevSnapshot: AudioSession[] = [];
-  config: MediaConfig = { pinnedMediaApps: [] };
+  private prevSnapshot: AudioSession[] = [];
+  private config: MediaConfig = { pinnedMediaApps: [] };
   private readonly configPath: string;
   private broadcastFn: ((sessions: MediaSession[], plt: 'win32' | 'darwin') => void) | null = null;
 
@@ -73,7 +73,9 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (e) {
       console.error('[MediaService] poll error:', e);
-      this.broadcastFn?.([], platform() as 'win32' | 'darwin');
+      if (this.prevSnapshot.length > 0) {
+        this.broadcastFn?.(this.buildMediaState(this.prevSnapshot), platform() as 'win32' | 'darwin');
+      }
     }
   }
 
@@ -92,7 +94,8 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   private getMacSystemVolume(): number {
     try {
       const out = execSync(`osascript -e 'output volume of (get volume settings)'`, { encoding: 'utf-8' }).trim();
-      return Number(out) / 100;
+      const num = Number(out);
+      return isNaN(num) ? 0 : num / 100;
     } catch {
       return 0;
     }
@@ -138,6 +141,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
       };
       audioMixer.setAudioSessionVolume(session.pid, newVol);
     } else {
+      if (!session && processName !== 'system') return;
       try { execSync(`osascript -e 'set volume output volume ${Math.round(newVol * 100)}'`); } catch {}
     }
   }
@@ -160,7 +164,8 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     const name = processName.replace(/\.exe$/i, '');
     if (platform() === 'win32') {
       try {
-        execSync(`powershell -command "(New-Object -ComObject WScript.Shell).AppActivate('${name}')"`, { timeout: 3000 });
+        const escaped = name.replace(/'/g, "''");
+        execSync(`powershell -command "(New-Object -ComObject WScript.Shell).AppActivate('${escaped}')"`, { timeout: 3000 });
       } catch {}
     } else {
       try {
