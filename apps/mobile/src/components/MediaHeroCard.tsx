@@ -29,7 +29,7 @@ export function MediaHeroCard({ session, platform }: Props) {
         useNativeDriver: false,
       }).start();
     }
-  }, [session?.volume, animVol]);
+  }, [session?.volume]);
 
   if (!session) {
     return (
