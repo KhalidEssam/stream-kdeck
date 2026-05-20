@@ -16,13 +16,15 @@ import { AddTileScreen } from './AddTileScreen';
 import { AuthScreen } from './AuthScreen';
 import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
-import { TileConfig } from '../types/schema';
+import { TileConfig, Pack, PackRegistryMessage } from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
 import { ContextShortcutsScreen } from './ContextShortcutsScreen';
 import { TrackpadScreen } from './TrackpadScreen';
 import { discoverAgent } from '../services/discovery.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { OnboardingScreen } from './OnboardingScreen';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -56,6 +58,8 @@ export function DeckScreen() {
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
   const [showContextSettings, setShowContextSettings] = useState(false);
   const [showTrackpad, setShowTrackpad] = useState(false);
+  const [packRegistry, setPackRegistry] = useState<Pack[] | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -121,11 +125,18 @@ export function DeckScreen() {
     const unsubscribeContext = ws.onContextShortcuts((msg) => {
       setContextMsg(msg.shortcuts.length > 0 ? msg : null);
     });
+    const unsubscribePackRegistry = ws.onPackRegistry((msg: PackRegistryMessage) => {
+      setPackRegistry(msg.packs);
+      AsyncStorage.getItem('onboarded').then((val) => {
+        if (!val && msg.packs.length > 0) setShowOnboarding(true);
+      });
+    });
 
     return () => {
       unsubscribeLicense();
       unsubscribeQuota();
       unsubscribeContext();
+      unsubscribePackRegistry();
       setContextMsg(null);
       ws.disconnect();
       wsRef.current = null;
@@ -192,6 +203,17 @@ export function DeckScreen() {
 
   const handleRequestActivation = () => {
     wsRef.current?.openActivationDialog();
+  };
+
+  const handleOnboardingComplete = (selectedTools: Omit<TileConfig, 'id'>[]) => {
+    selectedTools.forEach((tile) => wsRef.current?.addTile(tile));
+    void AsyncStorage.setItem('onboarded', 'true');
+    setShowOnboarding(false);
+  };
+
+  const handleOnboardingSkip = () => {
+    void AsyncStorage.setItem('onboarded', 'true');
+    setShowOnboarding(false);
   };
 
   const statusColor =
@@ -399,6 +421,7 @@ export function DeckScreen() {
             onRemove={handleRemoveTile}
             onDismiss={() => setShowAddTile(false)}
             ws={wsService}
+            packRegistry={packRegistry}
           />
         )}
       </Modal>
@@ -517,6 +540,14 @@ export function DeckScreen() {
         onTapShortcut={handleContextShortcutTap}
         onAddShortcut={handleAddContextShortcut}
       />
+
+      <Modal visible={showOnboarding} animationType="slide">
+        <OnboardingScreen
+          packs={packRegistry ?? []}
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
