@@ -3,13 +3,15 @@ import type { VolumeManager as VolumeManagerType } from 'react-native-volume-man
 
 const NEUTRAL_VOLUME = 0.5;
 
-// Lazy-load the native module so a missing link doesn't crash the app at import time.
+// Lazy-load so a missing native link doesn't crash the app at import time.
 let vm: typeof VolumeManagerType | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   vm = require('react-native-volume-manager').VolumeManager as typeof VolumeManagerType;
 } catch {
-  // Native module not linked — volume button interception will be unavailable.
+  if (__DEV__) {
+    console.warn('[useVolumeButtons] react-native-volume-manager is not linked. Run expo run:android / expo run:ios to rebuild the native app.');
+  }
 }
 
 export function useVolumeButtons(options: {
@@ -25,11 +27,19 @@ export function useVolumeButtons(options: {
     if (!enabled || !vm) return;
 
     void vm.showNativeVolumeUI({ enabled: false });
-    void vm.setVolume(NEUTRAL_VOLUME, { type: 'music' });
+    // Set music stream to neutral so we can detect button direction.
+    void vm.setVolume(NEUTRAL_VOLUME, { type: 'music', showUI: false });
 
     const subscription = vm.addVolumeListener((result) => {
+      // On Android the listener fires for all streams (ring, call, etc.).
+      // Only act on music stream events so ring-volume changes don't send spurious deltas.
+      if (result.type && result.type !== 'music') return;
+
       const delta = result.volume - NEUTRAL_VOLUME;
-      void vm!.setVolume(NEUTRAL_VOLUME, { type: 'music' });
+      // Reset immediately so the next press has a neutral baseline.
+      void vm!.setVolume(NEUTRAL_VOLUME, { type: 'music', showUI: false });
+
+      // Ignore noise (the reset call itself re-fires with delta ≈ 0).
       if (Math.abs(delta) > 0.01) {
         onDeltaRef.current(delta > 0 ? 0.05 : -0.05);
       }
