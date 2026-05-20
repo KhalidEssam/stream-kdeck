@@ -11,12 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { AppTile } from '../components/AppTile';
 import { TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { GamesTab } from './GamesTab';
 import { AiToolsTab } from './AiToolsTab';
+import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
 
 // ─── Curated Apps ─────────────────────────────────────────────────────────────
 
@@ -45,7 +47,7 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'apps' | 'shortcut' | 'ai' | 'games';
+type Tab = 'apps' | 'shortcut' | 'ai' | 'games' | 'workflow';
 
 type Modifier = 'ctrl' | 'alt' | 'win' | 'shift';
 
@@ -62,6 +64,7 @@ interface Props {
 
 export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, packRegistry }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('apps');
+  const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -77,14 +80,18 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['apps', 'shortcut', 'ai', 'games'] as Tab[]).map((tab) => (
+        {(['apps', 'shortcut', 'ai', 'games', 'workflow'] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === 'apps' ? 'Apps' : tab === 'shortcut' ? 'Shortcut' : tab === 'ai' ? 'AI Tools' : 'Games'}
+              {tab === 'apps' ? 'Apps'
+                : tab === 'shortcut' ? 'Shortcut'
+                : tab === 'ai' ? 'AI Tools'
+                : tab === 'games' ? 'Games'
+                : 'Workflow'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -113,7 +120,25 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
             onRemove={onRemove}
           />
         )}
+        {activeTab === 'workflow' && (
+          <WorkflowTab onCreateWorkflow={() => setShowWorkflowBuilder(true)} />
+        )}
       </KeyboardAvoidingView>
+      <Modal
+        visible={showWorkflowBuilder}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowWorkflowBuilder(false)}
+      >
+        <WorkflowBuilderScreen
+          onSave={(tile) => {
+            onAdd(tile);
+            setShowWorkflowBuilder(false);
+            onDismiss();
+          }}
+          onDismiss={() => setShowWorkflowBuilder(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -341,6 +366,38 @@ function ShortcutTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTile
     </ScrollView>
   );
 }
+
+// ─── Workflow Tab ─────────────────────────────────────────────────────────────
+
+function WorkflowTab({ onCreateWorkflow }: { onCreateWorkflow: () => void }) {
+  return (
+    <View style={workflowTabStyles.container}>
+      <Text style={workflowTabStyles.description}>
+        Run multiple actions in sequence — launch apps, open URLs, send keystrokes, and more.
+      </Text>
+      <TouchableOpacity style={workflowTabStyles.createBtn} onPress={onCreateWorkflow}>
+        <Text style={workflowTabStyles.createBtnText}>+ New Workflow</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const workflowTabStyles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 },
+  description: {
+    color: '#6B6B8A',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  createBtn: {
+    backgroundColor: '#5B4FE8',
+    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  createBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
