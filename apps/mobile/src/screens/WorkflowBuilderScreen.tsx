@@ -16,6 +16,13 @@ import { TileConfig, WorkflowStep, WorkflowStepAction } from '../types/schema';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function uuid(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 function makeStepLabel(action: WorkflowStepAction): string {
   switch (action.kind) {
     case 'APP_LAUNCH': return action.appId;
@@ -72,7 +79,7 @@ export function WorkflowBuilderScreen({
 
   const handleAddStep = (action: WorkflowStepAction) => {
     const step: WorkflowStep = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       action,
       delayBefore: 0,
       label: makeStepLabel(action),

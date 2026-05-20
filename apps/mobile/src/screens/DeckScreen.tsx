@@ -589,7 +589,7 @@ export function DeckScreen() {
             <WorkflowBuilderScreen
               initialLabel={convertingTile.label}
               initialSteps={[{
-                id: crypto.randomUUID(),
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 action: convertingTile.action as WorkflowStepAction,
                 delayBefore: 0,
                 label: convertingTile.label,
