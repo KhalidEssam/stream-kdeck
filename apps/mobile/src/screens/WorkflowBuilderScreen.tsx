@@ -11,6 +11,7 @@ import {
   Switch,
   ScrollView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { TileConfig, WorkflowStep, WorkflowStepAction } from '../types/schema';
 
@@ -78,6 +79,11 @@ export function WorkflowBuilderScreen({
   };
 
   const handleAddStep = (action: WorkflowStepAction) => {
+    const actionKey = JSON.stringify(action);
+    if (steps.some(s => JSON.stringify(s.action) === actionKey)) {
+      Alert.alert('Already in workflow', `"${makeStepLabel(action)}" is already a step in this workflow.`);
+      return;
+    }
     const step: WorkflowStep = {
       id: uuid(),
       action,
