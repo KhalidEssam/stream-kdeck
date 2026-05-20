@@ -25,6 +25,7 @@ import { TrackpadScreen } from './TrackpadScreen';
 import { discoverAgent } from '../services/discovery.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingScreen } from './OnboardingScreen';
+import { PeekFab, PeekFabHandle } from '../components/PeekFab';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -52,6 +53,7 @@ export function DeckScreen() {
   const [showUpsell, setShowUpsell] = useState(false);
   const [wsService, setWsService] = useState<WebSocketService | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
+  const peekFabRef = useRef<PeekFabHandle>(null);
   const retryCancelRef = useRef<(() => void) | null>(null);
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
@@ -403,9 +405,11 @@ export function DeckScreen() {
       )}
 
       {/* FAB — add tile */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAddTile(true)} activeOpacity={0.8}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <PeekFab
+        ref={peekFabRef}
+        onPress={() => setShowAddTile(true)}
+        showBadge={!!packRegistry?.length}
+      />
 
       {/* AddTile modal */}
       <Modal
@@ -419,7 +423,10 @@ export function DeckScreen() {
             currentTiles={tiles ?? []}
             onAdd={handleAddTile}
             onRemove={handleRemoveTile}
-            onDismiss={() => setShowAddTile(false)}
+            onDismiss={() => {
+              setShowAddTile(false);
+              peekFabRef.current?.resetToPeeking();
+            }}
             ws={wsService}
             packRegistry={packRegistry}
           />
@@ -624,23 +631,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewerDismissText: { color: '#6B6B8A', fontSize: 13, fontWeight: '600' },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#5B4FE8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5B4FE8',
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  fabText: { color: '#FFFFFF', fontSize: 28, fontWeight: '300', lineHeight: 32 },
   actionsBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.62)',
