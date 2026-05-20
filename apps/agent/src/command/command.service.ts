@@ -77,6 +77,19 @@ export class CommandService {
           return { success: true };
         }
 
+        case 'WORKFLOW': {
+          for (const step of action.steps) {
+            if (step.delayBefore > 0) {
+              await new Promise<void>(resolve => setTimeout(resolve, step.delayBefore));
+            }
+            const result = await this.execute(step.action);
+            if (!result.success && action.stopOnError) {
+              return { success: false, error: `Step "${step.label}" failed: ${result.error}` };
+            }
+          }
+          return { success: true };
+        }
+
         default: {
           const exhaustive: never = action;
           return { success: false, error: `Unknown action kind: ${(exhaustive as ButtonAction).kind}` };
