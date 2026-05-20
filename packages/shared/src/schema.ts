@@ -11,7 +11,18 @@ export type ButtonAction =
   | { kind: 'APP_LAUNCH'; appId: string }
   | { kind: 'URL_OPEN'; url: string }
   | { kind: 'CLIPBOARD_WRITE'; text: string }
-  | { kind: 'EXEC'; exePath: string };
+  | { kind: 'EXEC'; exePath: string }
+  | { kind: 'WORKFLOW'; steps: WorkflowStep[]; stopOnError: boolean };
+
+// WorkflowStepAction excludes AI_CLIPBOARD (no credit charges) and WORKFLOW (no nesting)
+export type WorkflowStepAction = Exclude<ButtonAction, { kind: 'AI_CLIPBOARD' | 'WORKFLOW' }>;
+
+export interface WorkflowStep {
+  id: string;           // crypto.randomUUID() on creation — used as React key + DraggableFlatList key
+  action: WorkflowStepAction;
+  delayBefore: number;  // milliseconds; 0 = no delay; max 10000
+  label: string;        // human-readable summary, e.g. "Launch VS Code"
+}
 
 // Pack catalog types (Agent → Mobile via PACK_REGISTRY)
 export interface PackTool {
@@ -61,7 +72,7 @@ export interface ConnectedMessage {
 
 export interface TileConfig {
   id: string;
-  kind: 'app' | 'url' | 'ai' | 'shortcut' | 'custom';
+  kind: 'app' | 'url' | 'ai' | 'shortcut' | 'custom' | 'workflow';
   label: string;
   iconId: string;
   color?: string;
