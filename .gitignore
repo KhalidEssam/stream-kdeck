@@ -6,8 +6,8 @@ out/
 .agents/skills/
 supabase/.temp/
 apps/mobile/.expo/
-apps/mobile/android/
-apps/mobile/ios/
+# apps/mobile/android/ — committed for EAS bare workflow builds
+# apps/mobile/ios/ — committed for EAS bare workflow builds
 apps/agent/out/
 .DS_Store
 apps/agent/release/

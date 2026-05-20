@@ -1,9 +1,10 @@
 {
   "expo": {
     "name": "mobile",
-    "slug": "mobile",
+    "slug": "kdeck",
     "version": "1.0.0",
     "android": {
+      "package": "com.khalid.kdeck",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
@@ -18,6 +19,12 @@
         ],
         "NSLocalNetworkUsageDescription": "KDeck uses the local network to discover and connect to the desktop agent."
       }
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e701ea1b-7a3d-48bc-b9fa-a82df06b34fb"
+      }
+    },
+    "owner": "khalid.dev"
   }
 }
