@@ -9,7 +9,7 @@ import { Animated, View, Text, StyleSheet, PanResponder } from 'react-native';
 const FAB_SIZE = 64;
 const REST_RIGHT = -(FAB_SIZE / 2); // -32: half off screen
 const SNAP_RIGHT = 16;              // fully visible, 16px from right edge
-const SNAP_THRESHOLD = -16;         // midpoint: snap to expanded if past here
+const SNAP_THRESHOLD = (REST_RIGHT + SNAP_RIGHT) / 2; // -8: true midpoint
 
 export interface PeekFabHandle {
   resetToPeeking: () => void;
@@ -29,6 +29,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
   const isExpandedRef = useRef(false);
   const panStartRight = useRef(REST_RIGHT);
   const hasInteracted = useRef(false);
+  const isDraggingRef = useRef(false);
   // keep onPress stable inside PanResponder closure
   const onPressRef = useRef(onPress);
   onPressRef.current = onPress;
@@ -46,7 +47,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
     extrapolate: 'clamp',
   });
 
-  const snapTo = (toValue: number) => {
+  const snapToRef = useRef((toValue: number) => {
     isExpandedRef.current = toValue === SNAP_RIGHT;
     currentRightRef.current = toValue;
     Animated.spring(rightOffset, {
@@ -55,10 +56,10 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
       friction: 10,
       useNativeDriver: false,
     }).start();
-  };
+  });
 
   const playWiggle = () => {
-    if (hasInteracted.current) return;
+    if (hasInteracted.current || isDraggingRef.current) return;
     Animated.sequence([
       Animated.timing(rightOffset, { toValue: REST_RIGHT - 6, duration: 120, useNativeDriver: false }),
       Animated.timing(rightOffset, { toValue: REST_RIGHT,     duration: 120, useNativeDriver: false }),
@@ -77,7 +78,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
   }, []);
 
   useImperativeHandle(ref, () => ({
-    resetToPeeking: () => snapTo(REST_RIGHT),
+    resetToPeeking: () => snapToRef.current(REST_RIGHT),
   }));
 
   const panResponder = useRef(
@@ -85,6 +86,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         hasInteracted.current = true;
+        isDraggingRef.current = true;
         panStartRight.current = currentRightRef.current;
       },
       onPanResponderMove: (_, { dx }) => {
@@ -97,20 +99,21 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
         currentRightRef.current = newRight;
       },
       onPanResponderRelease: (_, { dx }) => {
+        isDraggingRef.current = false;
         const moved = Math.abs(dx);
         if (moved < 5) {
           // treat as tap
           if (!isExpandedRef.current) {
-            snapTo(SNAP_RIGHT);
+            snapToRef.current(SNAP_RIGHT);
           } else {
             onPressRef.current();
           }
         } else {
           // snap based on threshold
           if (currentRightRef.current >= SNAP_THRESHOLD) {
-            snapTo(SNAP_RIGHT);
+            snapToRef.current(SNAP_RIGHT);
           } else {
-            snapTo(REST_RIGHT);
+            snapToRef.current(REST_RIGHT);
           }
         }
       },
@@ -123,6 +126,8 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
         styles.fab,
         { right: rightOffset, transform: [{ rotate: rotation }] },
       ]}
+      accessibilityRole="button"
+      accessibilityLabel="Add tile"
       {...panResponder.panHandlers}
     >
       <Animated.View style={{ transform: [{ rotate: counterRotation }] }}>
