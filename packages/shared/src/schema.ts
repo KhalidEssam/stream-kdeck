@@ -225,6 +225,47 @@ export interface MouseScrollMessage {
   dy: number;
 }
 
+// --- Media / Audio Session messages ---
+
+export interface MediaSession {
+  processName: string;
+  label: string;
+  iconBase64?: string;
+  volume: number;        // 0–1
+  muted: boolean;
+  pinned: boolean;
+}
+
+export interface MediaStateMessage {
+  type: 'MEDIA_STATE';
+  sessions: MediaSession[];
+  platform: 'win32' | 'darwin';
+}
+
+export interface MediaVolumeDeltaMessage {
+  type: 'MEDIA_VOLUME_DELTA';
+  processName: string;
+  delta: number;
+}
+
+export interface MediaSetMuteMessage {
+  type: 'MEDIA_SET_MUTE';
+  processName: string;
+  muted: boolean;
+}
+
+export interface MediaBringToFrontMessage {
+  type: 'MEDIA_BRING_TO_FRONT';
+  processName: string;
+}
+
+export interface MediaPinAppMessage {
+  type: 'MEDIA_PIN_APP';
+  processName: string;
+  label: string;
+  pinned: boolean;
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
@@ -235,7 +276,8 @@ export type AgentMessage =
   | AiQuotaExceededMessage
   | ContextShortcutsMessage
   | ContextProfilesMessage
-  | PackRegistryMessage;
+  | PackRegistryMessage
+  | MediaStateMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
@@ -251,4 +293,8 @@ export type MobileMessage =
   | GetContextProfilesMessage
   | MouseMoveMessage
   | MouseClickMessage
-  | MouseScrollMessage;
+  | MouseScrollMessage
+  | MediaVolumeDeltaMessage
+  | MediaSetMuteMessage
+  | MediaBringToFrontMessage
+  | MediaPinAppMessage;
