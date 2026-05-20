@@ -15,7 +15,14 @@ import {
   AddContextShortcutMessage,
   RemoveContextShortcutMessage,
   PackRegistryMessage,
+  MediaVolumeDeltaMessage,
+  MediaSetMuteMessage,
+  MediaBringToFrontMessage,
+  MediaPinAppMessage,
+  MediaStateMessage,
+  MediaSession,
 } from '@control-surface/shared';
+import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
 import { AppRegistryService } from '../app-launch/app-registry.service';
 import { AppSearchService } from '../app-search/app-search.service';
@@ -43,6 +50,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly contextProfile: ContextProfileService,
     private readonly mouseService: MouseService,
     private readonly packRegistry: PackRegistryService,
+    private readonly mediaService: MediaService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
@@ -50,6 +58,7 @@ export class WsGateway implements OnGatewayConnection {
     });
     this.appRegistry.on('tilesUpdated', () => this.broadcastDeckConfig());
     void this.packRegistry.load();
+    this.mediaService.setBroadcastFn((sessions, plt) => this.broadcastMediaState(sessions, plt));
   }
 
   private sendDeckConfig(client: WebSocket): void {
@@ -156,6 +165,25 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(msg));
   }
 
+  private broadcastMediaState(sessions: MediaSession[], plt: 'win32' | 'darwin'): void {
+    const msg: MediaStateMessage = { type: 'MEDIA_STATE', sessions, platform: plt };
+    const payload = JSON.stringify(msg);
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+  }
+
+  private sendMediaState(client: WebSocket): void {
+    void this.mediaService.getSessions().then((sessions) => {
+      const msg: MediaStateMessage = {
+        type: 'MEDIA_STATE',
+        sessions: this.mediaService.buildMediaState(sessions),
+        platform: platform() as 'win32' | 'darwin',
+      };
+      client.send(JSON.stringify(msg));
+    });
+  }
+
   handleConnection(client: WebSocket): void {
     const connected: ConnectedMessage = {
       type:         'CONNECTED',
@@ -167,6 +195,7 @@ export class WsGateway implements OnGatewayConnection {
     this.sendLicenseStatus(client);
     this.sendContextShortcuts(client);
     this.sendPackRegistry(client);
+    this.sendMediaState(client);
 
     console.log('[Agent] Mobile client connected');
 
@@ -175,6 +204,30 @@ export class WsGateway implements OnGatewayConnection {
       try {
         data = JSON.parse(raw.toString()) as MobileMessage;
       } catch {
+        return;
+      }
+
+      if (data.type === 'MEDIA_VOLUME_DELTA') {
+        const d = data as MediaVolumeDeltaMessage;
+        this.mediaService.adjustVolume(d.processName, d.delta);
+        return;
+      }
+
+      if (data.type === 'MEDIA_SET_MUTE') {
+        const d = data as MediaSetMuteMessage;
+        this.mediaService.setMute(d.processName, d.muted);
+        return;
+      }
+
+      if (data.type === 'MEDIA_BRING_TO_FRONT') {
+        const d = data as MediaBringToFrontMessage;
+        this.mediaService.bringToFront(d.processName);
+        return;
+      }
+
+      if (data.type === 'MEDIA_PIN_APP') {
+        const d = data as MediaPinAppMessage;
+        this.mediaService.pinApp(d.processName, d.label, d.pinned);
         return;
       }
 
