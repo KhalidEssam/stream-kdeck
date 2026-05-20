@@ -18,7 +18,9 @@ import { TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { GamesTab } from './GamesTab';
 import { AiToolsTab } from './AiToolsTab';
-import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
+const WorkflowBuilderScreen = React.lazy(() =>
+  import('./WorkflowBuilderScreen').then(m => ({ default: m.WorkflowBuilderScreen }))
+);
 
 // ─── Curated Apps ─────────────────────────────────────────────────────────────
 
@@ -130,14 +132,16 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
         presentationStyle="pageSheet"
         onRequestClose={() => setShowWorkflowBuilder(false)}
       >
-        <WorkflowBuilderScreen
-          onSave={(tile) => {
-            onAdd(tile);
-            setShowWorkflowBuilder(false);
-            onDismiss();
-          }}
-          onDismiss={() => setShowWorkflowBuilder(false)}
-        />
+        <React.Suspense fallback={<View style={{ flex: 1, backgroundColor: '#0F0F14' }} />}>
+          <WorkflowBuilderScreen
+            onSave={(tile) => {
+              onAdd(tile);
+              setShowWorkflowBuilder(false);
+              onDismiss();
+            }}
+            onDismiss={() => setShowWorkflowBuilder(false)}
+          />
+        </React.Suspense>
       </Modal>
     </SafeAreaView>
   );
