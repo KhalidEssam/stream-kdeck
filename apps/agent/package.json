@@ -8,12 +8,12 @@
   "scripts": {
     "dev": "tsc --build && electron .",
     "build": "tsc --build",
-    "test": "jest",
+    "test": "jest --runInBand",
     "predist": "node scripts/write-env.js",
     "dist": "tsc --build && electron-builder",
     "dist:win": "tsc --build && electron-builder --win",
     "dist:mac": "tsc --build && electron-builder --mac",
-    "postinstall": "electron-rebuild -f -w node-audio-volume-mixer"
+    "postinstall": "node scripts/rebuild-native.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

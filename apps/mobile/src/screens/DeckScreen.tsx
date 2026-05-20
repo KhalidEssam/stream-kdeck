@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppTile } from '../components/AppTile';
+import { TileGrid } from '../components/TileGrid';
 import { AddTileScreen } from './AddTileScreen';
 import { AuthScreen } from './AuthScreen';
 import { LicenseGateScreen } from './LicenseGateScreen';
@@ -34,12 +34,11 @@ import { MediaTab } from './MediaTab';
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
 
-type DeckTab = 'ai' | 'apps' | 'shortcuts' | 'media';
+type DeckTab = 'ai' | 'apps' | 'media';
 
 const DECK_TABS: Array<{ key: DeckTab; label: string }> = [
   { key: 'ai', label: 'AI Tools' },
   { key: 'apps', label: 'Apps' },
-  { key: 'shortcuts', label: 'Shortcuts' },
   { key: 'media', label: 'Media' },
 ];
 
@@ -250,11 +249,10 @@ export function DeckScreen() {
   );
 
   const tabCounts = useMemo(() => {
-    const counts: Record<DeckTab, number> = { ai: 0, apps: 0, shortcuts: 0, media: 0 };
+    const counts: Record<DeckTab, number> = { ai: 0, apps: 0, media: 0 };
     for (const tile of tiles ?? []) {
       if (tile.kind === 'ai') counts.ai += 1;
-      else if (tile.kind === 'shortcut') counts.shortcuts += 1;
-      else counts.apps += 1;
+      else if (tile.kind !== 'shortcut') counts.apps += 1;
     }
     counts.media = mediaSessions.length;
     return counts;
@@ -409,27 +407,19 @@ export function DeckScreen() {
             <View key={i} style={styles.skeletonTile} />
           ))}
         </View>
-      ) : visibleTiles.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>{emptyCopy.title}</Text>
-          <Text style={styles.emptyHint}>{emptyCopy.hint}</Text>
-        </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.grid}>
-          <View style={styles.tileRow}>
-            {visibleTiles.map((item) => (
-              <View key={item.id} style={styles.tileCell}>
-                <AppTile
-                  tile={item}
-                  isLoading={item.id === loadingId}
-                  creditsRemaining={creditsRemaining}
-                  onTap={handleTap}
-                  onLongPress={handleRequestTileActions}
-                />
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+        <View style={styles.tileGridContainer}>
+          <TileGrid
+            tiles={visibleTiles}
+            loadingId={loadingId}
+            creditsRemaining={creditsRemaining}
+            onTap={handleTap}
+            onLongPress={handleRequestTileActions}
+            onAddTile={() => setShowAddTile(true)}
+            emptyTitle={emptyCopy.title}
+            emptyHint={emptyCopy.hint}
+          />
+        </View>
       )}
 
       {/* FAB — add tile */}
@@ -670,9 +660,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: '#FFFFFF' },
   tabCount: { color: '#6B6B8A', fontSize: 11, fontWeight: '700', marginTop: 2 },
   tabCountActive: { color: 'rgba(255,255,255,0.78)' },
-  grid: { padding: 8, paddingBottom: 140 },
-  tileRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  tileCell: { width: '33.33%' },
+  tileGridContainer: { flex: 1, paddingBottom: 120 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
   skeletonTile: {
     flex: 1,
@@ -684,9 +672,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     opacity: 0.4,
   },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  emptyHint: { color: '#6B6B8A', fontSize: 13 },
   viewer: {
     margin: 12,
     maxHeight: 200,

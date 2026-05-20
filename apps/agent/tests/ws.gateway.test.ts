@@ -54,6 +54,44 @@ const mockPackRegistry = {
   getById:  jest.fn().mockReturnValue(undefined),
 };
 
+type GatewayMessage = { type: string; [key: string]: unknown };
+
+const INITIAL_MESSAGE_TYPES = [
+  'CONNECTED',
+  'DECK_CONFIG',
+  'LICENSE_STATUS',
+  'CONTEXT_SHORTCUTS',
+  'PACK_REGISTRY',
+  'MEDIA_STATE',
+];
+
+let tileCounter = 0;
+
+function parseMessages(messages: string[]): GatewayMessage[] {
+  return messages.map((message) => JSON.parse(message) as GatewayMessage);
+}
+
+function messagesOfType<T extends { type: string }>(messages: string[], type: string): T[] {
+  return parseMessages(messages)
+    .filter((message) => message.type === type)
+    .map((message) => message as unknown as T);
+}
+
+function latestMessage<T extends { type: string }>(messages: string[], type: string): T | undefined {
+  const matching = messagesOfType<T>(messages, type);
+  return matching[matching.length - 1];
+}
+
+function hasInitialMessages(messages: string[]): boolean {
+  const types = new Set(parseMessages(messages).map((message) => message.type));
+  return INITIAL_MESSAGE_TYPES.every((type) => types.has(type));
+}
+
+function nextTileLabel(base: string): string {
+  tileCounter += 1;
+  return `${base} ${tileCounter}`;
+}
+
 describe('WsGateway', () => {
   let app: INestApplication;
 
@@ -79,29 +117,36 @@ describe('WsGateway', () => {
     await app.close();
   });
 
-  it('sends CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS, PACK_REGISTRY on connect', (done) => {
+  it('sends initial connection state on connect', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    let completed = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
-      if (messages.length === 5) {
-        const connected = JSON.parse(messages[0]);
-        expect(connected.type).toBe('CONNECTED');
+      if (!completed && hasInitialMessages(messages)) {
+        completed = true;
 
-        const deckConfig = JSON.parse(messages[1]);
-        expect(deckConfig.type).toBe('DECK_CONFIG');
+        try {
+          const connected = latestMessage<ConnectedMessage>(messages, 'CONNECTED');
+          expect(connected?.type).toBe('CONNECTED');
 
-        const licStatus = JSON.parse(messages[2]);
-        expect(licStatus.type).toBe('LICENSE_STATUS');
+          const deckConfig = latestMessage<DeckConfigMessage>(messages, 'DECK_CONFIG');
+          expect(deckConfig?.type).toBe('DECK_CONFIG');
 
-        // messages[3] is CONTEXT_SHORTCUTS
-        const packRegistry = JSON.parse(messages[4]);
-        expect(packRegistry.type).toBe('PACK_REGISTRY');
-        expect(Array.isArray(packRegistry.packs)).toBe(true);
+          const licStatus = latestMessage<LicenseStatusMessage>(messages, 'LICENSE_STATUS');
+          expect(licStatus?.type).toBe('LICENSE_STATUS');
 
-        ws.close();
-        done();
+          const packRegistry = latestMessage<GatewayMessage>(messages, 'PACK_REGISTRY');
+          expect(packRegistry?.type).toBe('PACK_REGISTRY');
+          expect(Array.isArray(packRegistry?.packs)).toBe(true);
+
+          ws.close();
+          done();
+        } catch (error) {
+          ws.close();
+          done(error);
+        }
       }
     });
   });
@@ -109,12 +154,14 @@ describe('WsGateway', () => {
   it('responds with ACTION_RESULT when BUTTON_TAP is received', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    let sentTap = false;
+    let completed = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      // Connection now sends: CONNECTED, DECK_CONFIG, LICENSE_STATUS, CONTEXT_SHORTCUTS, PACK_REGISTRY
-      if (messages.length === 5) {
+      if (!sentTap && hasInitialMessages(messages)) {
+        sentTap = true;
         ws.send(JSON.stringify({
           type: 'BUTTON_TAP',
           buttonId: 'btn-test',
@@ -122,13 +169,19 @@ describe('WsGateway', () => {
         }));
       }
 
-      if (messages.length === 6) {
-        const result: ActionResultMessage = JSON.parse(messages[5]);
-        expect(result.type).toBe('ACTION_RESULT');
-        expect(result.buttonId).toBe('btn-test');
-        expect(result.success).toBe(true);
-        ws.close();
-        done();
+      const result = latestMessage<ActionResultMessage>(messages, 'ACTION_RESULT');
+      if (!completed && sentTap && result) {
+        completed = true;
+        try {
+          expect(result.type).toBe('ACTION_RESULT');
+          expect(result.buttonId).toBe('btn-test');
+          expect(result.success).toBe(true);
+          ws.close();
+          done();
+        } catch (error) {
+          ws.close();
+          done(error);
+        }
       }
     });
   });
@@ -136,10 +189,12 @@ describe('WsGateway', () => {
   it('opens activation dialog when OPEN_ACTIVATION_DIALOG is received', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    let sentOpen = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
-      if (messages.length === 5) {
+      if (!sentOpen && hasInitialMessages(messages)) {
+        sentOpen = true;
         mockActivationDialog.open.mockClear();
         ws.send(JSON.stringify({ type: 'OPEN_ACTIVATION_DIALOG' }));
         setTimeout(() => {
@@ -154,23 +209,34 @@ describe('WsGateway', () => {
   it('handles ADD_TILE and responds with updated DECK_CONFIG', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    const label = nextTileLabel('Test Site');
+    let sentAdd = false;
+    let completed = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 5) {
+      if (!sentAdd && hasInitialMessages(messages)) {
+        sentAdd = true;
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
-          tile: { kind: 'url', label: 'Test Site', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } },
+          tile: { kind: 'url', label, iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://example.com' } },
         }));
       }
 
-      if (messages.length === 6) {
-        const updated: DeckConfigMessage = JSON.parse(messages[5]);
-        expect(updated.type).toBe('DECK_CONFIG');
-        expect(updated.tiles.some((t) => t.label === 'Test Site')).toBe(true);
-        ws.close();
-        done();
+      const updated = messagesOfType<DeckConfigMessage>(messages, 'DECK_CONFIG')
+        .find((message) => message.tiles.some((tile) => tile.label === label));
+      if (!completed && sentAdd && updated) {
+        completed = true;
+        try {
+          expect(updated.type).toBe('DECK_CONFIG');
+          expect(updated.tiles.some((t) => t.label === label)).toBe(true);
+          ws.close();
+          done();
+        } catch (error) {
+          ws.close();
+          done(error);
+        }
       }
     });
   });
@@ -178,29 +244,42 @@ describe('WsGateway', () => {
   it('handles REMOVE_TILE and responds with updated DECK_CONFIG', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    const label = nextTileLabel('Remove Me');
+    let sentAdd = false;
+    let sentRemove = false;
+    let completed = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 5) {
+      if (!sentAdd && hasInitialMessages(messages)) {
+        sentAdd = true;
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
-          tile: { kind: 'url', label: 'Remove Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://remove-me.example.com' } },
+          tile: { kind: 'url', label, iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://remove-me.example.com' } },
         }));
       }
 
-      if (messages.length === 6) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[5]);
-        const tile = withTile.tiles.find((t) => t.label === 'Remove Me');
+      const withTile = messagesOfType<DeckConfigMessage>(messages, 'DECK_CONFIG')
+        .find((message) => message.tiles.some((tile) => tile.label === label));
+      if (sentAdd && !sentRemove && withTile) {
+        const tile = withTile.tiles.find((t) => t.label === label);
         expect(tile).toBeDefined();
+        sentRemove = true;
         ws.send(JSON.stringify({ type: 'REMOVE_TILE', tileId: tile!.id }));
       }
 
-      if (messages.length === 7) {
-        const updated: DeckConfigMessage = JSON.parse(messages[6]);
-        expect(updated.tiles.some((t) => t.label === 'Remove Me')).toBe(false);
-        ws.close();
-        done();
+      const updated = latestMessage<DeckConfigMessage>(messages, 'DECK_CONFIG');
+      if (!completed && sentRemove && updated && !updated.tiles.some((t) => t.label === label)) {
+        completed = true;
+        try {
+          expect(updated.tiles.some((t) => t.label === label)).toBe(false);
+          ws.close();
+          done();
+        } catch (error) {
+          ws.close();
+          done(error);
+        }
       }
     });
   });
@@ -208,29 +287,42 @@ describe('WsGateway', () => {
   it('handles SET_TILE_PINNED and responds with pinned tile first', (done) => {
     const ws = new WebSocket('ws://localhost:3099');
     const messages: string[] = [];
+    const label = nextTileLabel('Pin Me');
+    let sentAdd = false;
+    let sentPinned = false;
+    let completed = false;
 
     ws.on('message', (data) => {
       messages.push(data.toString());
 
-      if (messages.length === 5) {
+      if (!sentAdd && hasInitialMessages(messages)) {
+        sentAdd = true;
         ws.send(JSON.stringify({
           type: 'ADD_TILE',
-          tile: { kind: 'url', label: 'Pin Me', iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://pin-me.example.com' } },
+          tile: { kind: 'url', label, iconId: 'globe', action: { kind: 'URL_OPEN', url: 'https://pin-me.example.com' } },
         }));
       }
 
-      if (messages.length === 6) {
-        const withTile: DeckConfigMessage = JSON.parse(messages[5]);
-        const tile = withTile.tiles.find((t) => t.label === 'Pin Me');
+      const withTile = messagesOfType<DeckConfigMessage>(messages, 'DECK_CONFIG')
+        .find((message) => message.tiles.some((tile) => tile.label === label));
+      if (sentAdd && !sentPinned && withTile) {
+        const tile = withTile.tiles.find((t) => t.label === label);
         expect(tile).toBeDefined();
+        sentPinned = true;
         ws.send(JSON.stringify({ type: 'SET_TILE_PINNED', tileId: tile!.id, pinned: true }));
       }
 
-      if (messages.length === 7) {
-        const updated: DeckConfigMessage = JSON.parse(messages[6]);
-        expect(updated.tiles[0]).toMatchObject({ label: 'Pin Me', pinned: true });
-        ws.close();
-        done();
+      const updated = latestMessage<DeckConfigMessage>(messages, 'DECK_CONFIG');
+      if (!completed && sentPinned && updated?.tiles[0]?.label === label && updated.tiles[0].pinned === true) {
+        completed = true;
+        try {
+          expect(updated.tiles[0]).toMatchObject({ label, pinned: true });
+          ws.close();
+          done();
+        } catch (error) {
+          ws.close();
+          done(error);
+        }
       }
     });
   });

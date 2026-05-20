@@ -3,6 +3,12 @@
     "name": "mobile",
     "slug": "kdeck",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e422608d-551d-4484-8c73-52706be9e0f6"
+    },
     "android": {
       "package": "com.khalid.kdeck",
       "permissions": [
@@ -20,11 +26,11 @@
         "NSLocalNetworkUsageDescription": "KDeck uses the local network to discover and connect to the desktop agent."
       }
     },
+    "owner": "khalid.dev",
     "extra": {
       "eas": {
-        "projectId": "e701ea1b-7a3d-48bc-b9fa-a82df06b34fb"
+        "projectId": "e422608d-551d-4484-8c73-52706be9e0f6"
       }
-    },
-    "owner": "khalid.dev"
+    }
   }
 }

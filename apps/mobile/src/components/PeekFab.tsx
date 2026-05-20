@@ -141,7 +141,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 132,
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: 20,

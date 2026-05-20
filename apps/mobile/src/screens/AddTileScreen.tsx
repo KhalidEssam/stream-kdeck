@@ -12,6 +12,7 @@ import {
   Platform,
   ScrollView,
   Modal,
+  Alert,
 } from 'react-native';
 import { AppTile } from '../components/AppTile';
 import { TileConfig, Pack } from '../types/schema';
@@ -62,9 +63,30 @@ interface Props {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+type WorkflowBuilderState =
+  | { mode: 'new' }
+  | { mode: 'edit'; tile: TileConfig };
+
 export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, packRegistry }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('apps');
-  const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
+  const [builderState, setBuilderState] = useState<WorkflowBuilderState | null>(null);
+
+  const workflowTiles = useMemo(
+    () => currentTiles.filter((t) => t.kind === 'workflow'),
+    [currentTiles],
+  );
+
+  const handleBuilderSave = (tile: Omit<TileConfig, 'id'>) => {
+    if (!ws.isConnected()) {
+      Alert.alert('Not Connected', 'Connect to the desktop agent before saving a workflow.', [{ text: 'OK' }]);
+      return;
+    }
+    if (builderState?.mode === 'edit') {
+      onRemove(builderState.tile.id);
+    }
+    onAdd(tile);
+    setBuilderState(null);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -121,23 +143,31 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
           />
         )}
         {activeTab === 'workflow' && (
-          <WorkflowTab onCreateWorkflow={() => setShowWorkflowBuilder(true)} />
+          <WorkflowTab
+            workflowTiles={workflowTiles}
+            onCreateWorkflow={() => setBuilderState({ mode: 'new' })}
+            onEditWorkflow={(tile) => setBuilderState({ mode: 'edit', tile })}
+            onRemoveWorkflow={onRemove}
+          />
         )}
       </KeyboardAvoidingView>
+
       <Modal
-        visible={showWorkflowBuilder}
+        visible={builderState !== null}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowWorkflowBuilder(false)}
+        onRequestClose={() => setBuilderState(null)}
       >
-          <WorkflowBuilderScreen
-            onSave={(tile) => {
-              onAdd(tile);
-              setShowWorkflowBuilder(false);
-              onDismiss();
-            }}
-            onDismiss={() => setShowWorkflowBuilder(false)}
-          />
+        <WorkflowBuilderScreen
+          initialLabel={builderState?.mode === 'edit' ? builderState.tile.label : undefined}
+          initialSteps={
+            builderState?.mode === 'edit' && builderState.tile.action.kind === 'WORKFLOW'
+              ? builderState.tile.action.steps
+              : undefined
+          }
+          onSave={handleBuilderSave}
+          onDismiss={() => setBuilderState(null)}
+        />
       </Modal>
     </SafeAreaView>
   );
@@ -254,20 +284,53 @@ function shortcutKey(keys: string[]): string {
   return [...mods, ...regularKeys].join('+');
 }
 
+function parseShortcutKeys(keys: string[]): { mods: Set<Modifier>; key: string } {
+  const mods = new Set<Modifier>();
+  let mainKey = '';
+  for (const k of keys) {
+    if (MODIFIER_KEYS.has(k as Modifier)) mods.add(k as Modifier);
+    else mainKey = k;
+  }
+  return { mods, key: mainKey };
+}
+
 function ShortcutTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' | 'onAdd' | 'onRemove'>) {
+  const [editingTile, setEditingTile] = useState<TileConfig | null>(null);
   const [mods, setMods] = useState<Set<Modifier>>(new Set());
   const [key, setKey]   = useState('');
   const [label, setLabel] = useState('');
 
+  const shortcutTiles = useMemo(
+    () => currentTiles.filter((t) => t.kind === 'shortcut'),
+    [currentTiles],
+  );
+
+  // Duplicate check excludes the tile currently being edited
   const selectedByShortcut = useMemo<Map<string, string>>(() => {
     const map = new Map<string, string>();
     for (const tile of currentTiles) {
-      if (tile.action.kind === 'KEYSTROKE') {
+      if (tile.action.kind === 'KEYSTROKE' && tile.id !== editingTile?.id) {
         map.set(shortcutKey(tile.action.keys), tile.id);
       }
     }
     return map;
-  }, [currentTiles]);
+  }, [currentTiles, editingTile?.id]);
+
+  const startEdit = (tile: TileConfig) => {
+    if (tile.action.kind !== 'KEYSTROKE') return;
+    const parsed = parseShortcutKeys(tile.action.keys);
+    setEditingTile(tile);
+    setMods(parsed.mods);
+    setKey(parsed.key);
+    setLabel(tile.label);
+  };
+
+  const cancelEdit = () => {
+    setEditingTile(null);
+    setMods(new Set());
+    setKey('');
+    setLabel('');
+  };
 
   const toggleMod = (mod: Modifier) => {
     setMods((prev) => {
@@ -277,38 +340,93 @@ function ShortcutTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTile
     });
   };
 
-  const selectedMods = MODIFIERS
-    .map((item) => item.key)
-    .filter((mod) => mods.has(mod));
+  const confirmRemove = (tile: TileConfig) => {
+    Alert.alert('Remove Shortcut', `Remove "${tile.label}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => {
+        if (editingTile?.id === tile.id) cancelEdit();
+        onRemove(tile.id);
+      }},
+    ]);
+  };
+
+  const selectedMods = MODIFIERS.map((item) => item.key).filter((mod) => mods.has(mod));
   const keyList = [...selectedMods, key.toLowerCase().trim()].filter(Boolean);
   const autoLabel = keyList.map((k) => k.charAt(0).toUpperCase() + k.slice(1)).join('+');
 
   const canAdd = key.trim().length > 0;
   const existingId = canAdd ? selectedByShortcut.get(shortcutKey(keyList)) : undefined;
-  const isSelected = !!existingId;
 
-  const handleAdd = () => {
+  const handleSubmit = () => {
     if (!canAdd) return;
+    const tileLabel = label.trim() || autoLabel;
+
+    if (editingTile) {
+      onRemove(editingTile.id);
+      onAdd({ kind: 'shortcut', label: tileLabel, iconId: 'keyboard', color: '#0F2A1A', action: { kind: 'KEYSTROKE', keys: keyList } });
+      cancelEdit();
+      return;
+    }
+
     if (existingId) {
       onRemove(existingId);
       return;
     }
 
-    const tileLabel = label.trim() || autoLabel;
-    onAdd({
-      kind: 'shortcut',
-      label: tileLabel,
-      iconId: 'keyboard',
-      color: '#0F2A1A',
-      action: { kind: 'KEYSTROKE', keys: keyList },
-    });
+    onAdd({ kind: 'shortcut', label: tileLabel, iconId: 'keyboard', color: '#0F2A1A', action: { kind: 'KEYSTROKE', keys: keyList } });
     setMods(new Set());
     setKey('');
     setLabel('');
   };
 
+  const submitLabel = editingTile ? 'Update Shortcut' : existingId ? 'Remove Shortcut' : 'Add Shortcut';
+  const submitStyle = editingTile ? styles.addBtn : existingId ? styles.removeBtn : styles.addBtn;
+
   return (
     <ScrollView contentContainerStyle={styles.shortcutContainer} keyboardShouldPersistTaps="handled">
+
+      {/* Existing shortcuts list */}
+      {shortcutTiles.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Your Shortcuts</Text>
+          {shortcutTiles.map((tile) => {
+            const keysDisplay = tile.action.kind === 'KEYSTROKE'
+              ? tile.action.keys.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join('+')
+              : '';
+            const isEditing = editingTile?.id === tile.id;
+            return (
+              <View key={tile.id} style={[shortcutListStyles.row, isEditing && shortcutListStyles.rowEditing]}>
+                <View style={shortcutListStyles.info}>
+                  <Text style={shortcutListStyles.tileLabel} numberOfLines={1}>{tile.label}</Text>
+                  <Text style={shortcutListStyles.keys}>{keysDisplay}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[shortcutListStyles.editBtn, isEditing && shortcutListStyles.editBtnActive]}
+                  onPress={() => isEditing ? cancelEdit() : startEdit(tile)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[shortcutListStyles.editBtnText, isEditing && shortcutListStyles.editBtnTextActive]}>
+                    {isEditing ? 'Cancel' : 'Edit'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={shortcutListStyles.deleteBtn}
+                  onPress={() => confirmRemove(tile)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={shortcutListStyles.deleteBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </>
+      )}
+
+      {/* Form */}
+      <Text style={[styles.sectionLabel, shortcutTiles.length > 0 && { marginTop: 20 }]}>
+        {editingTile ? `Editing "${editingTile.label}"` : 'New Shortcut'}
+      </Text>
+
       <Text style={styles.sectionLabel}>Modifiers</Text>
       <View style={styles.modRow}>
         {MODIFIERS.map(({ key: mod, label: modLabel }) => (
@@ -352,49 +470,155 @@ function ShortcutTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTile
       />
 
       <TouchableOpacity
-        style={[
-          styles.addBtn,
-          isSelected && styles.removeBtn,
-          !canAdd && styles.addBtnDisabled,
-          { marginTop: 16, alignSelf: 'stretch' },
-        ]}
-        onPress={handleAdd}
+        style={[submitStyle, !canAdd && styles.addBtnDisabled, { marginTop: 16, alignSelf: 'stretch' }]}
+        onPress={handleSubmit}
         disabled={!canAdd}
       >
-        <Text style={styles.addBtnText}>{isSelected ? 'Remove Shortcut' : 'Add Shortcut'}</Text>
+        <Text style={styles.addBtnText}>{submitLabel}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
+const shortcutListStyles = StyleSheet.create({
+  row: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    backgroundColor: '#1A1A2E',
+    borderRadius:   12,
+    padding:        12,
+    gap:            8,
+    borderWidth:    1,
+    borderColor:    'rgba(255,255,255,0.07)',
+    marginBottom:   6,
+  },
+  rowEditing: { borderColor: '#5B4FE8' },
+  info:       { flex: 1 },
+  tileLabel:  { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  keys:       { color: '#5B4FE8', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  editBtn: {
+    backgroundColor: '#2A2A4A',
+    borderRadius:    8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  editBtnActive:    { backgroundColor: '#3A2A5A' },
+  editBtnText:      { color: '#AAAACC', fontSize: 13, fontWeight: '600' },
+  editBtnTextActive: { color: '#FFFFFF' },
+  deleteBtn: {
+    backgroundColor: '#2A1A1A',
+    borderRadius:    8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  deleteBtnText: { color: '#FF6B6B', fontSize: 13, fontWeight: '700' },
+});
+
 // ─── Workflow Tab ─────────────────────────────────────────────────────────────
 
-function WorkflowTab({ onCreateWorkflow }: { onCreateWorkflow: () => void }) {
+interface WorkflowTabProps {
+  workflowTiles: TileConfig[];
+  onCreateWorkflow: () => void;
+  onEditWorkflow: (tile: TileConfig) => void;
+  onRemoveWorkflow: (tileId: string) => void;
+}
+
+function WorkflowTab({ workflowTiles, onCreateWorkflow, onEditWorkflow, onRemoveWorkflow }: WorkflowTabProps) {
+  const confirmRemove = (tile: TileConfig) => {
+    Alert.alert('Remove Workflow', `Remove "${tile.label}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => onRemoveWorkflow(tile.id) },
+    ]);
+  };
+
   return (
-    <View style={workflowTabStyles.container}>
-      <Text style={workflowTabStyles.description}>
-        Run multiple actions in sequence — launch apps, open URLs, send keystrokes, and more.
-      </Text>
+    <ScrollView contentContainerStyle={workflowTabStyles.container}>
+      {workflowTiles.length === 0 && (
+        <Text style={workflowTabStyles.description}>
+          Run multiple actions in sequence — launch apps, open URLs, send keystrokes, and more.
+        </Text>
+      )}
+
+      {workflowTiles.map((tile) => (
+        <View key={tile.id} style={workflowTabStyles.row}>
+          <View style={workflowTabStyles.rowIcon}>
+            <Text style={workflowTabStyles.rowIconText}>⛓</Text>
+          </View>
+          <View style={workflowTabStyles.rowInfo}>
+            <Text style={workflowTabStyles.rowLabel} numberOfLines={1}>{tile.label}</Text>
+            {tile.action.kind === 'WORKFLOW' && (
+              <Text style={workflowTabStyles.rowMeta}>
+                {tile.action.steps.length} step{tile.action.steps.length !== 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity style={workflowTabStyles.editBtn} onPress={() => onEditWorkflow(tile)} activeOpacity={0.75}>
+            <Text style={workflowTabStyles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={workflowTabStyles.deleteBtn} onPress={() => confirmRemove(tile)} activeOpacity={0.75}>
+            <Text style={workflowTabStyles.deleteBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
       <TouchableOpacity style={workflowTabStyles.createBtn} onPress={onCreateWorkflow}>
         <Text style={workflowTabStyles.createBtnText}>+ New Workflow</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const workflowTabStyles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 },
+  container: { padding: 16, gap: 10 },
   description: {
     color: '#6B6B8A',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 8,
   },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A2E',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#1E1A3A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowIconText: { fontSize: 18 },
+  rowInfo: { flex: 1 },
+  rowLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  rowMeta: { color: '#6B6B8A', fontSize: 12, marginTop: 2 },
+  editBtn: {
+    backgroundColor: '#2A2A4A',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  editBtnText: { color: '#AAAACC', fontSize: 13, fontWeight: '600' },
+  deleteBtn: {
+    backgroundColor: '#2A1A1A',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  deleteBtnText: { color: '#FF6B6B', fontSize: 13, fontWeight: '700' },
   createBtn: {
     backgroundColor: '#5B4FE8',
     borderRadius: 12,
-    paddingHorizontal: 28,
     paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
   },
   createBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
 });

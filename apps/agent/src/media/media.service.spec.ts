@@ -1,4 +1,4 @@
-import { MediaService } from './media.service';
+import type { MediaService as MediaServiceType } from './media.service';
 
 const mockGetAudioSessionProcesses = jest.fn(() => [
   { pid: 1, name: 'Spotify.exe' },
@@ -8,19 +8,22 @@ const mockGetVolume = jest.fn((pid: number) => pid === 1 ? 0.7 : 0.5);
 const mockIsMuted = jest.fn(() => false);
 const mockSetVolume = jest.fn();
 const mockSetMute = jest.fn();
+const mockMixer = {
+  getAudioSessionProcesses: mockGetAudioSessionProcesses,
+  getAudioSessionVolumeLevelScalar: mockGetVolume,
+  isAudioSessionMuted: mockIsMuted,
+  setAudioSessionVolumeLevelScalar: mockSetVolume,
+  setAudioSessionMute: mockSetMute,
+};
 
 jest.mock('node-audio-volume-mixer', () => ({
-  NodeAudioVolumeMixer: {
-    getAudioSessionProcesses: mockGetAudioSessionProcesses,
-    getAudioSessionVolumeLevelScalar: mockGetVolume,
-    isAudioSessionMuted: mockIsMuted,
-    setAudioSessionVolumeLevelScalar: mockSetVolume,
-    setAudioSessionMute: mockSetMute,
-  },
-}), { virtual: true });
+  NodeAudioVolumeMixer: mockMixer,
+}));
+
+const { MediaService } = require('./media.service') as typeof import('./media.service');
 
 describe('MediaService', () => {
-  let service: MediaService;
+  let service: MediaServiceType;
 
   beforeEach(() => {
     service = new MediaService();

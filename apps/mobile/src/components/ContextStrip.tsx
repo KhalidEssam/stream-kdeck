@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
   FlatList,
   Modal,
   StyleSheet,
@@ -9,41 +8,53 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ContextShortcut, ContextShortcutsMessage } from '../types/schema';
+import { ContextShortcut, ContextShortcutsMessage, TileConfig } from '../types/schema';
+
+type StripTab = 'global' | 'app';
 
 interface Props {
   msg: ContextShortcutsMessage | null;
+  globalTiles: TileConfig[];
   onTapShortcut: (shortcut: ContextShortcut) => void;
+  onTapGlobalTile: (tile: TileConfig) => void;
   onAddShortcut: (shortcut: Omit<ContextShortcut, 'id'>) => void;
+  onAddGlobal: () => void;
 }
 
 const STRIP_HEIGHT = 120;
 const MODIFIERS = ['Ctrl', 'Shift', 'Alt', 'Meta'];
 
-export function ContextStrip({ msg, onTapShortcut, onAddShortcut }: Props) {
-  const slideAnim = useRef(new Animated.Value(STRIP_HEIGHT)).current;
-  const [dismissed, setDismissed] = useState(false);
+export function ContextStrip({
+  msg,
+  globalTiles,
+  onTapShortcut,
+  onTapGlobalTile,
+  onAddShortcut,
+  onAddGlobal,
+}: Props) {
+  const [activeTab, setActiveTab] = useState<StripTab>('global');
   const [showAddForm, setShowAddForm] = useState(false);
   const [addLabel, setAddLabel] = useState('');
   const [addKeys, setAddKeys] = useState<string[]>([]);
   const [addKeyInput, setAddKeyInput] = useState('');
 
-  const visible = !!msg && msg.shortcuts.length > 0 && !dismissed;
+  const hasAppShortcuts = !!(msg && msg.shortcuts.length > 0);
 
-  // Reset dismissed when a new app context arrives
+  // Auto-switch when focused app changes
   useEffect(() => {
-    setDismissed(false);
-  }, [msg?.appLabel]);
+    if (hasAppShortcuts) {
+      setActiveTab('app');
+    } else {
+      setActiveTab('global');
+    }
+  }, [msg?.processName]);
 
+  // If the app context clears, fall back to global
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue:         visible ? 0 : STRIP_HEIGHT,
-      duration:        260,
-      useNativeDriver: true,
-    }).start();
-  }, [visible, slideAnim]);
-
-  if (!msg) return null;
+    if (!hasAppShortcuts && activeTab === 'app') {
+      setActiveTab('global');
+    }
+  }, [hasAppShortcuts]);
 
   const handleSaveShortcut = () => {
     if (!addLabel.trim() || addKeys.length === 0) return;
@@ -66,18 +77,34 @@ export function ContextStrip({ msg, onTapShortcut, onAddShortcut }: Props) {
     setAddKeyInput('');
   };
 
-  const renderShortcut = ({ item }: { item: ContextShortcut }) => (
-    <TouchableOpacity
-      style={styles.tile}
-      onPress={() => onTapShortcut(item)}
-      activeOpacity={0.7}
-    >
+  const appTabLabel = msg?.appLabel ?? 'App';
+
+  const renderGlobalTile = ({ item }: { item: TileConfig }) => (
+    <TouchableOpacity style={styles.tile} onPress={() => onTapGlobalTile(item)} activeOpacity={0.7}>
+      <Text style={styles.tileKeys} numberOfLines={1}>
+        {item.action.kind === 'KEYSTROKE'
+          ? item.action.keys.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join('+')
+          : item.label}
+      </Text>
+      <Text style={styles.tileLabel} numberOfLines={2}>{item.label}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderAppShortcut = ({ item }: { item: ContextShortcut }) => (
+    <TouchableOpacity style={styles.tile} onPress={() => onTapShortcut(item)} activeOpacity={0.7}>
       <Text style={styles.tileKeys}>{item.keys.join('+')}</Text>
       <Text style={styles.tileLabel} numberOfLines={2}>{item.label}</Text>
     </TouchableOpacity>
   );
 
-  const addTile = (
+  const addGlobalTile = (
+    <TouchableOpacity style={[styles.tile, styles.addTile]} onPress={onAddGlobal} activeOpacity={0.7}>
+      <Text style={styles.addTileIcon}>+</Text>
+      <Text style={styles.tileLabel}>Add</Text>
+    </TouchableOpacity>
+  );
+
+  const addAppTile = (
     <TouchableOpacity style={[styles.tile, styles.addTile]} onPress={() => setShowAddForm(true)} activeOpacity={0.7}>
       <Text style={styles.addTileIcon}>+</Text>
       <Text style={styles.tileLabel}>Add</Text>
@@ -86,32 +113,67 @@ export function ContextStrip({ msg, onTapShortcut, onAddShortcut }: Props) {
 
   return (
     <>
-      <Animated.View style={[styles.strip, { transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.header}>
-          <Text style={styles.appLabel}>{msg.appLabel}</Text>
-          {msg.shortcuts.length > 0 && (
-            <Text style={styles.aiBadge}>AI</Text>
-          )}
-          <TouchableOpacity onPress={() => setDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.dismiss}>✕</Text>
+      <View style={styles.strip}>
+        {/* Tab row */}
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'global' && styles.tabActive]}
+            onPress={() => setActiveTab('global')}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.tabText, activeTab === 'global' && styles.tabTextActive]}>
+              Global
+            </Text>
+            {activeTab === 'global' && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'app' && styles.tabActive, !hasAppShortcuts && styles.tabDisabled]}
+            onPress={() => hasAppShortcuts && setActiveTab('app')}
+            activeOpacity={hasAppShortcuts ? 0.75 : 1}
+          >
+            <Text style={[styles.tabText, activeTab === 'app' && styles.tabTextActive, !hasAppShortcuts && styles.tabTextDisabled]}>
+              {appTabLabel}
+            </Text>
+            {activeTab === 'app' && <View style={styles.tabIndicator} />}
           </TouchableOpacity>
         </View>
-        <FlatList
-          data={msg.shortcuts}
-          keyExtractor={(item) => item.id}
-          renderItem={renderShortcut}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          ListFooterComponent={addTile}
-          contentContainerStyle={styles.list}
-          fadingEdgeLength={32}
-        />
-      </Animated.View>
 
-      <Modal visible={showAddForm} transparent animationType="slide" onRequestClose={() => setShowAddForm(false)}>
+        {/* Content */}
+        {activeTab === 'global' ? (
+          <FlatList
+            data={globalTiles}
+            keyExtractor={(item) => item.id}
+            renderItem={renderGlobalTile}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            ListFooterComponent={addGlobalTile}
+            contentContainerStyle={styles.list}
+            fadingEdgeLength={32}
+          />
+        ) : (
+          <FlatList
+            data={msg?.shortcuts ?? []}
+            keyExtractor={(item) => item.id}
+            renderItem={renderAppShortcut}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            ListFooterComponent={addAppTile}
+            contentContainerStyle={styles.list}
+            fadingEdgeLength={32}
+          />
+        )}
+      </View>
+
+      <Modal
+        visible={showAddForm}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddForm(false)}
+      >
         <View style={styles.formBackdrop}>
           <View style={styles.formSheet}>
-            <Text style={styles.formTitle}>Add Shortcut for {msg.appLabel}</Text>
+            <Text style={styles.formTitle}>Add Shortcut for {msg?.appLabel}</Text>
 
             <Text style={styles.formLabel}>Label</Text>
             <TextInput
@@ -176,26 +238,41 @@ const styles = StyleSheet.create({
     borderTopColor:  'rgba(91,79,232,0.4)',
     paddingBottom:   8,
   },
-  header: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    gap:            8,
+
+  // Tab row
+  tabRow: {
+    flexDirection:     'row',
+    paddingHorizontal: 12,
+    paddingTop:        6,
+    paddingBottom:     2,
+    gap:               4,
   },
-  appLabel:  { color: '#FFFFFF', fontSize: 12, fontWeight: '700', flex: 1 },
-  aiBadge: {
-    color:           '#5B4FE8',
-    fontSize:        9,
-    fontWeight:      '800',
-    borderWidth:     1,
-    borderColor:     '#5B4FE8',
-    borderRadius:    4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+  tab: {
+    paddingHorizontal: 10,
+    paddingVertical:   4,
+    position:          'relative',
   },
-  dismiss:   { color: '#6B6B8A', fontSize: 14, paddingLeft: 4 },
-  list:      { paddingHorizontal: 10, gap: 6 },
+  tabActive: {},
+  tabDisabled: { opacity: 0.35 },
+  tabText: {
+    color:      '#6B6B8A',
+    fontSize:   11,
+    fontWeight: '700',
+  },
+  tabTextActive:   { color: '#FFFFFF' },
+  tabTextDisabled: { color: '#6B6B8A' },
+  tabIndicator: {
+    position:        'absolute',
+    bottom:          0,
+    left:            10,
+    right:           10,
+    height:          2,
+    borderRadius:    1,
+    backgroundColor: '#5B4FE8',
+  },
+
+  // Tiles
+  list:  { paddingHorizontal: 10, gap: 6 },
   tile: {
     width:           72,
     backgroundColor: '#1E1E35',
@@ -207,17 +284,19 @@ const styles = StyleSheet.create({
     gap:             4,
     minHeight:       62,
   },
-  addTile:      { borderWidth: 1, borderColor: '#2A2A4A', borderStyle: 'dashed' },
-  addTileIcon:  { color: '#4A4A7A', fontSize: 20 },
-  tileKeys:     { color: '#5B4FE8', fontSize: 9, fontWeight: '700', textAlign: 'center' },
-  tileLabel:    { color: '#CCCCEE', fontSize: 10, textAlign: 'center' },
+  addTile:     { borderWidth: 1, borderColor: '#2A2A4A', borderStyle: 'dashed' },
+  addTileIcon: { color: '#4A4A7A', fontSize: 20 },
+  tileKeys:    { color: '#5B4FE8', fontSize: 9, fontWeight: '700', textAlign: 'center' },
+  tileLabel:   { color: '#CCCCEE', fontSize: 10, textAlign: 'center' },
+
+  // Add-shortcut form
   formBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   formSheet: {
-    backgroundColor:    '#1A1A2E',
+    backgroundColor:     '#1A1A2E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding:            24,
-    paddingBottom:      40,
+    padding:             24,
+    paddingBottom:       40,
   },
   formTitle:    { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 16 },
   formLabel:    { color: '#8888AA', fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 12 },
@@ -250,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     marginTop:       20,
   },
-  saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  cancelButton:   { alignItems: 'center', paddingVertical: 12 },
+  saveButtonText:   { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  cancelButton:     { alignItems: 'center', paddingVertical: 12 },
   cancelButtonText: { color: '#6B6B8A', fontSize: 14 },
 });

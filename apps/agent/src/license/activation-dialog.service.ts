@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BrowserWindow, ipcMain } from 'electron';
-import { LicenseService } from './license.service';
-import { DeviceFingerprintService } from './device-fingerprint.service';
-
-const SUPABASE_EDGE_URL = process.env.SUPABASE_URL
-  ? `${process.env.SUPABASE_URL}/functions/v1/licenses-activate`
-  : '';
+import { LicenseActivationError, LicenseService } from './license.service';
 
 @Injectable()
 export class ActivationDialogService {
@@ -16,10 +11,7 @@ export class ActivationDialogService {
     this.activatedCallbacks.push(cb);
   }
 
-  constructor(
-    private readonly licenseService: LicenseService,
-    private readonly fingerprint: DeviceFingerprintService,
-  ) {
+  constructor(private readonly licenseService: LicenseService) {
     ipcMain.handle('cs:activate', async (_event, key: string) => {
       return this.handleActivation(key);
     });
@@ -50,45 +42,25 @@ export class ActivationDialogService {
   }
 
   private async handleActivation(key: string): Promise<{ success: boolean; error?: string }> {
-    if (!SUPABASE_EDGE_URL) {
-      return { success: false, error: 'Agent not configured. Set SUPABASE_URL in .env file.' };
-    }
-
     try {
-      const fp   = this.fingerprint.getFingerprint();
-      const name = this.fingerprint.getDeviceName();
-
-      const anonKey = process.env.SUPABASE_ANON_KEY ?? '';
-      const res = await fetch(SUPABASE_EDGE_URL, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'apikey':        anonKey,
-          'Authorization': `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ key: key.trim(), deviceFingerprint: fp, deviceName: name }),
-      });
-
-      const json = await res.json() as { hashed_token?: string; error?: string; message?: string };
-
-      if (!res.ok || !json.hashed_token) {
-        const code = json.error ?? json.message ?? '';
-        console.error(`[License] Activation failed — HTTP ${res.status}, code: ${code}`);
-        const msg: Record<string, string> = {
-          INVALID_KEY:              'Invalid license key. Check your purchase email.',
-          REVOKED:                  'This license has been revoked. Contact support.',
-          DEVICE_MISMATCH:          'Key is already activated on another machine. Contact support.',
-          USER_NOT_FOUND:           'Account not found for this license. Contact support.',
-          SESSION_GENERATION_FAILED:'Server error creating session. Contact support.',
-        };
-        return { success: false, error: msg[code] ?? `Activation failed (${code || res.status}). Contact support.` };
-      }
-
-      await this.licenseService.activateWithHashedToken(json.hashed_token);
+      await this.licenseService.activateWithLicenseKey(key);
       this.activatedCallbacks.forEach((cb) => cb());
       this.window?.close();
       return { success: true };
-    } catch {
+    } catch (error) {
+      if (error instanceof LicenseActivationError) {
+        console.error(`[License] Activation failed - HTTP ${error.status ?? 'n/a'}, code: ${error.code}`);
+        const msg: Record<string, string> = {
+          INVALID_KEY:               'Invalid license key. Check your purchase email.',
+          REVOKED:                   'This license has been revoked. Contact support.',
+          DEVICE_MISMATCH:           'Key is already activated on another machine. Contact support.',
+          USER_NOT_FOUND:            'Account not found for this license. Contact support.',
+          SESSION_GENERATION_FAILED: 'Server error creating session. Contact support.',
+          AGENT_NOT_CONFIGURED:      'Agent not configured. Set SUPABASE_URL in .env file.',
+          NETWORK_ERROR:             'Check your internet connection and try again.',
+        };
+        return { success: false, error: msg[error.code] ?? `Activation failed (${error.code}). Contact support.` };
+      }
       return { success: false, error: 'Check your internet connection and try again.' };
     }
   }
@@ -131,7 +103,7 @@ export class ActivationDialogService {
       const err = document.getElementById('err');
       const ok  = document.getElementById('ok');
       if (!key) { err.textContent = 'Please enter your license key.'; return; }
-      btn.disabled = true; btn.textContent = 'Activating…';
+      btn.disabled = true; btn.textContent = 'Activating...';
       err.textContent = ''; ok.textContent = '';
       const result = await ipcRenderer.invoke('cs:activate', key);
       if (result.success) {

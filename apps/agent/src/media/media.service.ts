@@ -47,11 +47,23 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   private loadConfig(): void {
     if (fs.existsSync(this.configPath)) {
       try {
-        this.config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8')) as MediaConfig;
+        this.config = this.normalizeConfig(JSON.parse(fs.readFileSync(this.configPath, 'utf-8')));
       } catch {
         this.config = { pinnedMediaApps: [] };
       }
     }
+  }
+
+  private normalizeConfig(value: unknown): MediaConfig {
+    const maybe = value as Partial<MediaConfig> | null;
+    const pinnedMediaApps = Array.isArray(maybe?.pinnedMediaApps)
+      ? maybe.pinnedMediaApps.filter(
+        (app): app is { processName: string; label: string } =>
+          typeof app?.processName === 'string' && typeof app?.label === 'string',
+      )
+      : [];
+
+    return { pinnedMediaApps };
   }
 
   private persistConfig(): void {
@@ -120,17 +132,18 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   }
 
   buildMediaState(sessions: AudioSession[]): MediaSession[] {
+    const pinnedMediaApps = this.config.pinnedMediaApps ?? [];
     const liveKeys = new Set(sessions.map(s => s.name.toLowerCase()));
     const result: MediaSession[] = sessions.map(s => ({
       processName: s.name,
       label: s.name.replace(/\.exe$/i, ''),
       volume: s.volume,
       muted: s.muted,
-      pinned: this.config.pinnedMediaApps.some(
+      pinned: pinnedMediaApps.some(
         p => p.processName.toLowerCase() === s.name.toLowerCase(),
       ),
     }));
-    for (const p of this.config.pinnedMediaApps) {
+    for (const p of pinnedMediaApps) {
       if (!liveKeys.has(p.processName.toLowerCase())) {
         result.push({ processName: p.processName, label: p.label, volume: 0, muted: false, pinned: true });
       }

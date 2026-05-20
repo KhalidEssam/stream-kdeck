@@ -12,14 +12,16 @@ const mockAddVolumeListener = jest.fn();
 const mockRemoveListener = jest.fn();
 const mockShowNativeVolumeUI = jest.fn();
 const mockSetVolume = jest.fn();
+const mockVolumeManager = {
+  addVolumeListener: mockAddVolumeListener,
+  showNativeVolumeUI: mockShowNativeVolumeUI,
+  setVolume: mockSetVolume,
+};
 
 jest.mock('react-native-volume-manager', () => ({
   __esModule: true,
-  default: {
-    addVolumeListener: mockAddVolumeListener.mockReturnValue({ remove: mockRemoveListener }),
-    showNativeVolumeUI: mockShowNativeVolumeUI,
-    setVolume: mockSetVolume,
-  },
+  VolumeManager: mockVolumeManager,
+  default: mockVolumeManager,
 }));
 
 // Capture the effect callback so we can invoke it directly in each test.
