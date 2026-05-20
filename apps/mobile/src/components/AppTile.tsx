@@ -63,6 +63,7 @@ const TILE_BG: Record<string, string> = {
   url:      '#0D2B45',
   shortcut: '#0F2A1A',
   custom:   '#0A2010',
+  workflow: '#1E1A3A',
 };
 
 interface Props {
@@ -190,6 +191,12 @@ export function AppTile({
           </View>
         )}
 
+        {tile.kind === 'workflow' && (
+          <View style={styles.workflowBadge}>
+            <Text style={styles.workflowBadgeText}>⛓</Text>
+          </View>
+        )}
+
         {/* Selected checkmark */}
         {isSelected && (
           <View style={styles.selectedOverlay}>
@@ -264,6 +271,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   pinBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  workflowBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  workflowBadgeText: { fontSize: 10 },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(91,79,232,0.35)',
