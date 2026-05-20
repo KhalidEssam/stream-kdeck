@@ -11,10 +11,11 @@ import { LicenseModule } from './license/license.module';
 import { NetworkModule } from './network/network.module';
 import { ContextModule } from './context-profile/context.module';
 import { MouseModule } from './mouse/mouse.module';
+import { MediaModule } from './media/media.module';
 import { PackRegistryService } from './packs/pack-registry.service';
 
 @Module({
-  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule],
+  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule, MediaModule],
   providers: [
     WsGateway,
     ClipboardService,
