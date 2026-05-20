@@ -9,6 +9,7 @@ import {
   Modal,
   Linking,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTile } from '../components/AppTile';
@@ -16,7 +17,7 @@ import { AddTileScreen } from './AddTileScreen';
 import { AuthScreen } from './AuthScreen';
 import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
-import { TileConfig, Pack, PackRegistryMessage } from '../types/schema';
+import { TileConfig, Pack, PackRegistryMessage, MediaSession } from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
@@ -28,16 +29,18 @@ import { OnboardingScreen } from './OnboardingScreen';
 import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
 import { WorkflowStep, WorkflowStepAction } from '../types/schema';
 import { PeekFab, PeekFabHandle } from '../components/PeekFab';
+import { MediaTab } from './MediaTab';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
 
-type DeckTab = 'ai' | 'apps' | 'shortcuts';
+type DeckTab = 'ai' | 'apps' | 'shortcuts' | 'media';
 
 const DECK_TABS: Array<{ key: DeckTab; label: string }> = [
   { key: 'ai', label: 'AI Tools' },
   { key: 'apps', label: 'Apps' },
   { key: 'shortcuts', label: 'Shortcuts' },
+  { key: 'media', label: 'Media' },
 ];
 
 export function DeckScreen() {
@@ -65,6 +68,8 @@ export function DeckScreen() {
   const [packRegistry, setPackRegistry] = useState<Pack[] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [convertingTile, setConvertingTile] = useState<TileConfig | null>(null);
+  const [mediaSessions, setMediaSessions] = useState<MediaSession[]>([]);
+  const [mediaPlatform, setMediaPlatform] = useState<'win32' | 'darwin' | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -136,12 +141,17 @@ export function DeckScreen() {
         if (!val && msg.packs.length > 0) setShowOnboarding(true);
       });
     });
+    const unsubscribeMedia = ws.onMediaState((msg) => {
+      setMediaSessions(msg.sessions);
+      setMediaPlatform(msg.platform);
+    });
 
     return () => {
       unsubscribeLicense();
       unsubscribeQuota();
       unsubscribeContext();
       unsubscribePackRegistry();
+      unsubscribeMedia();
       setContextMsg(null);
       ws.disconnect();
       wsRef.current = null;
@@ -168,7 +178,11 @@ export function DeckScreen() {
   };
 
   const handleAddTile = (tile: Omit<TileConfig, 'id'>) => {
-    wsRef.current?.addTile(tile);
+    if (!wsRef.current?.isConnected()) {
+      Alert.alert('Not Connected', 'Connect to the desktop agent before adding tiles.');
+      return;
+    }
+    wsRef.current.addTile(tile);
     // DECK_CONFIG response from agent will update tiles via onDeckConfig callback
   };
 
@@ -230,30 +244,29 @@ export function DeckScreen() {
   const statusColor =
     status === 'connected' ? '#44FF88' : status === 'connecting' ? '#FFB800' : '#FF4444';
   const statusLabel = { connecting: 'Connecting…', connected: 'Connected', disconnected: 'Disconnected' }[status];
+  const globalShortcutTiles = useMemo(
+    () => (tiles ?? []).filter(t => t.kind === 'shortcut'),
+    [tiles],
+  );
+
   const tabCounts = useMemo(() => {
-    const counts: Record<DeckTab, number> = { ai: 0, apps: 0, shortcuts: 0 };
+    const counts: Record<DeckTab, number> = { ai: 0, apps: 0, shortcuts: 0, media: 0 };
     for (const tile of tiles ?? []) {
       if (tile.kind === 'ai') counts.ai += 1;
       else if (tile.kind === 'shortcut') counts.shortcuts += 1;
       else counts.apps += 1;
     }
+    counts.media = mediaSessions.length;
     return counts;
-  }, [tiles]);
+  }, [tiles, mediaSessions]);
   const visibleTiles = useMemo(() => {
     return (tiles ?? [])
-      .filter((tile) => {
-        if (activeTab === 'ai') return tile.kind === 'ai';
-        if (activeTab === 'shortcuts') return tile.kind === 'shortcut';
-        return tile.kind !== 'ai' && tile.kind !== 'shortcut';
-      })
+      .filter((tile) => activeTab === 'ai' ? tile.kind === 'ai' : tile.kind !== 'ai' && tile.kind !== 'shortcut')
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }, [activeTab, tiles]);
-  const emptyCopy =
-    activeTab === 'ai'
-      ? { title: 'No AI tools yet.', hint: 'Reconnect to load the built-in tools.' }
-      : activeTab === 'apps'
-        ? { title: 'No apps yet.', hint: 'Tap + to add apps, games, or URLs.' }
-        : { title: 'No shortcuts yet.', hint: 'Tap + to add keyboard shortcuts.' };
+  const emptyCopy = activeTab === 'ai'
+    ? { title: 'No AI tools yet.', hint: 'Reconnect to load the built-in tools.' }
+    : { title: 'No apps yet.', hint: 'Tap + to add apps, shortcuts, or workflows.' };
 
   if (authenticated === null) {
     return (
@@ -383,7 +396,13 @@ export function DeckScreen() {
         </View>
       )}
 
-      {tiles === null ? (
+      {activeTab === 'media' ? (
+        <MediaTab
+          sessions={mediaSessions}
+          platform={mediaPlatform}
+          ws={wsService}
+        />
+      ) : tiles === null ? (
         // Skeleton — waiting for DECK_CONFIG
         <View style={styles.skeletonGrid}>
           {Array.from({ length: 6 }).map((_, i) => (
@@ -567,8 +586,11 @@ export function DeckScreen() {
 
       <ContextStrip
         msg={contextMsg}
+        globalTiles={globalShortcutTiles}
         onTapShortcut={handleContextShortcutTap}
+        onTapGlobalTile={handleTap}
         onAddShortcut={handleAddContextShortcut}
+        onAddGlobal={() => setShowAddTile(true)}
       />
 
       <Modal visible={showOnboarding} animationType="slide">
@@ -595,6 +617,10 @@ export function DeckScreen() {
                 label: convertingTile.label,
               }]}
               onSave={(tile) => {
+                if (!wsRef.current?.isConnected()) {
+                  Alert.alert('Not Connected', 'Connect to the desktop agent before saving.');
+                  return;
+                }
                 handleRemoveTile(convertingTile.id);
                 handleAddTile(tile);
                 setConvertingTile(null);
