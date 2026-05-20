@@ -82,10 +82,19 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   async getSessions(): Promise<AudioSession[]> {
     if (platform() === 'win32') {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const audioMixer = require('node-audio-volume-mixer') as {
-        getAudioSessions: () => AudioSession[];
+      const { NodeAudioVolumeMixer: mixer } = require('node-audio-volume-mixer') as {
+        NodeAudioVolumeMixer: {
+          getAudioSessionProcesses: () => Array<{ pid: number; name: string }>;
+          getAudioSessionVolumeLevelScalar: (pid: number) => number;
+          isAudioSessionMuted: (pid: number) => boolean;
+        };
       };
-      return audioMixer.getAudioSessions();
+      return mixer.getAudioSessionProcesses().map(p => ({
+        pid: p.pid,
+        name: p.name,
+        volume: mixer.getAudioSessionVolumeLevelScalar(p.pid),
+        muted: mixer.isAudioSessionMuted(p.pid),
+      }));
     }
     const vol = this.getMacSystemVolume();
     return [{ pid: 0, name: 'system', volume: vol, muted: false }];
@@ -136,10 +145,10 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     if (platform() === 'win32') {
       if (!session) return;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const audioMixer = require('node-audio-volume-mixer') as {
-        setAudioSessionVolume: (pid: number, vol: number) => void;
+      const { NodeAudioVolumeMixer: mixer } = require('node-audio-volume-mixer') as {
+        NodeAudioVolumeMixer: { setAudioSessionVolumeLevelScalar: (pid: number, vol: number) => void };
       };
-      audioMixer.setAudioSessionVolume(session.pid, newVol);
+      mixer.setAudioSessionVolumeLevelScalar(session.pid, newVol);
     } else {
       if (!session && processName !== 'system') return;
       try { execSync(`osascript -e 'set volume output volume ${Math.round(newVol * 100)}'`); } catch {}
@@ -151,10 +160,10 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     if (platform() === 'win32') {
       if (!session) return;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const audioMixer = require('node-audio-volume-mixer') as {
-        setAudioSessionMuted: (pid: number, muted: boolean) => void;
+      const { NodeAudioVolumeMixer: mixer } = require('node-audio-volume-mixer') as {
+        NodeAudioVolumeMixer: { setAudioSessionMute: (pid: number, muted: boolean) => void };
       };
-      audioMixer.setAudioSessionMuted(session.pid, muted);
+      mixer.setAudioSessionMute(session.pid, muted);
     } else {
       try { execSync(`osascript -e 'set volume ${muted ? 'with' : 'without'} output muted'`); } catch {}
     }

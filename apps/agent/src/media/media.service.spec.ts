@@ -1,12 +1,22 @@
 import { MediaService } from './media.service';
 
+const mockGetAudioSessionProcesses = jest.fn(() => [
+  { pid: 1, name: 'Spotify.exe' },
+  { pid: 2, name: 'Discord.exe' },
+]);
+const mockGetVolume = jest.fn((pid: number) => pid === 1 ? 0.7 : 0.5);
+const mockIsMuted = jest.fn(() => false);
+const mockSetVolume = jest.fn();
+const mockSetMute = jest.fn();
+
 jest.mock('node-audio-volume-mixer', () => ({
-  getAudioSessions: jest.fn(() => [
-    { pid: 1, name: 'Spotify.exe', volume: 0.7, muted: false },
-    { pid: 2, name: 'Discord.exe', volume: 0.5, muted: false },
-  ]),
-  setAudioSessionVolume: jest.fn(),
-  setAudioSessionMuted: jest.fn(),
+  NodeAudioVolumeMixer: {
+    getAudioSessionProcesses: mockGetAudioSessionProcesses,
+    getAudioSessionVolumeLevelScalar: mockGetVolume,
+    isAudioSessionMuted: mockIsMuted,
+    setAudioSessionVolumeLevelScalar: mockSetVolume,
+    setAudioSessionMute: mockSetMute,
+  },
 }), { virtual: true });
 
 describe('MediaService', () => {
@@ -33,18 +43,17 @@ describe('MediaService', () => {
   });
 
   it('adjustVolume clamps to 0-1', () => {
-    jest.spyOn(service as any, 'getSessions');
     (service as any).prevSnapshot = [{ pid: 1, name: 'Spotify.exe', volume: 0.95, muted: false }];
-    const audioMixer = require('node-audio-volume-mixer');
+    mockSetVolume.mockClear();
     service.adjustVolume('Spotify.exe', 0.5);
-    expect(audioMixer.setAudioSessionVolume).toHaveBeenCalledWith(1, 1.0);
+    expect(mockSetVolume).toHaveBeenCalledWith(1, 1.0);
   });
 
   it('adjustVolume clamps to minimum 0', () => {
     (service as any).prevSnapshot = [{ pid: 1, name: 'Spotify.exe', volume: 0.02, muted: false }];
-    const audioMixer = require('node-audio-volume-mixer');
+    mockSetVolume.mockClear();
     service.adjustVolume('Spotify.exe', -0.5);
-    expect(audioMixer.setAudioSessionVolume).toHaveBeenCalledWith(1, 0);
+    expect(mockSetVolume).toHaveBeenCalledWith(1, 0);
   });
 
   it('pinned apps not currently playing appear in state at volume 0', () => {
@@ -71,10 +80,9 @@ describe('MediaService', () => {
 
   it('adjustVolume does nothing when session not found on Windows', () => {
     (service as any).prevSnapshot = [];
-    const audioMixer = require('node-audio-volume-mixer');
-    audioMixer.setAudioSessionVolume.mockClear();
+    mockSetVolume.mockClear();
     service.adjustVolume('Unknown.exe', 0.1);
-    expect(audioMixer.setAudioSessionVolume).not.toHaveBeenCalled();
+    expect(mockSetVolume).not.toHaveBeenCalled();
   });
 
   it('getMacSystemVolume returns 0 for NaN output', () => {
