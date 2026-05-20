@@ -26,6 +26,11 @@ import {
   MouseClickMessage,
   MouseScrollMessage,
   PackRegistryMessage,
+  MediaStateMessage,
+  MediaVolumeDeltaMessage,
+  MediaSetMuteMessage,
+  MediaBringToFrontMessage,
+  MediaPinAppMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -39,6 +44,7 @@ type AiQuotaExceededCallback = (msg: AiQuotaExceededMessage) => void;
 type ContextShortcutsCallback = (msg: ContextShortcutsMessage) => void;
 type ContextProfilesCallback  = (msg: ContextProfilesMessage) => void;
 type PackRegistryCallback = (msg: PackRegistryMessage) => void;
+type MediaStateCallback = (msg: MediaStateMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -52,6 +58,7 @@ export class WebSocketService {
   private contextShortcutsCallbacks: ContextShortcutsCallback[] = [];
   private contextProfilesCallbacks:  ContextProfilesCallback[]  = [];
   private packRegistryCallbacks: PackRegistryCallback[] = [];
+  private mediaStateCallbacks: MediaStateCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -86,6 +93,8 @@ export class WebSocketService {
         this.contextProfilesCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'PACK_REGISTRY') {
         this.packRegistryCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'MEDIA_STATE') {
+        this.mediaStateCallbacks.forEach((cb) => cb(msg as MediaStateMessage));
       }
     };
 
@@ -98,6 +107,10 @@ export class WebSocketService {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: ButtonTapMessage = { type: 'BUTTON_TAP', buttonId, action };
     this.ws.send(JSON.stringify(msg));
+  }
+
+  isConnected(): boolean {
+    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
   }
 
   addTile(tile: Omit<TileConfig, 'id'>): void {
@@ -189,6 +202,30 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  sendMediaVolumeDelta(processName: string, delta: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MediaVolumeDeltaMessage = { type: 'MEDIA_VOLUME_DELTA', processName, delta };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  sendMediaSetMute(processName: string, muted: boolean): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MediaSetMuteMessage = { type: 'MEDIA_SET_MUTE', processName, muted };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  sendMediaBringToFront(processName: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MediaBringToFrontMessage = { type: 'MEDIA_BRING_TO_FRONT', processName };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  sendMediaPinApp(processName: string, label: string, pinned: boolean): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MediaPinAppMessage = { type: 'MEDIA_PIN_APP', processName, label, pinned };
+    this.ws.send(JSON.stringify(msg));
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -247,6 +284,13 @@ export class WebSocketService {
     this.packRegistryCallbacks.push(cb);
     return () => {
       this.packRegistryCallbacks = this.packRegistryCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onMediaState(cb: MediaStateCallback): () => void {
+    this.mediaStateCallbacks.push(cb);
+    return () => {
+      this.mediaStateCallbacks = this.mediaStateCallbacks.filter((c) => c !== cb);
     };
   }
 
