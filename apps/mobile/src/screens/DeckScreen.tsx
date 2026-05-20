@@ -25,10 +25,8 @@ import { TrackpadScreen } from './TrackpadScreen';
 import { discoverAgent } from '../services/discovery.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingScreen } from './OnboardingScreen';
+import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
 import { WorkflowStep, WorkflowStepAction } from '../types/schema';
-const WorkflowBuilderScreen = React.lazy(() =>
-  import('./WorkflowBuilderScreen').then(m => ({ default: m.WorkflowBuilderScreen }))
-);
 import { PeekFab, PeekFabHandle } from '../components/PeekFab';
 
 const UPGRADE_URL =
@@ -587,7 +585,6 @@ export function DeckScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setConvertingTile(null)}
       >
-        <React.Suspense fallback={<View style={{ flex: 1, backgroundColor: '#0F0F14' }} />}>
           {convertingTile && (
             <WorkflowBuilderScreen
               initialLabel={convertingTile.label}
@@ -605,7 +602,6 @@ export function DeckScreen() {
               onDismiss={() => setConvertingTile(null)}
             />
           )}
-        </React.Suspense>
       </Modal>
     </SafeAreaView>
   );

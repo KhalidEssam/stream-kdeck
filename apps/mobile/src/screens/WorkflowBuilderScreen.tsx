@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  FlatList,
   StyleSheet,
   SafeAreaView,
   Modal,
@@ -11,10 +12,6 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
-} from 'react-native-draggable-flatlist';
 import { TileConfig, WorkflowStep, WorkflowStepAction } from '../types/schema';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,27 +90,38 @@ export function WorkflowBuilderScreen({
     setDelayEditId(null);
   };
 
-  const renderStep = useCallback(({ item, drag, isActive }: RenderItemParams<WorkflowStep>) => (
-    <ScaleDecorator>
-      <View style={[styles.stepRow, isActive && styles.stepRowActive]}>
-        <TouchableOpacity onLongPress={drag} style={styles.dragHandle}>
-          <Text style={styles.dragIcon}>≡</Text>
+  const moveStep = useCallback((id: string, dir: 'up' | 'down') => {
+    setSteps(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      const swap = dir === 'up' ? idx - 1 : idx + 1;
+      if (swap < 0 || swap >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  }, []);
+
+  const renderStep = useCallback(({ item, index }: { item: WorkflowStep; index: number }) => (
+    <View style={styles.stepRow}>
+      <View style={styles.reorderBtns}>
+        <TouchableOpacity onPress={() => moveStep(item.id, 'up')} disabled={index === 0} style={styles.reorderBtn}>
+          <Text style={[styles.reorderIcon, index === 0 && styles.reorderIconDisabled]}>▲</Text>
         </TouchableOpacity>
-        <Text style={styles.stepLabel} numberOfLines={1}>{item.label}</Text>
-        <TouchableOpacity
-          style={styles.delayBadge}
-          onPress={() => setDelayEditId(item.id)}
-        >
-          <Text style={styles.delayText}>
-            {item.delayBefore > 0 ? `${item.delayBefore / 1000}s` : '0s'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleDeleteStep(item.id)} style={styles.deleteBtn}>
-          <Text style={styles.deleteIcon}>✕</Text>
+        <TouchableOpacity onPress={() => moveStep(item.id, 'down')} disabled={index === steps.length - 1} style={styles.reorderBtn}>
+          <Text style={[styles.reorderIcon, index === steps.length - 1 && styles.reorderIconDisabled]}>▼</Text>
         </TouchableOpacity>
       </View>
-    </ScaleDecorator>
-  ), []);
+      <Text style={styles.stepLabel} numberOfLines={1}>{item.label}</Text>
+      <TouchableOpacity style={styles.delayBadge} onPress={() => setDelayEditId(item.id)}>
+        <Text style={styles.delayText}>
+          {item.delayBefore > 0 ? `${item.delayBefore / 1000}s` : '0s'}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => handleDeleteStep(item.id)} style={styles.deleteBtn}>
+        <Text style={styles.deleteIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  ), [steps.length, moveStep]);
 
   const delayStep = steps.find(s => s.id === delayEditId);
 
@@ -155,14 +163,13 @@ export function WorkflowBuilderScreen({
         </View>
 
         {/* Step list */}
-        <DraggableFlatList
+        <FlatList
           data={steps}
           keyExtractor={item => item.id}
-          onDragEnd={({ data }) => setSteps(data)}
           renderItem={renderStep}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
-            <Text style={styles.emptyHint}>No steps yet. Tap &quot;+ Add Step&quot; below.</Text>
+            <Text style={styles.emptyHint}>No steps yet. Tap "+ Add Step" below.</Text>
           }
         />
 
@@ -472,9 +479,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
     gap: 8,
   },
-  stepRowActive: { opacity: 0.8, borderColor: '#5B4FE8' },
-  dragHandle: { paddingHorizontal: 12, paddingVertical: 4 },
-  dragIcon: { color: '#6B6B8A', fontSize: 18 },
+  reorderBtns: { flexDirection: 'column', alignItems: 'center', paddingHorizontal: 8 },
+  reorderBtn: { paddingVertical: 3 },
+  reorderIcon: { color: '#AAAACC', fontSize: 11, fontWeight: '700' },
+  reorderIconDisabled: { color: '#3A3A5C' },
   stepLabel: { flex: 1, color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   delayBadge: {
     backgroundColor: '#2A2A3A',
