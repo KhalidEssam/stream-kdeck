@@ -366,7 +366,7 @@ export function DeckScreen() {
       if (tile.kind === 'ai') counts.ai += 1;
       else if (tile.kind !== 'shortcut') counts.apps += 1;
     }
-    counts.media = mediaSessions.length;
+    counts.media = mediaSessions.filter(s => s.volume > 0).length;
     return counts;
   }, [tiles, mediaSessions]);
   const visibleTiles = useMemo(() => {
