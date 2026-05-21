@@ -109,13 +109,14 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
         volume: mixer.getAudioSessionVolumeLevelScalar(p.pid),
         muted: mixer.isAudioSessionMuted(p.pid),
       }));
-      const result: AudioSession[] = [];
-      for (const s of raw) {
-        if (!await this.iconService.shouldInclude(s.pid, s.name)) continue;
-        const iconBase64 = await this.iconService.getIconBase64(s.pid, s.name);
-        result.push({ ...s, iconBase64 });
-      }
-      return result;
+      const settled = await Promise.all(
+        raw.map(async s => {
+          if (!await this.iconService.shouldInclude(s.pid, s.name)) return null;
+          const iconBase64 = await this.iconService.getIconBase64(s.pid, s.name);
+          return { ...s, iconBase64 } as AudioSession;
+        }),
+      );
+      return settled.filter((s): s is AudioSession => s !== null);
     }
     const vol = this.getMacSystemVolume();
     return [{ pid: 0, name: 'system', volume: vol, muted: false }];
@@ -135,7 +136,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     if (next.length !== this.prevSnapshot.length) return true;
     for (let i = 0; i < next.length; i++) {
       const a = next[i], b = this.prevSnapshot[i];
-      if (!b || a.pid !== b.pid || Math.abs(a.volume - b.volume) > 0.001 || a.muted !== b.muted) return true;
+      if (!b || a.pid !== b.pid || Math.abs(a.volume - b.volume) > 0.001 || a.muted !== b.muted || a.iconBase64 !== b.iconBase64) return true;
     }
     return false;
   }
