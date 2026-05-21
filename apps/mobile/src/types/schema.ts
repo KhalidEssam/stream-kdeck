@@ -282,6 +282,12 @@ export interface MediaPinAppMessage {
   pinned: boolean;
 }
 
+export interface MediaSetVolumeMessage {
+  type: 'MEDIA_SET_VOLUME';
+  processName: string;
+  volume: number; // 0–1
+}
+
 export type MobileMessage =
   | ButtonTapMessage
   | AddTileMessage
@@ -301,4 +307,5 @@ export type MobileMessage =
   | MediaVolumeDeltaMessage
   | MediaSetMuteMessage
   | MediaBringToFrontMessage
-  | MediaPinAppMessage;
+  | MediaPinAppMessage
+  | MediaSetVolumeMessage;
