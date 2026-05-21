@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -6,11 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 import { MediaSession } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { MediaHeroCard } from '../components/MediaHeroCard';
@@ -23,28 +19,28 @@ interface Props {
   ws: WebSocketService | null;
 }
 
-const PAGE_SIZE = 4;
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const pages: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) pages.push(arr.slice(i, i + size));
-  return pages;
+function isVisible(s: MediaSession): boolean {
+  if (s.pinned) return true;
+  return s.volume > 0;
 }
 
 export function MediaTab({ sessions, platform, ws }: Props) {
   const [activeProcessName, setActiveProcessName] = useState<string | null>(null);
   const [localSessions, setLocalSessions] = useState<MediaSession[]>(sessions);
-  const [currentPage, setCurrentPage] = useState(0);
   const [actionSession, setActionSession] = useState<MediaSession | null>(null);
+  const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     setLocalSessions(sessions);
-    setActiveProcessName(prev =>
-      sessions.some(s => s.processName === prev) ? prev : null,
-    );
+    setActiveProcessName(prev => {
+      if (prev && sessions.some(s => s.processName === prev)) return prev;
+      return sessions.find(s => s.volume > 0)?.processName ?? null;
+    });
   }, [sessions]);
 
+  const visibleSessions = localSessions.filter(isVisible);
   const activeSession = localSessions.find(s => s.processName === activeProcessName) ?? null;
+  const activeCount = visibleSessions.filter(s => s.volume > 0).length;
 
   const handleDelta = useCallback((delta: number) => {
     if (!activeProcessName || !ws) return;
@@ -60,17 +56,33 @@ export function MediaTab({ sessions, platform, ws }: Props) {
 
   useVolumeButtons({ enabled: !!activeProcessName, onDelta: handleDelta });
 
+  const handleVolumeChange = useCallback((volume: number) => {
+    if (!activeProcessName || !ws) return;
+    setLocalSessions(prev =>
+      prev.map(s => s.processName === activeProcessName ? { ...s, volume } : s),
+    );
+    if (volumeDebounceRef.current) clearTimeout(volumeDebounceRef.current);
+    volumeDebounceRef.current = setTimeout(() => {
+      ws.sendSetVolume(activeProcessName, volume);
+    }, 50);
+  }, [activeProcessName, ws]);
+
+  const handleMuteToggle = useCallback(() => {
+    if (!activeProcessName || !ws) return;
+    const session = localSessions.find(s => s.processName === activeProcessName);
+    if (!session) return;
+    const newMuted = !session.muted;
+    ws.sendMediaSetMute(activeProcessName, newMuted);
+    setLocalSessions(prev =>
+      prev.map(s => s.processName === activeProcessName ? { ...s, muted: newMuted } : s),
+    );
+  }, [activeProcessName, ws, localSessions]);
+
   const handleTap = useCallback((session: MediaSession) => {
-    if (session.processName === activeProcessName) {
-      const newMuted = !session.muted;
-      ws?.sendMediaSetMute(session.processName, newMuted);
-      setLocalSessions(prev =>
-        prev.map(s => s.processName === session.processName ? { ...s, muted: newMuted } : s),
-      );
-    } else {
+    if (session.processName !== activeProcessName) {
       setActiveProcessName(session.processName);
     }
-  }, [activeProcessName, ws]);
+  }, [activeProcessName]);
 
   const handleLongPress = useCallback((session: MediaSession) => {
     setActionSession(session);
@@ -88,67 +100,46 @@ export function MediaTab({ sessions, platform, ws }: Props) {
     setActionSession(null);
   };
 
-  const allItems: (MediaSession | 'add')[] =
-    localSessions.length === 0 || localSessions.length % PAGE_SIZE !== 0
-      ? [...localSessions, 'add']
-      : localSessions;
-  const pages = chunk(allItems, PAGE_SIZE);
-
-  const renderPage = ({ item: page }: { item: (MediaSession | 'add')[] }) => (
-    <View style={styles.page}>
-      {page.map((item) =>
-        item === 'add' ? (
-          <TouchableOpacity key="add" style={styles.addCard} activeOpacity={0.75}>
-            <Text style={styles.addIcon}>＋</Text>
-            <Text style={styles.addLabel}>Pin App</Text>
-          </TouchableOpacity>
-        ) : (
-          <MediaAppCard
-            key={item.processName}
-            session={item}
-            isActive={item.processName === activeProcessName}
-            onTap={handleTap}
-            onLongPress={handleLongPress}
-          />
-        ),
-      )}
-    </View>
-  );
+  const hasAnySessions = visibleSessions.length > 0;
 
   return (
     <View style={styles.container}>
-      <MediaHeroCard session={activeSession} platform={platform} />
+      <MediaHeroCard
+        session={activeSession}
+        platform={platform}
+        onVolumeChange={handleVolumeChange}
+        onMuteToggle={handleMuteToggle}
+      />
 
-      {localSessions.length === 0 && (
+      {!hasAnySessions ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No audio sources found</Text>
-          <Text style={styles.emptyHint}>Play audio on your desktop to see apps here.</Text>
+          <Text style={styles.emptyIcon}>🎵</Text>
+          <Text style={styles.emptyText}>Nothing playing right now</Text>
+          <Text style={styles.emptyHint}>Start playing audio in any app and it'll appear here</Text>
         </View>
-      )}
-
-      {localSessions.length > 0 && (
+      ) : (
         <>
+          <Text style={styles.sectionLabel}>
+            ALL SOURCES · {activeCount} ACTIVE
+          </Text>
           <FlatList
-            data={pages}
-            keyExtractor={(_, i) => String(i)}
-            renderItem={renderPage}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => {
-              const pageWidth = e.nativeEvent.layoutMeasurement.width;
-              const offset = e.nativeEvent.contentOffset.x;
-              setCurrentPage(Math.round(offset / pageWidth));
-            }}
-            contentContainerStyle={styles.listContent}
+            data={visibleSessions}
+            numColumns={3}
+            keyExtractor={(item) => item.processName}
+            renderItem={({ item }) => (
+              <View style={styles.gridCell}>
+                <MediaAppCard
+                  session={item}
+                  isActive={item.processName === activeProcessName}
+                  onTap={handleTap}
+                  onLongPress={handleLongPress}
+                />
+              </View>
+            )}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.gridContent}
+            showsVerticalScrollIndicator={false}
           />
-          {pages.length > 1 && (
-            <View style={styles.dots}>
-              {pages.map((_, i) => (
-                <View key={i} style={[styles.dot, i === currentPage && styles.dotActive]} />
-              ))}
-            </View>
-          )}
         </>
       )}
 
@@ -181,31 +172,30 @@ export function MediaTab({ sessions, platform, ws }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  page: {
-    flexDirection: 'row',
-    gap: 8,
+  sectionLabel: {
+    color: '#44446a',
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    marginHorizontal: 14,
+    marginBottom: 8,
+  },
+  gridContent: {
     paddingHorizontal: 12,
-    alignItems: 'center',
-    width: SCREEN_WIDTH,
+    paddingBottom: 16,
+    gap: 7,
   },
-  listContent: { paddingVertical: 4 },
-  addCard: {
-    backgroundColor: '#1A1A2E',
-    borderRadius: 10,
-    padding: 8,
+  row: { gap: 7 },
+  gridCell: { flex: 1 },
+  emptyState: {
+    flex: 1,
     alignItems: 'center',
-    width: 76,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderStyle: 'dashed',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 24,
   },
-  addIcon: { color: '#444', fontSize: 18, marginBottom: 4 },
-  addLabel: { color: '#444', fontSize: 8 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 },
-  dot: { width: 5, height: 4, borderRadius: 2, backgroundColor: '#333' },
-  dotActive: { width: 14, backgroundColor: '#5B4FE8' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  emptyText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  emptyIcon: { fontSize: 36 },
+  emptyText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
   emptyHint: { color: '#6B6B8A', fontSize: 13, textAlign: 'center' },
   sheetBackdrop: {
     flex: 1,
