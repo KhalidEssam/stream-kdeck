@@ -32,6 +32,7 @@ import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
 import { WorkflowStep, WorkflowStepAction } from '../types/schema';
 import { PeekFab, PeekFabHandle } from '../components/PeekFab';
 import { MediaTab } from './MediaTab';
+import { SettingsSheet } from '../components/SettingsSheet';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -78,6 +79,8 @@ export function DeckScreen() {
   const [connectionError, setConnectionError] = useState<ConnectionErrorInfo | null>(null);
   const [discoveryAttempt, setDiscoveryAttempt] = useState(0);
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
+  const [aiPro, setAiPro] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showContextSettings, setShowContextSettings] = useState(false);
   const [showTrackpad, setShowTrackpad] = useState(false);
   const [packRegistry, setPackRegistry] = useState<Pack[] | null>(null);
@@ -192,6 +195,7 @@ export function DeckScreen() {
       setLicensed(msg.licensed);
       setCreditsRemaining(msg.creditsRemaining);
       setCreditQuota(msg.creditQuota);
+      setAiPro(msg.aiPro);
     });
     const unsubscribeQuota = ws.onAiQuotaExceeded(() => {
       setLoadingId(null);
@@ -494,7 +498,7 @@ export function DeckScreen() {
           </TouchableOpacity>
         )}
         {wsService && (
-          <TouchableOpacity onPress={() => setShowContextSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => setShowSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
             <Text style={{ color: '#6B6B8A', fontSize: 18 }}>⚙</Text>
           </TouchableOpacity>
         )}
@@ -716,6 +720,22 @@ export function DeckScreen() {
           </View>
         </View>
       </Modal>
+
+      <SettingsSheet
+        visible={showSettings}
+        onDismiss={() => setShowSettings(false)}
+        connected={status === 'connected'}
+        licensed={licensed}
+        aiPro={aiPro}
+        creditsRemaining={creditsRemaining}
+        creditQuota={creditQuota}
+        onRevalidateLicense={() => wsService?.revalidateLicense()}
+        onOpenActivationDialog={() => wsService?.openActivationDialog()}
+        onNavigateToShortcuts={() => {
+          setShowSettings(false);
+          setShowContextSettings(true);
+        }}
+      />
 
       <Modal
         visible={showContextSettings}
