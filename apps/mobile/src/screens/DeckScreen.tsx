@@ -306,9 +306,30 @@ export function DeckScreen() {
         <View style={styles.centerFill}>
           <ActivityIndicator size="large" color="#5B4FE8" style={{ marginBottom: 16 }} />
           <Text style={styles.loadingText}>Looking for KDeck agent…</Text>
-          <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8, color: '#6B6B8A' }]}>
+          <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8, color: '#6B6B8A', textAlign: 'center', paddingHorizontal: 32 }]}>
             Make sure your desktop and phone are on the same WiFi network.
           </Text>
+
+          <Text style={styles.manualDivider}>— or connect manually —</Text>
+          <TextInput
+            style={styles.ipInput}
+            value={manualIpInput}
+            onChangeText={setManualIpInput}
+            placeholder="192.168.x.x"
+            placeholderTextColor="#555566"
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleConnectManual}
+          />
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 10, paddingHorizontal: 28 }]}
+            onPress={handleConnectManual}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Connect</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );

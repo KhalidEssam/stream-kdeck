@@ -7,13 +7,10 @@ const SERVICE_DOMAIN = 'local.';
 const DEFAULT_PORT   = 3001;
 // DNSSD (embedded mDNSResponder) is far more reliable than Android's built-in NSD on real devices.
 const IMPL_TYPE      = 'DNSSD';
-const MAX_ATTEMPTS   = 3;
-const ATTEMPT_MS     = 8_000;
+const MAX_ATTEMPTS   = 2;
+const ATTEMPT_MS     = 5_000;
 
 const MANUAL_AGENT_WS_URL = normalizeAgentWsUrl(process.env.EXPO_PUBLIC_AGENT_WS_URL);
-
-const ZEROCONF_UNAVAILABLE_MESSAGE =
-  'mDNS discovery is not available in this app build. Rebuild the Expo dev client with react-native-zeroconf, or set EXPO_PUBLIC_AGENT_WS_URL=ws://<desktop-ip>:3001 while testing.';
 
 interface ResolvedService {
   host?: string;
@@ -64,17 +61,26 @@ export function discoverAgent(
   onFound:   (url: string) => void,
   onTimeout: (msg: string) => void,
 ): () => void {
+  // Native module not linked (Expo Go / dev client without rebuild).
+  // Use the manual env-var URL as a dev escape hatch, or surface a clear error.
   if (!NativeModules.RNZeroconf) {
     const timer = setTimeout(() => {
       if (MANUAL_AGENT_WS_URL) {
         onFound(MANUAL_AGENT_WS_URL);
-        return;
+      } else {
+        onTimeout(
+          'mDNS discovery is not available. Rebuild the app with expo run:android, ' +
+          'or type your desktop IP in the field below.',
+        );
       }
-      onTimeout(ZEROCONF_UNAVAILABLE_MESSAGE);
     }, 0);
     return () => clearTimeout(timer);
   }
 
+  // Native module is present — do real mDNS discovery.
+  // On failure we always call onTimeout so the UI can show the manual IP field.
+  // EXPO_PUBLIC_AGENT_WS_URL is intentionally NOT used as a silent fallback here;
+  // it only applies to the no-native-module path above (Expo Go dev mode).
   let cancelled  = false;
   let attempt    = 0;
   let zc: Zeroconf | null = null;
@@ -89,9 +95,6 @@ export function discoverAgent(
     if (cancelled) return;
     if (attempt < MAX_ATTEMPTS) {
       attemptTimer = setTimeout(startAttempt, 500);
-    } else if (MANUAL_AGENT_WS_URL) {
-      cancelled = true;
-      onFound(MANUAL_AGENT_WS_URL);
     } else {
       cancelled = true;
       onTimeout('No KDeck agent found on this network.');
