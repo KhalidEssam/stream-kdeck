@@ -1,6 +1,6 @@
 {
   "name": "@control-surface/agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "KDeck Agent – tray app bridging KDeck to NestJS backend",
   "author": "KDeck",
