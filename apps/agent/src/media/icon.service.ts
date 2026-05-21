@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { platform } from 'os';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 const BLOCKED_PROCESS_NAMES = [
   'audiodg',
@@ -53,15 +56,16 @@ export class IconService {
   private async resolveExePath(pid: number, processName: string): Promise<string | undefined> {
     if (this.exePathCache.has(processName)) return this.exePathCache.get(processName);
     try {
-      const result = execSync(
-        `powershell -command "(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).Path"`,
+      const { stdout } = await execFileAsync(
+        'powershell',
+        ['-command', `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).Path`],
         { encoding: 'utf-8', timeout: 2000 },
-      ).trim();
+      );
+      const result = stdout.trim();
       const exePath = result.length > 0 ? result : undefined;
-      this.exePathCache.set(processName, exePath);
+      if (exePath) this.exePathCache.set(processName, exePath);
       return exePath;
     } catch {
-      this.exePathCache.set(processName, undefined);
       return undefined;
     }
   }
