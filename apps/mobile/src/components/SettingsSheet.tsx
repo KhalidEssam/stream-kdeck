@@ -39,6 +39,7 @@ export function SettingsSheet({
   const revalidatingRef = useRef(false);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When licensed prop changes while we were revalidating, the LICENSE_STATUS arrived.
   useEffect(() => {
@@ -59,6 +60,7 @@ export function SettingsSheet({
       revalidatingRef.current = false;
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
       if (revalidateTimer.current) clearTimeout(revalidateTimer.current);
+      if (activationTimer.current) clearTimeout(activationTimer.current);
     }
   }, [visible]);
 
@@ -85,7 +87,7 @@ export function SettingsSheet({
     onOpenActivationDialog();
     setActivationSent(true);
     showFeedback('Opening activation dialog on desktop…');
-    setTimeout(() => setActivationSent(false), 3000);
+    activationTimer.current = setTimeout(() => setActivationSent(false), 3000);
   }
 
   const notConnectedLabel = 'Not connected';
