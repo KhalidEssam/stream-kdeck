@@ -98,6 +98,7 @@ export function DeckScreen() {
       setAuthenticated(!!session);
       if (!session) {
         setLicensed(null);
+        setAiPro(false);
         setCreditsRemaining(0);
         setCreditQuota(0);
         setTiles(null);
@@ -224,6 +225,7 @@ export function DeckScreen() {
       unsubscribePackRegistry();
       unsubscribeMedia();
       setContextMsg(null);
+      setAiPro(false);
       ws.disconnect();
       wsRef.current = null;
       setWsService(null);
@@ -235,6 +237,7 @@ export function DeckScreen() {
     setViewerText(null);
     setTiles(null);
     setLicensed(null);
+    setAiPro(false);
     setStatus('connecting');
     setDiscoveryError(null);
     setConnectionError(null);
@@ -250,6 +253,7 @@ export function DeckScreen() {
     setViewerText(null);
     setTiles(null);
     setLicensed(null);
+    setAiPro(false);
     setStatus('connecting');
     setDiscoveryError(null);
     setConnectionError(null);
