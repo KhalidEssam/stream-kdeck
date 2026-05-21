@@ -1,177 +1,235 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
-  Animated,
+  PanResponder,
+  TouchableOpacity,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 import { MediaSession } from '../types/schema';
 
 interface Props {
   session: MediaSession | null;
   platform: 'win32' | 'darwin' | null;
+  onVolumeChange: (volume: number) => void;
+  onMuteToggle: () => void;
 }
 
-const RING_SIZE = 72;
-const RADIUS = 28;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const AVATAR_PALETTE = ['#5B4FE8', '#E85B7F', '#4FC8E8', '#E8A84F', '#7FE85B', '#B84FE8'];
 
-export function MediaHeroCard({ session, platform }: Props) {
-  const animVol = useRef(new Animated.Value(session?.volume ?? 0)).current;
+function avatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
 
-  useEffect(() => {
-    if (session) {
-      Animated.timing(animVol, {
-        toValue: session.volume,
-        duration: 120,
-        useNativeDriver: false,
-      }).start();
-    }
-  }, [session?.volume]);
+function AppIcon({ session, size }: { session: MediaSession; size: number }) {
+  if (session.iconBase64) {
+    return (
+      <Image
+        source={{ uri: `data:image/png;base64,${session.iconBase64}` }}
+        style={{ width: size, height: size, borderRadius: size * 0.22 }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.22,
+        backgroundColor: avatarColor(session.processName),
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: size * 0.45, fontWeight: '700' }}>
+        {session.label.charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+const THUMB_RADIUS = 7;
+
+export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle }: Props) {
+  const [sliderWidth, setSliderWidth] = useState(0);
+  const sliderWidthRef = useRef(0);
+
+  const panResponder = useMemo(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        if (sliderWidthRef.current === 0) return;
+        onVolumeChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidthRef.current)));
+      },
+      onPanResponderMove: (e) => {
+        if (sliderWidthRef.current === 0) return;
+        onVolumeChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidthRef.current)));
+      },
+    }),
+  [onVolumeChange]);
 
   if (!session) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>Tap an app below to control its volume</Text>
+        <Text style={styles.emptyText}>Tap an app to control its volume</Text>
       </View>
     );
   }
 
+  const isMuted = session.muted;
+  const vol = session.volume;
+  const fillPct = `${Math.round(vol * 100)}%`;
+  const thumbLeft = Math.max(0, vol * sliderWidth - THUMB_RADIUS);
+
   return (
-    <View style={styles.card}>
-      <View style={styles.ringContainer}>
-        <Svg width={RING_SIZE} height={RING_SIZE} style={styles.svg}>
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RADIUS}
-            stroke="#2A2040"
-            strokeWidth={5}
-            fill="none"
-          />
-        </Svg>
-        <AnimatedArc volume={session.volume} muted={session.muted} />
-        <View style={styles.iconWrapper}>
-          {session.iconBase64 ? (
-            <Image
-              source={{ uri: `data:image/png;base64,${session.iconBase64}` }}
-              style={styles.icon}
-            />
-          ) : (
-            <Text style={styles.iconFallback}>🔊</Text>
+    <View style={[styles.card, isMuted && styles.cardMuted]}>
+      {/* Top row: icon + name + mute button */}
+      <View style={styles.topRow}>
+        <View style={[styles.iconWrap, isMuted && styles.iconWrapMuted]}>
+          <AppIcon session={session} size={48} />
+        </View>
+        <View style={styles.meta}>
+          <Text style={[styles.name, isMuted && styles.nameMuted]} numberOfLines={1}>
+            {session.label}
+          </Text>
+          <Text style={[styles.status, isMuted && styles.statusMuted]}>
+            {isMuted ? 'muted · tap 🔇 to unmute' : 'tap card below to switch'}
+          </Text>
+          {platform === 'darwin' && session.processName === 'system' && (
+            <Text style={styles.macNote}>Per-app volume: Windows only</Text>
           )}
         </View>
+        <TouchableOpacity
+          style={[styles.muteBtn, isMuted && styles.muteBtnActive]}
+          onPress={onMuteToggle}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.muteIcon}>{isMuted ? '🔇' : '🔊'}</Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.info}>
-        <Text style={styles.name}>{session.label}</Text>
-        <Text style={[styles.volume, session.muted && styles.volumeMuted]}>
-          {session.muted ? '🔇 Muted' : `${Math.round(session.volume * 100)}%`}
+
+      {/* Slider row */}
+      <View style={[styles.sliderRow, isMuted && styles.sliderRowMuted]}>
+        <Text style={styles.sliderEdge}>0</Text>
+        <View
+          style={styles.sliderTrack}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            sliderWidthRef.current = w;
+            setSliderWidth(w);
+          }}
+          {...panResponder.panHandlers}
+        >
+          <View
+            style={[
+              styles.sliderFill,
+              { width: fillPct, backgroundColor: isMuted ? '#882222' : '#5B4FE8' },
+            ]}
+          />
+          {sliderWidth > 0 && (
+            <View style={[styles.sliderThumb, { left: thumbLeft }]} />
+          )}
+        </View>
+        <Text style={styles.sliderEdge}>100</Text>
+        <Text style={[styles.volPct, isMuted && styles.volPctMuted]}>
+          {Math.round(vol * 100)}%
         </Text>
-        {!session.muted && (
-          <Text style={styles.hint}>vol buttons active</Text>
-        )}
-        {platform === 'darwin' && session.processName === 'system' && (
-          <Text style={styles.macNote}>Per-app volume: Windows only</Text>
-        )}
       </View>
     </View>
   );
 }
 
-function AnimatedArc({ volume, muted }: { volume: number; muted: boolean }) {
-  const arc = CIRCUMFERENCE * Math.max(0, Math.min(1, volume));
-  const gap = CIRCUMFERENCE - arc;
-  return (
-    <Svg width={RING_SIZE} height={RING_SIZE} style={StyleSheet.absoluteFill}>
-      <Circle
-        cx={RING_SIZE / 2}
-        cy={RING_SIZE / 2}
-        r={RADIUS}
-        stroke={muted ? '#FF4444' : '#5B4FE8'}
-        strokeWidth={5}
-        fill="none"
-        strokeDasharray={`${arc} ${gap}`}
-        strokeLinecap="round"
-        rotation={-90}
-        origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-      />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E1030',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#5B4FE8',
-    padding: 14,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2e2e50',
+    padding: 16,
     marginHorizontal: 12,
-    marginBottom: 10,
-    gap: 16,
+    marginBottom: 12,
+    gap: 14,
+  },
+  cardMuted: {
+    borderColor: '#441a1a',
+    backgroundColor: '#160d0d',
   },
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
+    paddingVertical: 28,
     marginHorizontal: 12,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  emptyText: {
-    color: '#6B6B8A',
-    fontSize: 13,
+  emptyText: { color: '#6B6B8A', fontSize: 13 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  ringContainer: {
-    width: RING_SIZE,
-    height: RING_SIZE,
+  iconWrap: { flexShrink: 0 },
+  iconWrapMuted: { opacity: 0.5 },
+  meta: { flex: 1, gap: 2 },
+  name: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  nameMuted: { color: '#ff6666' },
+  status: { color: '#555577', fontSize: 10 },
+  statusMuted: { color: '#663333' },
+  macNote: { color: '#6B6B8A', fontSize: 9, marginTop: 2 },
+  muteBtn: {
+    width: 34,
+    height: 34,
+    backgroundColor: '#1e1e38',
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2e2e50',
     flexShrink: 0,
   },
-  svg: {
-    position: 'absolute',
+  muteBtnActive: {
+    backgroundColor: '#1a0d0d',
+    borderColor: '#441a1a',
   },
-  iconWrapper: {
-    position: 'absolute',
+  muteIcon: { fontSize: 15 },
+  sliderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
-  icon: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-  },
-  iconFallback: {
-    fontSize: 24,
-  },
-  info: {
+  sliderRowMuted: { opacity: 0.45 },
+  sliderEdge: { color: '#444', fontSize: 9, minWidth: 8, textAlign: 'center' },
+  sliderTrack: {
     flex: 1,
-    gap: 3,
+    height: 6,
+    backgroundColor: '#1e1e38',
+    borderRadius: 3,
+    overflow: 'visible',
+    position: 'relative',
   },
-  name: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+  sliderFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: '100%',
+    borderRadius: 3,
   },
-  volume: {
-    color: '#9B8FFF',
-    fontSize: 13,
-    fontWeight: '600',
+  sliderThumb: {
+    position: 'absolute',
+    top: -THUMB_RADIUS + 3,
+    width: THUMB_RADIUS * 2,
+    height: THUMB_RADIUS * 2,
+    borderRadius: THUMB_RADIUS,
+    backgroundColor: '#fff',
+    shadowColor: '#5B4FE8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  volumeMuted: {
-    color: '#FF4444',
-  },
-  hint: {
-    color: '#555577',
-    fontSize: 10,
-  },
-  macNote: {
-    color: '#6B6B8A',
-    fontSize: 9,
-    marginTop: 2,
-  },
+  volPct: { color: '#5B4FE8', fontSize: 12, fontWeight: '700', minWidth: 32, textAlign: 'right' },
+  volPctMuted: { color: '#ff4444' },
 });
