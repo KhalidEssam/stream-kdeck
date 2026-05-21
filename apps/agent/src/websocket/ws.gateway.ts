@@ -236,6 +236,12 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'REVALIDATE_LICENSE') {
+        await this.licenseService.refreshSession();
+        this.broadcastLicenseStatus();
+        return;
+      }
+
       if (data.type === 'GET_LICENSE_STATUS') {
         this.sendLicenseStatus(client);
         return;

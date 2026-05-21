@@ -39,10 +39,10 @@ const mockLicenseService = {
   isLicensed:             () => true,
   isAiPro:                () => false,
   creditsRemaining:       () => 50,
-  getClaims:              () => ({ licensed: true, ai_pro: false, credits_remaining: 50 }),
+  getClaims:              () => ({ licensed: true, ai_pro: false, credits_remaining: 50, credit_quota: 100 }),
   hasRefreshToken:        () => true,
   onApplicationBootstrap: async () => {},
-  refreshSession:         async () => {},
+  refreshSession:         jest.fn().mockResolvedValue(undefined),
   decrementCredit:        async () => {},
 };
 
@@ -202,6 +202,34 @@ describe('WsGateway', () => {
           ws.close();
           done();
         }, 50);
+      }
+    });
+  });
+
+  it('calls refreshSession and broadcasts LICENSE_STATUS when REVALIDATE_LICENSE is received', (done) => {
+    const ws = new WebSocket('ws://localhost:3099');
+    const messages: string[] = [];
+    let sentRevalidate = false;
+
+    ws.on('message', (data) => {
+      messages.push(data.toString());
+      if (!sentRevalidate && hasInitialMessages(messages)) {
+        sentRevalidate = true;
+        mockLicenseService.refreshSession.mockClear();
+        const initialLicenseCount = messagesOfType<LicenseStatusMessage>(messages, 'LICENSE_STATUS').length;
+        ws.send(JSON.stringify({ type: 'REVALIDATE_LICENSE' }));
+        setTimeout(() => {
+          try {
+            expect(mockLicenseService.refreshSession).toHaveBeenCalledTimes(1);
+            const allLicenseStatuses = messagesOfType<LicenseStatusMessage>(messages, 'LICENSE_STATUS');
+            expect(allLicenseStatuses.length).toBeGreaterThan(initialLicenseCount);
+            ws.close();
+            done();
+          } catch (error) {
+            ws.close();
+            done(error);
+          }
+        }, 150);
       }
     });
   });
