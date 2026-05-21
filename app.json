@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "395febf4-63f2-4752-9c7c-1fe8ffdbe9ba"
+      }
+    },
+    "android": {
+      "package": "com.khalid.dev.controlsurfaceplatform"
+    }
+  }
+}

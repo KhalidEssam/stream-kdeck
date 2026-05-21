@@ -101,6 +101,10 @@ export class WebSocketService {
     this.ws.onclose = () => {
       this.notifyStatus('disconnected');
     };
+
+    this.ws.onerror = () => {
+      this.notifyStatus('disconnected');
+    };
   }
 
   tap(buttonId: string, action: ButtonAction): void {
