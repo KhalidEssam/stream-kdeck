@@ -4,12 +4,14 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MediaSession } from '@control-surface/shared';
+import { IconService } from './icon.service';
 
 interface AudioSession {
   pid: number;
   name: string;
   volume: number;
   muted: boolean;
+  iconBase64?: string;
 }
 
 interface MediaConfig {
@@ -24,7 +26,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   private readonly configPath: string;
   private broadcastFn: ((sessions: MediaSession[], plt: 'win32' | 'darwin') => void) | null = null;
 
-  constructor() {
+  constructor(private readonly iconService: IconService) {
     this.configPath = path.join(
       process.env.USER_DATA_PATH ?? path.join(__dirname, '../../'),
       'media.config.json',
@@ -101,12 +103,19 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
           isAudioSessionMuted: (pid: number) => boolean;
         };
       };
-      return mixer.getAudioSessionProcesses().map(p => ({
+      const raw = mixer.getAudioSessionProcesses().map(p => ({
         pid: p.pid,
         name: p.name,
         volume: mixer.getAudioSessionVolumeLevelScalar(p.pid),
         muted: mixer.isAudioSessionMuted(p.pid),
       }));
+      const result: AudioSession[] = [];
+      for (const s of raw) {
+        if (!await this.iconService.shouldInclude(s.pid, s.name)) continue;
+        const iconBase64 = await this.iconService.getIconBase64(s.pid, s.name);
+        result.push({ ...s, iconBase64 });
+      }
+      return result;
     }
     const vol = this.getMacSystemVolume();
     return [{ pid: 0, name: 'system', volume: vol, muted: false }];
@@ -137,6 +146,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     const result: MediaSession[] = sessions.map(s => ({
       processName: s.name,
       label: s.name.replace(/\.exe$/i, ''),
+      iconBase64: s.iconBase64,
       volume: s.volume,
       muted: s.muted,
       pinned: pinnedMediaApps.some(

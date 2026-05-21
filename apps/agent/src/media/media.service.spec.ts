@@ -1,5 +1,12 @@
 import type { MediaService as MediaServiceType } from './media.service';
 
+const mockShouldInclude = jest.fn(async (_pid: number, _name: string) => true);
+const mockGetIconBase64 = jest.fn(async (_pid: number, _name: string): Promise<string | undefined> => undefined);
+const mockIconService = {
+  shouldInclude: mockShouldInclude,
+  getIconBase64: mockGetIconBase64,
+};
+
 const mockGetAudioSessionProcesses = jest.fn(() => [
   { pid: 1, name: 'Spotify.exe' },
   { pid: 2, name: 'Discord.exe' },
@@ -26,7 +33,9 @@ describe('MediaService', () => {
   let service: MediaServiceType;
 
   beforeEach(() => {
-    service = new MediaService();
+    service = new MediaService(mockIconService as any);
+    mockShouldInclude.mockImplementation(async () => true);
+    mockGetIconBase64.mockImplementation(async () => undefined);
   });
 
   afterEach(() => {
@@ -115,5 +124,30 @@ describe('MediaService', () => {
     mockSetVolume.mockClear();
     service.setVolume('Unknown.exe', 0.5);
     expect(mockSetVolume).not.toHaveBeenCalled();
+  });
+
+  it('getSessions filters out sessions where shouldInclude returns false', async () => {
+    mockShouldInclude.mockImplementation(async (_pid: number, name: string) =>
+      name !== 'audiodg.exe',
+    );
+    mockGetAudioSessionProcesses.mockReturnValueOnce([
+      { pid: 1, name: 'Spotify.exe' },
+      { pid: 2, name: 'audiodg.exe' },
+    ]);
+    const sessions = await service.getSessions();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].name).toBe('Spotify.exe');
+  });
+
+  it('getSessions attaches iconBase64 from IconService', async () => {
+    mockGetIconBase64.mockImplementation(async () => 'abc123');
+    const sessions = await service.getSessions();
+    expect(sessions[0].iconBase64).toBe('abc123');
+  });
+
+  it('buildMediaState includes iconBase64 in output', () => {
+    const input = [{ pid: 1, name: 'Spotify.exe', volume: 0.7, muted: false, iconBase64: 'abc123' }];
+    const state = (service as any).buildMediaState(input);
+    expect(state[0].iconBase64).toBe('abc123');
   });
 });
