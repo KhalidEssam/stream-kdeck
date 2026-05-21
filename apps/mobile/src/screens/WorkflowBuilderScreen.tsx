@@ -40,6 +40,8 @@ function makeStepLabel(action: WorkflowStepAction): string {
       const t = action.text;
       return t.length > 24 ? `${t.slice(0, 24)}…` : t;
     }
+    case 'INTEGRATION_ACTION':
+      return action.actionId;
   }
 }
 
@@ -80,8 +82,9 @@ export function WorkflowBuilderScreen({
 
   const handleAddStep = (action: WorkflowStepAction) => {
     const actionKey = JSON.stringify(action);
-    if (steps.some(s => JSON.stringify(s.action) === actionKey)) {
-      Alert.alert('Already in workflow', `"${makeStepLabel(action)}" is already a step in this workflow.`);
+    if (action.kind !== 'KEYSTROKE' && steps.some(s => JSON.stringify(s.action) === actionKey)) {
+      Alert.alert('Already in workflow', `"${makeStepLabel(action)} (${actionKey})" is already a step in this workflow.`);
+
       return;
     }
     const step: WorkflowStep = {
@@ -140,109 +143,109 @@ export function WorkflowBuilderScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onDismiss} style={styles.cancelBtn}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={styles.nameInput}
-            value={name}
-            onChangeText={setName}
-            placeholder="Workflow name"
-            placeholderTextColor="#6B6B8A"
-            selectTextOnFocus
-          />
-          <TouchableOpacity
-            onPress={handleSave}
-            style={[styles.saveBtn, steps.length === 0 && styles.saveBtnDisabled]}
-            disabled={steps.length === 0}
-          >
-            <Text style={styles.saveText}>Save</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Stop-on-error toggle */}
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>Stop if a step fails</Text>
-          <Switch
-            value={stopOnError}
-            onValueChange={setStopOnError}
-            trackColor={{ false: '#3A3A5C', true: '#5B4FE8' }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-
-        {/* Step list */}
-        <FlatList
-          data={steps}
-          keyExtractor={item => item.id}
-          renderItem={renderStep}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.emptyHint}>No steps yet. Tap "+ Add Step" below.</Text>
-          }
-        />
-
-        {/* Add step */}
-        <TouchableOpacity style={styles.addStepBtn} onPress={() => setShowPicker(true)}>
-          <Text style={styles.addStepText}>+ Add Step</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onDismiss} style={styles.cancelBtn}>
+          <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-
-        {/* Step picker modal */}
-        <Modal
-          visible={showPicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setShowPicker(false)}
+        <TextInput
+          style={styles.nameInput}
+          value={name}
+          onChangeText={setName}
+          placeholder="Workflow name"
+          placeholderTextColor="#6B6B8A"
+          selectTextOnFocus
+        />
+        <TouchableOpacity
+          onPress={handleSave}
+          style={[styles.saveBtn, steps.length === 0 && styles.saveBtnDisabled]}
+          disabled={steps.length === 0}
         >
-          <StepPickerSheet
-            onSelect={handleAddStep}
-            onDismiss={() => setShowPicker(false)}
-          />
-        </Modal>
+          <Text style={styles.saveText}>Save</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Delay picker modal */}
-        <Modal
-          visible={delayEditId !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setDelayEditId(null)}
-        >
-          <View style={styles.delayBackdrop}>
-            <View style={styles.delaySheet}>
-              <Text style={styles.delayTitle}>
-                Delay before &quot;{delayStep?.label}&quot;
-              </Text>
-              {DELAY_OPTIONS.map(ms => (
-                <TouchableOpacity
-                  key={ms}
-                  style={[
-                    styles.delayOption,
-                    delayStep?.delayBefore === ms && styles.delayOptionActive,
-                  ]}
-                  onPress={() => delayEditId && handleSetDelay(delayEditId, ms)}
-                >
-                  <Text style={[
-                    styles.delayOptionText,
-                    delayStep?.delayBefore === ms && styles.delayOptionTextActive,
-                  ]}>
-                    {ms === 0 ? 'No delay' : `${ms / 1000}s`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+      {/* Stop-on-error toggle */}
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>Stop if a step fails</Text>
+        <Switch
+          value={stopOnError}
+          onValueChange={setStopOnError}
+          trackColor={{ false: '#3A3A5C', true: '#5B4FE8' }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+
+      {/* Step list */}
+      <FlatList
+        data={steps}
+        keyExtractor={item => item.id}
+        renderItem={renderStep}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <Text style={styles.emptyHint}>No steps yet. Tap "+ Add Step" below.</Text>
+        }
+      />
+
+      {/* Add step */}
+      <TouchableOpacity style={styles.addStepBtn} onPress={() => setShowPicker(true)}>
+        <Text style={styles.addStepText}>+ Add Step</Text>
+      </TouchableOpacity>
+
+      {/* Step picker modal */}
+      <Modal
+        visible={showPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPicker(false)}
+      >
+        <StepPickerSheet
+          onSelect={handleAddStep}
+          onDismiss={() => setShowPicker(false)}
+        />
+      </Modal>
+
+      {/* Delay picker modal */}
+      <Modal
+        visible={delayEditId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDelayEditId(null)}
+      >
+        <View style={styles.delayBackdrop}>
+          <View style={styles.delaySheet}>
+            <Text style={styles.delayTitle}>
+              Delay before &quot;{delayStep?.label}&quot;
+            </Text>
+            {DELAY_OPTIONS.map(ms => (
               <TouchableOpacity
-                style={styles.delayCancel}
-                onPress={() => setDelayEditId(null)}
+                key={ms}
+                style={[
+                  styles.delayOption,
+                  delayStep?.delayBefore === ms && styles.delayOptionActive,
+                ]}
+                onPress={() => delayEditId && handleSetDelay(delayEditId, ms)}
               >
-                <Text style={styles.delayCancelText}>Cancel</Text>
+                <Text style={[
+                  styles.delayOptionText,
+                  delayStep?.delayBefore === ms && styles.delayOptionTextActive,
+                ]}>
+                  {ms === 0 ? 'No delay' : `${ms / 1000}s`}
+                </Text>
               </TouchableOpacity>
-            </View>
+            ))}
+            <TouchableOpacity
+              style={styles.delayCancel}
+              onPress={() => setDelayEditId(null)}
+            >
+              <Text style={styles.delayCancelText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-        </Modal>
-      </SafeAreaView>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
@@ -251,22 +254,22 @@ export function WorkflowBuilderScreen({
 type PickerTab = 'apps' | 'url' | 'keys' | 'clipboard';
 
 const PICKER_APPS: { label: string; appId: string }[] = [
-  { label: 'VS Code',       appId: 'vscode' },
-  { label: 'Chrome',        appId: 'chrome' },
-  { label: 'Spotify',       appId: 'spotify' },
-  { label: 'Discord',       appId: 'discord' },
-  { label: 'Slack',         appId: 'slack' },
-  { label: 'OBS Studio',    appId: 'obs' },
-  { label: 'Notion',        appId: 'notion' },
-  { label: 'WhatsApp',      appId: 'whatsapp' },
-  { label: 'Steam',         appId: 'steam' },
+  { label: 'VS Code', appId: 'vscode' },
+  { label: 'Chrome', appId: 'chrome' },
+  { label: 'Spotify', appId: 'spotify' },
+  { label: 'Discord', appId: 'discord' },
+  { label: 'Slack', appId: 'slack' },
+  { label: 'OBS Studio', appId: 'obs' },
+  { label: 'Notion', appId: 'notion' },
+  { label: 'WhatsApp', appId: 'whatsapp' },
+  { label: 'Steam', appId: 'steam' },
   { label: 'File Explorer', appId: 'explorer' },
-  { label: 'Terminal',      appId: 'terminal' },
-  { label: 'PowerShell',    appId: 'powershell' },
-  { label: 'Figma',         appId: 'figma' },
-  { label: 'Claude',        appId: 'claude' },
-  { label: 'GitHub',        appId: 'github' },
-  { label: 'Postman',       appId: 'postman' },
+  { label: 'Terminal', appId: 'terminal' },
+  { label: 'PowerShell', appId: 'powershell' },
+  { label: 'Figma', appId: 'figma' },
+  { label: 'Claude', appId: 'claude' },
+  { label: 'GitHub', appId: 'github' },
+  { label: 'Postman', appId: 'postman' },
 ];
 
 const PICKER_MODS = ['ctrl', 'alt', 'shift', 'win'] as const;

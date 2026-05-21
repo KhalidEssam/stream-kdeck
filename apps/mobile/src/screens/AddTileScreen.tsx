@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTile } from '../components/AppTile';
-import { TileConfig, Pack } from '../types/schema';
+import { IntegrationPlugin, IntegrationTool, TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { GamesTab } from './GamesTab';
 import { AiToolsTab } from './AiToolsTab';
@@ -48,7 +48,7 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'apps' | 'shortcut' | 'ai' | 'games' | 'workflow';
+type Tab = 'apps' | 'shortcut' | 'ai' | 'games' | 'workflow' | 'plugins';
 
 type Modifier = 'ctrl' | 'alt' | 'win' | 'shift';
 
@@ -59,6 +59,7 @@ interface Props {
   onDismiss: () => void;
   ws: WebSocketService;
   packRegistry: Pack[] | null;
+  initialTab?: Tab;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -67,9 +68,13 @@ type WorkflowBuilderState =
   | { mode: 'new' }
   | { mode: 'edit'; tile: TileConfig };
 
-export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, packRegistry }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('apps');
+export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, packRegistry, initialTab = 'apps' }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [builderState, setBuilderState] = useState<WorkflowBuilderState | null>(null);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const workflowTiles = useMemo(
     () => currentTiles.filter((t) => t.kind === 'workflow'),
@@ -102,7 +107,7 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['apps', 'shortcut', 'ai', 'games', 'workflow'] as Tab[]).map((tab) => (
+        {(['apps', 'shortcut', 'ai', 'games', 'workflow', 'plugins'] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -113,7 +118,8 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
                 : tab === 'shortcut' ? 'Shortcut'
                 : tab === 'ai' ? 'AI Tools'
                 : tab === 'games' ? 'Games'
-                : 'Workflow'}
+                : tab === 'workflow' ? 'Workflow'
+                : 'Plugins'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -148,6 +154,12 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
             onCreateWorkflow={() => setBuilderState({ mode: 'new' })}
             onEditWorkflow={(tile) => setBuilderState({ mode: 'edit', tile })}
             onRemoveWorkflow={onRemove}
+          />
+        )}
+        {activeTab === 'plugins' && (
+          <PluginsTabContent
+            wsService={ws}
+            onAddTile={onAdd}
           />
         )}
       </KeyboardAvoidingView>
@@ -625,6 +637,217 @@ const workflowTabStyles = StyleSheet.create({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+function PluginsTabContent({
+  wsService,
+  onAddTile,
+}: {
+  wsService: WebSocketService;
+  onAddTile: (tile: Omit<TileConfig, 'id'>) => void;
+}) {
+  const [plugins, setPlugins] = useState<IntegrationPlugin[]>([]);
+  const [installedIds, setInstalledIds] = useState<string[]>([]);
+  const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null);
+  const [selectedConfig, setSelectedConfig] = useState<{ plugin: IntegrationPlugin; tool: IntegrationTool } | null>(null);
+  const [params, setParams] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    wsService.requestPluginCatalog();
+    const unsubCatalog = wsService.onPluginCatalog(setPlugins);
+    const unsubInstalled = wsService.onInstalledPlugins(setInstalledIds);
+    return () => {
+      unsubCatalog();
+      unsubInstalled();
+    };
+  }, [wsService]);
+
+  const installedPlugins = useMemo(
+    () => plugins.filter((plugin) => installedIds.includes(plugin.id)),
+    [installedIds, plugins],
+  );
+
+  const submitTile = (
+    plugin: IntegrationPlugin,
+    tool: IntegrationTool,
+    resolvedParams: Record<string, unknown>,
+  ) => {
+    onAddTile({
+      kind: 'integration',
+      label: tool.name,
+      iconId: plugin.icon,
+      color: tool.color ?? plugin.color,
+      action: {
+        kind: 'INTEGRATION_ACTION',
+        pluginId: plugin.id,
+        toolId: tool.id,
+        actionId: tool.actionId,
+        params: resolvedParams,
+      },
+    });
+    setSelectedConfig(null);
+    setParams({});
+  };
+
+  const handleAddTool = (plugin: IntegrationPlugin, tool: IntegrationTool) => {
+    const requiredParams = (tool.paramsSchema as { required?: string[] }).required ?? [];
+    if (requiredParams.length === 0) {
+      submitTile(plugin, tool, {});
+      return;
+    }
+
+    const initial: Record<string, string> = {};
+    requiredParams.forEach((key) => {
+      initial[key] = '';
+    });
+    setSelectedConfig({ plugin, tool });
+    setParams(initial);
+  };
+
+  const handleSubmitConfigured = () => {
+    if (!selectedConfig) return;
+    submitTile(selectedConfig.plugin, selectedConfig.tool, params);
+  };
+
+  if (installedPlugins.length === 0) {
+    return (
+      <View style={pluginTabStyles.emptyState}>
+        <Text style={pluginTabStyles.emptyTitle}>No installed plugins.</Text>
+        <Text style={pluginTabStyles.emptyBody}>Open the Plugin Library from the deck header to install integrations.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={pluginTabStyles.container} keyboardShouldPersistTaps="handled">
+      {installedPlugins.map((plugin) => (
+        <View key={plugin.id} style={pluginTabStyles.pluginGroup}>
+          <TouchableOpacity
+            style={pluginTabStyles.pluginHeader}
+            onPress={() => setExpandedPlugin(expandedPlugin === plugin.id ? null : plugin.id)}
+            activeOpacity={0.78}
+          >
+            <View style={[pluginTabStyles.pluginIcon, { backgroundColor: plugin.color ?? '#2A2A4A' }]}>
+              <Text style={pluginTabStyles.pluginIconText}>{plugin.icon.slice(0, 2).toUpperCase()}</Text>
+            </View>
+            <View style={pluginTabStyles.pluginInfo}>
+              <Text style={pluginTabStyles.pluginName}>{plugin.name}</Text>
+              <Text style={pluginTabStyles.pluginMeta}>{plugin.tools.length} tools</Text>
+            </View>
+            <Text style={pluginTabStyles.expandText}>{expandedPlugin === plugin.id ? '-' : '+'}</Text>
+          </TouchableOpacity>
+
+          {expandedPlugin === plugin.id && plugin.tools.map((tool) => (
+            <TouchableOpacity
+              key={tool.id}
+              style={pluginTabStyles.toolRow}
+              onPress={() => handleAddTool(plugin, tool)}
+              activeOpacity={0.78}
+            >
+              <Text style={pluginTabStyles.toolName}>{tool.name}</Text>
+              {tool.description ? <Text style={pluginTabStyles.toolDesc}>{tool.description}</Text> : null}
+              {tool.supportsState ? <Text style={pluginTabStyles.toolBadge}>State badge</Text> : null}
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
+
+      {selectedConfig ? (
+        <View style={pluginTabStyles.paramSheet}>
+          <Text style={pluginTabStyles.paramTitle}>Configure {selectedConfig.tool.name}</Text>
+          {Object.keys(params).map((key) => (
+            <View key={key}>
+              <Text style={pluginTabStyles.paramLabel}>{key}</Text>
+              <TextInput
+                style={pluginTabStyles.paramInput}
+                value={params[key]}
+                onChangeText={(value) => setParams((prev) => ({ ...prev, [key]: value }))}
+                placeholder={key}
+                placeholderTextColor="#6B6B8A"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          ))}
+          <TouchableOpacity style={pluginTabStyles.confirmBtn} onPress={handleSubmitConfigured} activeOpacity={0.8}>
+            <Text style={pluginTabStyles.confirmBtnText}>Add to Deck</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setSelectedConfig(null)} activeOpacity={0.78}>
+            <Text style={pluginTabStyles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+const pluginTabStyles = StyleSheet.create({
+  container: { padding: 12, paddingBottom: 28, gap: 8 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 8 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  emptyBody: { color: '#6B6B8A', fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  pluginGroup: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: '#11111A',
+  },
+  pluginHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A2E',
+    padding: 12,
+    gap: 10,
+  },
+  pluginIcon: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  pluginIconText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  pluginInfo: { flex: 1 },
+  pluginName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  pluginMeta: { color: '#6B6B8A', fontSize: 11, marginTop: 2, fontWeight: '700' },
+  expandText: { color: '#AAAACC', fontSize: 18, fontWeight: '800', width: 24, textAlign: 'center' },
+  toolRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#11111A',
+  },
+  toolName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  toolDesc: { color: '#8A8AAA', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  toolBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 7,
+    backgroundColor: '#252548',
+    color: '#B9B5FF',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  paramSheet: {
+    marginTop: 8,
+    padding: 14,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  paramTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 15, marginBottom: 10 },
+  paramLabel: { color: '#AAAACC', fontSize: 12, fontWeight: '700', marginBottom: 5, marginTop: 8 },
+  paramInput: {
+    backgroundColor: '#0F0F14',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFFFFF',
+  },
+  confirmBtn: { backgroundColor: '#5B4FE8', borderRadius: 10, padding: 13, alignItems: 'center', marginTop: 16 },
+  confirmBtnText: { color: '#FFFFFF', fontWeight: '800' },
+  cancelText: { color: '#6B6B8A', textAlign: 'center', marginTop: 12, padding: 8, fontWeight: '700' },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F0F14' },
   header: {
@@ -638,16 +861,17 @@ const styles = StyleSheet.create({
   doneBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
 
   // Tab bar
-  tabBar: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
+  tabBar: { flexDirection: 'row', paddingHorizontal: 10, gap: 5, marginBottom: 8 },
   tab: {
     flex: 1,
     paddingVertical: 8,
+    paddingHorizontal: 2,
     borderRadius: 8,
     backgroundColor: '#1A1A2E',
     alignItems: 'center',
   },
   tabActive: { backgroundColor: '#5B4FE8' },
-  tabText: { color: '#6B6B8A', fontSize: 13, fontWeight: '600' },
+  tabText: { color: '#6B6B8A', fontSize: 11, fontWeight: '700', textAlign: 'center' },
   tabTextActive: { color: '#FFFFFF' },
 
   // Shared inputs

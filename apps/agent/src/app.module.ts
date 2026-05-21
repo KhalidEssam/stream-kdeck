@@ -13,9 +13,10 @@ import { ContextModule } from './context-profile/context.module';
 import { MouseModule } from './mouse/mouse.module';
 import { MediaModule } from './media/media.module';
 import { PackRegistryService } from './packs/pack-registry.service';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 @Module({
-  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule, MediaModule],
+  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule, MediaModule, IntegrationsModule],
   providers: [
     WsGateway,
     ClipboardService,

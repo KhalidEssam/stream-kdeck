@@ -64,12 +64,14 @@ const TILE_BG: Record<string, string> = {
   shortcut: '#0F2A1A',
   custom:   '#0A2010',
   workflow: '#1E1A3A',
+  integration: '#1A1A2E',
 };
 
 interface Props {
   tile: TileConfig;
   isLoading?: boolean;
   isSelected?: boolean;
+  stateBadge?: string | null;
   creditsRemaining?: number;
   onTap: (tile: TileConfig) => void;
   onLongPress?: (tile: TileConfig) => void;
@@ -79,6 +81,7 @@ export function AppTile({
   tile,
   isLoading,
   isSelected,
+  stateBadge,
   creditsRemaining,
   onTap,
   onLongPress,
@@ -197,6 +200,12 @@ export function AppTile({
           </View>
         )}
 
+        {tile.kind === 'integration' && stateBadge ? (
+          <View style={styles.stateBadge}>
+            <Text style={styles.stateBadgeText} numberOfLines={1}>{stateBadge}</Text>
+          </View>
+        ) : null}
+
         {/* Selected checkmark */}
         {isSelected && (
           <View style={styles.selectedOverlay}>
@@ -285,6 +294,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.15)',
   },
   workflowBadgeText: { fontSize: 10 },
+  stateBadge: {
+    position: 'absolute',
+    bottom: 5,
+    left: 6,
+    right: 6,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(0,0,0,0.48)',
+    alignItems: 'center',
+  },
+  stateBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(91,79,232,0.35)',

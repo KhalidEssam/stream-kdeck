@@ -24,6 +24,7 @@ interface Props {
   onAddTile: () => void;
   emptyTitle: string;
   emptyHint: string;
+  stateBadges?: Record<string, string | null | undefined>;
 }
 
 export function TileGrid({
@@ -35,6 +36,7 @@ export function TileGrid({
   onAddTile,
   emptyTitle,
   emptyHint,
+  stateBadges,
 }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const [gridHeight, setGridHeight] = useState(0);
@@ -105,6 +107,7 @@ export function TileGrid({
               <AppTile
                 tile={tile}
                 isLoading={tile.id === loadingId}
+                stateBadge={stateBadges?.[tile.id] ?? null}
                 creditsRemaining={creditsRemaining}
                 onTap={onTap}
                 onLongPress={onLongPress}
@@ -114,7 +117,7 @@ export function TileGrid({
         )}
       </View>
     ),
-    [screenWidth, pageHeight, tileSize, loadingId, creditsRemaining, onTap, onLongPress, onAddTile],
+    [screenWidth, pageHeight, tileSize, loadingId, stateBadges, creditsRemaining, onTap, onLongPress, onAddTile],
   );
 
   if (tiles.length === 0) {

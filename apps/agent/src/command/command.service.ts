@@ -7,6 +7,8 @@ import { AppLaunchService } from '../app-launch/app-launch.service';
 import { KeystrokeService } from '../keystroke/keystroke.service';
 import { LicenseService } from '../license/license.service';
 import { PackRegistryService } from '../packs/pack-registry.service';
+import { IntegrationRouterService } from '../integrations/integration-router.service';
+import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 
 export interface CommandResult {
   success: boolean;
@@ -24,6 +26,8 @@ export class CommandService {
     private readonly keystroke: KeystrokeService,
     private readonly licenseService: LicenseService,
     private readonly packRegistry: PackRegistryService,
+    private readonly integrationRouter: IntegrationRouterService,
+    private readonly pluginCatalog: PluginCatalogService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -88,6 +92,16 @@ export class CommandService {
             }
           }
           return { success: true };
+        }
+
+        case 'INTEGRATION_ACTION': {
+          const plugin = this.pluginCatalog.getPlugins().find((p) => p.id === action.pluginId);
+          const tool = plugin?.tools.find((t) => t.id === action.toolId);
+          return this.integrationRouter.dispatch(
+            action.actionId,
+            action.params,
+            tool?.paramsSchema as Record<string, unknown> | undefined,
+          );
         }
 
         default: {

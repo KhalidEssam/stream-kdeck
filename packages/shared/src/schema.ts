@@ -128,6 +128,13 @@ export interface InstalledPluginsMessage {
   installedPluginIds: string[];
 }
 
+export interface PluginInstallStatusMessage {
+  type:     'PLUGIN_INSTALL_STATUS';
+  pluginId: string;
+  status:   'installed' | 'uninstalled' | 'error';
+  error?:   string;
+}
+
 export interface PluginConnectionStatusMessage {
   type:     'PLUGIN_CONNECTION_STATUS';
   pluginId: string;
@@ -382,6 +389,7 @@ export type AgentMessage =
   | MediaStateMessage
   | PluginCatalogMessage
   | InstalledPluginsMessage
+  | PluginInstallStatusMessage
   | PluginConnectionStatusMessage
   | IntegrationStateMessage;
 

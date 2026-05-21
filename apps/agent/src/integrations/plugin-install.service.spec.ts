@@ -9,7 +9,10 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({ from: mockFrom })),
 }));
 
-const mockLicenseService = { getUserId: jest.fn<string | null, []>(() => 'user-123') };
+const mockLicenseService = {
+  getUserId: jest.fn<string | null, []>(() => 'user-123'),
+  getAccessToken: jest.fn<Promise<string | null>, []>().mockResolvedValue(null),
+};
 
 import { PluginInstallService } from './plugin-install.service';
 
@@ -18,6 +21,9 @@ describe('PluginInstallService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.SUPABASE_URL = 'http://localhost:54321';
+    process.env.SUPABASE_ANON_KEY = 'anon-key';
+    process.env.SUPABASE_SERVICE_KEY = 'service-key';
     mockFrom.mockReturnValue({
       select: mockSelect,
       upsert: mockUpsert,
@@ -71,7 +77,9 @@ describe('PluginInstallService', () => {
 
   it('install is a no-op when userId is null', async () => {
     mockLicenseService.getUserId.mockReturnValue(null);
-    await service.install('uuid-obs');
+    mockLicenseService.getAccessToken.mockResolvedValue(null);
+    const result = await service.install('uuid-obs');
+    expect(result.success).toBe(false);
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 });

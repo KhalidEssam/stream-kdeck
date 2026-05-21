@@ -82,7 +82,7 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
 
   const isMuted = session.muted;
   const vol = session.volume;
-  const fillPct = `${Math.round(vol * 100)}%`;
+  const fillPct = `${Math.round(vol * 100)}%` as `${number}%`;
   const thumbLeft = Math.max(0, vol * sliderWidth - THUMB_RADIUS);
 
   return (

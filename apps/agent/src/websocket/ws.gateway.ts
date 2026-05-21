@@ -22,6 +22,11 @@ import {
   MediaSetVolumeMessage,
   MediaStateMessage,
   MediaSession,
+  PluginCatalogMessage,
+  InstalledPluginsMessage,
+  PluginInstallStatusMessage,
+  IntegrationStateMessage,
+  PluginConnectionStatusMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -35,11 +40,19 @@ import { ContextProfile } from '../context-profile/context-profile.service';
 import { MouseService } from '../mouse/mouse.service';
 import { MouseMoveMessage, MouseClickMessage, MouseScrollMessage } from '@control-surface/shared';
 import { PackRegistryService } from '../packs/pack-registry.service';
+import { ConnectorService } from '../integrations/connector.service';
+import { IntegrationRouterService } from '../integrations/integration-router.service';
+import { IntegrationStateService } from '../integrations/integration-state.service';
+import { ObsService } from '../integrations/obs/obs.service';
+import { PluginCatalogService } from '../integrations/plugin-catalog.service';
+import { PluginInstallService } from '../integrations/plugin-install.service';
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
+
+  private readonly pluginsReady: Promise<void>;
 
   constructor(
     private readonly commandService: CommandService,
@@ -52,6 +65,12 @@ export class WsGateway implements OnGatewayConnection {
     private readonly mouseService: MouseService,
     private readonly packRegistry: PackRegistryService,
     private readonly mediaService: MediaService,
+    private readonly pluginCatalog: PluginCatalogService,
+    private readonly pluginInstall: PluginInstallService,
+    private readonly integrationState: IntegrationStateService,
+    private readonly integrationRouter: IntegrationRouterService,
+    private readonly obsService: ObsService,
+    private readonly connectorService: ConnectorService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
@@ -60,6 +79,17 @@ export class WsGateway implements OnGatewayConnection {
     this.appRegistry.on('tilesUpdated', () => this.broadcastDeckConfig());
     void this.packRegistry.load();
     this.mediaService.setBroadcastFn((sessions, plt) => this.broadcastMediaState(sessions, plt));
+
+    this.integrationRouter.register(this.obsService);
+    const catalogLoad = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
+      ? this.pluginCatalog.load()
+      : Promise.resolve();
+    this.pluginsReady = Promise.all([
+      catalogLoad,
+      this.pluginInstall.fetchInstalled(),
+    ]).then(() => undefined);
+    this.integrationState.setBroadcastFn((msg: IntegrationStateMessage) => this.broadcastIntegrationState(msg));
+    this.integrationState.startPolling();
   }
 
   private sendDeckConfig(client: WebSocket): void {
@@ -166,6 +196,41 @@ export class WsGateway implements OnGatewayConnection {
     client.send(JSON.stringify(msg));
   }
 
+  private sendPluginCatalog(client: WebSocket): void {
+    const msg: PluginCatalogMessage = { type: 'PLUGIN_CATALOG', plugins: this.pluginCatalog.getPlugins() };
+    client.send(JSON.stringify(msg));
+  }
+
+  private sendInstalledPlugins(client: WebSocket): void {
+    const msg: InstalledPluginsMessage = {
+      type: 'INSTALLED_PLUGINS',
+      installedPluginIds: this.pluginInstall.getInstalledPluginIds(),
+    };
+    client.send(JSON.stringify(msg));
+  }
+
+  private broadcastInstalledPlugins(): void {
+    const msg: InstalledPluginsMessage = {
+      type: 'INSTALLED_PLUGINS',
+      installedPluginIds: this.pluginInstall.getInstalledPluginIds(),
+    };
+    const payload = JSON.stringify(msg);
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+  }
+
+  private sendPluginInstallStatus(client: WebSocket, msg: Omit<PluginInstallStatusMessage, 'type'>): void {
+    client.send(JSON.stringify({ type: 'PLUGIN_INSTALL_STATUS', ...msg } satisfies PluginInstallStatusMessage));
+  }
+
+  private broadcastIntegrationState(msg: IntegrationStateMessage): void {
+    const payload = JSON.stringify(msg);
+    this.server.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+  }
+
   private broadcastMediaState(sessions: MediaSession[], plt: 'win32' | 'darwin'): void {
     const msg: MediaStateMessage = { type: 'MEDIA_STATE', sessions, platform: plt };
     const payload = JSON.stringify(msg);
@@ -196,7 +261,17 @@ export class WsGateway implements OnGatewayConnection {
     this.sendLicenseStatus(client);
     this.sendContextShortcuts(client);
     this.sendPackRegistry(client);
+    this.sendPluginCatalog(client);
+    this.sendInstalledPlugins(client);
     this.sendMediaState(client);
+    void this.pluginsReady.then(() => {
+      if (client.readyState !== WebSocket.OPEN) return;
+      this.sendPluginCatalog(client);
+      this.sendInstalledPlugins(client);
+    });
+    void this.pluginInstall.fetchInstalled().then(() => {
+      if (client.readyState === WebSocket.OPEN) this.sendInstalledPlugins(client);
+    });
 
     console.log('[Agent] Mobile client connected');
 
@@ -235,6 +310,69 @@ export class WsGateway implements OnGatewayConnection {
       if (data.type === 'MEDIA_SET_VOLUME') {
         const d = data as MediaSetVolumeMessage;
         this.mediaService.setVolume(d.processName, d.volume);
+        return;
+      }
+
+      if (data.type === 'GET_PLUGIN_CATALOG') {
+        this.sendPluginCatalog(client);
+        return;
+      }
+
+      if (data.type === 'INSTALL_PLUGIN') {
+        const result = await this.pluginInstall.install(data.pluginId);
+        this.sendPluginInstallStatus(client, {
+          pluginId: data.pluginId,
+          status: result.success ? 'installed' : 'error',
+          error: result.error,
+        });
+        this.broadcastInstalledPlugins();
+        return;
+      }
+
+      if (data.type === 'UNINSTALL_PLUGIN') {
+        const result = await this.pluginInstall.uninstall(data.pluginId);
+        this.sendPluginInstallStatus(client, {
+          pluginId: data.pluginId,
+          status: result.success ? 'uninstalled' : 'error',
+          error: result.error,
+        });
+        this.broadcastInstalledPlugins();
+        return;
+      }
+
+      if (data.type === 'SET_PLUGIN_CONNECTION') {
+        const plugin = this.pluginCatalog.getPlugins().find((item) => item.id === data.pluginId);
+        if (plugin?.slug === 'obs') {
+          const testResult = await this.obsService.testConnection(data.metadata);
+          if (!testResult.success) {
+            const statusMsg: PluginConnectionStatusMessage = {
+              type: 'PLUGIN_CONNECTION_STATUS',
+              pluginId: data.pluginId,
+              status: 'error',
+              error: testResult.error,
+            };
+            client.send(JSON.stringify(statusMsg));
+            return;
+          }
+        }
+
+        await this.connectorService.setDeviceConnection(data.pluginId, data.metadata);
+        const statusMsg: PluginConnectionStatusMessage = {
+          type: 'PLUGIN_CONNECTION_STATUS',
+          pluginId: data.pluginId,
+          status: 'connected',
+        };
+        client.send(JSON.stringify(statusMsg));
+        return;
+      }
+
+      if (data.type === 'TEST_PLUGIN_CONNECTION') {
+        const statusMsg: PluginConnectionStatusMessage = {
+          type: 'PLUGIN_CONNECTION_STATUS',
+          pluginId: data.pluginId,
+          status: 'not_configured',
+        };
+        client.send(JSON.stringify(statusMsg));
         return;
       }
 

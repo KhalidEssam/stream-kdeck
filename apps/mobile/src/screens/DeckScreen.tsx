@@ -19,7 +19,15 @@ import { AuthScreen } from './AuthScreen';
 import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
 import type { ConnectionErrorInfo } from '../services/websocket.service';
-import { TileConfig, Pack, PackRegistryMessage, MediaSession } from '../types/schema';
+import {
+  ButtonAction,
+  IntegrationPlugin,
+  IntegrationStateMessage,
+  TileConfig,
+  Pack,
+  PackRegistryMessage,
+  MediaSession,
+} from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
@@ -33,6 +41,9 @@ import { WorkflowStep, WorkflowStepAction } from '../types/schema';
 import { PeekFab, PeekFabHandle } from '../components/PeekFab';
 import { MediaTab } from './MediaTab';
 import { SettingsSheet } from '../components/SettingsSheet';
+import { PluginLibraryScreen } from './PluginLibraryScreen';
+import { PluginDetailScreen } from './PluginDetailScreen';
+import { PluginConnectionScreen } from './PluginConnectionScreen';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -68,6 +79,7 @@ export function DeckScreen() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [viewerText, setViewerText] = useState<string | null>(null);
   const [showAddTile, setShowAddTile] = useState(false);
+  const [addTileInitialTab, setAddTileInitialTab] = useState<'apps' | 'plugins'>('apps');
   const [actionTile, setActionTile] = useState<TileConfig | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
   const [wsService, setWsService] = useState<WebSocketService | null>(null);
@@ -89,6 +101,12 @@ export function DeckScreen() {
   const [mediaSessions, setMediaSessions] = useState<MediaSession[]>([]);
   const [mediaPlatform, setMediaPlatform] = useState<'win32' | 'darwin' | null>(null);
   const [manualIpInput, setManualIpInput] = useState('');
+  const [showPluginLibrary, setShowPluginLibrary] = useState(false);
+  const [selectedPlugin, setSelectedPlugin] = useState<IntegrationPlugin | null>(null);
+  const [showPluginDetail, setShowPluginDetail] = useState(false);
+  const [showPluginConnection, setShowPluginConnection] = useState(false);
+  const [installedPluginIds, setInstalledPluginIds] = useState<string[]>([]);
+  const [integrationStates, setIntegrationStates] = useState<Map<string, IntegrationStateMessage['states']>>(new Map());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -216,6 +234,10 @@ export function DeckScreen() {
       setMediaSessions(msg.sessions);
       setMediaPlatform(msg.platform);
     });
+    const unsubscribeInstalledPlugins = ws.onInstalledPlugins((ids) => setInstalledPluginIds(ids));
+    const unsubscribeIntegrationState = ws.onIntegrationState((msg) => {
+      setIntegrationStates((prev) => new Map(prev).set(msg.pluginId, msg.states));
+    });
 
     return () => {
       unsubscribeLicense();
@@ -224,8 +246,12 @@ export function DeckScreen() {
       unsubscribeContext();
       unsubscribePackRegistry();
       unsubscribeMedia();
+      unsubscribeInstalledPlugins();
+      unsubscribeIntegrationState();
       setContextMsg(null);
       setAiPro(false);
+      setInstalledPluginIds([]);
+      setIntegrationStates(new Map());
       ws.disconnect();
       wsRef.current = null;
       setWsService(null);
@@ -295,6 +321,11 @@ export function DeckScreen() {
     }
     wsRef.current.addTile(tile);
     // DECK_CONFIG response from agent will update tiles via onDeckConfig callback
+  };
+
+  const handleOpenAddTile = (initialTab: 'apps' | 'plugins' = 'apps') => {
+    setAddTileInitialTab(initialTab);
+    setShowAddTile(true);
   };
 
   const handleRemoveTile = (tileId: string) => {
@@ -374,6 +405,23 @@ export function DeckScreen() {
       .filter((tile) => activeTab === 'ai' ? tile.kind === 'ai' : tile.kind !== 'ai' && tile.kind !== 'shortcut')
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }, [activeTab, tiles]);
+  const getStateBadge = (action: ButtonAction): string | null => {
+    if (action.kind !== 'INTEGRATION_ACTION') return null;
+    const states = integrationStates.get(action.pluginId) ?? [];
+    const streaming = states.find((state) => state.key === 'streaming');
+    if (streaming?.value === true) return typeof streaming.label === 'string' ? streaming.label : 'Live';
+    const recording = states.find((state) => state.key === 'recording');
+    if (recording?.value === true) return typeof recording.label === 'string' ? recording.label : 'Recording';
+    const scene = states.find((state) => state.key === 'scene');
+    return typeof scene?.label === 'string' && scene.label ? scene.label : null;
+  };
+  const tileStateBadges = useMemo(() => {
+    const badges: Record<string, string | null> = {};
+    for (const tile of visibleTiles) {
+      badges[tile.id] = getStateBadge(tile.action);
+    }
+    return badges;
+  }, [integrationStates, visibleTiles]);
   const emptyCopy = activeTab === 'ai'
     ? { title: 'No AI tools yet.', hint: 'Reconnect to load the built-in tools.' }
     : { title: 'No apps yet.', hint: 'Tap + to add apps, shortcuts, or workflows.' };
@@ -497,6 +545,11 @@ export function DeckScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>KDeck</Text>
         {status === 'connected' && (
+          <TouchableOpacity onPress={() => setShowPluginLibrary(true)} style={styles.pluginsBtn} activeOpacity={0.75}>
+            <Text style={styles.pluginsBtnText}>Plugins</Text>
+          </TouchableOpacity>
+        )}
+        {status === 'connected' && (
           <TouchableOpacity onPress={() => setShowTrackpad(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
             <Text style={{ fontSize: 20 }}>🖱</Text>
           </TouchableOpacity>
@@ -591,9 +644,10 @@ export function DeckScreen() {
             creditsRemaining={creditsRemaining}
             onTap={handleTap}
             onLongPress={handleRequestTileActions}
-            onAddTile={() => setShowAddTile(true)}
+            onAddTile={() => handleOpenAddTile()}
             emptyTitle={emptyCopy.title}
             emptyHint={emptyCopy.hint}
+            stateBadges={tileStateBadges}
           />
         </View>
       )}
@@ -601,7 +655,7 @@ export function DeckScreen() {
       {/* FAB — add tile */}
       <PeekFab
         ref={peekFabRef}
-        onPress={() => setShowAddTile(true)}
+        onPress={() => handleOpenAddTile()}
         showBadge={!!packRegistry?.length}
       />
 
@@ -626,9 +680,45 @@ export function DeckScreen() {
             }}
             ws={wsService}
             packRegistry={packRegistry}
+            initialTab={addTileInitialTab}
           />
         )}
       </Modal>
+
+      <PluginLibraryScreen
+        visible={showPluginLibrary}
+        wsService={wsService}
+        onDismiss={() => setShowPluginLibrary(false)}
+        onOpenDetail={(plugin) => {
+          setSelectedPlugin(plugin);
+          setShowPluginLibrary(false);
+          setShowPluginDetail(true);
+        }}
+      />
+
+      <PluginDetailScreen
+        plugin={showPluginDetail ? selectedPlugin : null}
+        installedIds={installedPluginIds}
+        onDismiss={() => setShowPluginDetail(false)}
+        onInstall={(pluginId) => wsService?.sendInstallPlugin(pluginId)}
+        onUninstall={(pluginId) => wsService?.sendUninstallPlugin(pluginId)}
+        onConnect={(plugin) => {
+          setSelectedPlugin(plugin);
+          setShowPluginDetail(false);
+          setShowPluginConnection(true);
+        }}
+        onAddTools={(plugin) => {
+          setSelectedPlugin(plugin);
+          setShowPluginDetail(false);
+          handleOpenAddTile('plugins');
+        }}
+      />
+
+      <PluginConnectionScreen
+        plugin={showPluginConnection ? selectedPlugin : null}
+        wsService={wsService}
+        onDismiss={() => setShowPluginConnection(false)}
+      />
 
       <Modal
         visible={actionTile !== null}
@@ -772,7 +862,7 @@ export function DeckScreen() {
         onTapShortcut={handleContextShortcutTap}
         onTapGlobalTile={handleTap}
         onAddShortcut={handleAddContextShortcut}
-        onAddGlobal={() => setShowAddTile(true)}
+        onAddGlobal={() => handleOpenAddTile()}
       />
 
       <Modal visible={showOnboarding} animationType="slide">
@@ -826,6 +916,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   title: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', flex: 1 },
+  pluginsBtn: {
+    backgroundColor: '#1A1A2E',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginRight: 4,
+  },
+  pluginsBtnText: { color: '#AAAACC', fontSize: 12, fontWeight: '800' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 12, fontWeight: '600' },

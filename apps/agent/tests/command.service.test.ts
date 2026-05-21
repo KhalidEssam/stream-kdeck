@@ -6,6 +6,8 @@ import { AppLaunchService } from '../src/app-launch/app-launch.service';
 import { KeystrokeService } from '../src/keystroke/keystroke.service';
 import { LicenseService } from '../src/license/license.service';
 import { PackRegistryService } from '../src/packs/pack-registry.service';
+import { IntegrationRouterService } from '../src/integrations/integration-router.service';
+import { PluginCatalogService } from '../src/integrations/plugin-catalog.service';
 import { shell } from 'electron';
 
 describe('CommandService', () => {
@@ -16,6 +18,8 @@ describe('CommandService', () => {
   let mockKeystroke: { execute: jest.Mock };
   let mockLicenseService: { creditsRemaining: jest.Mock; decrementCredit: jest.Mock };
   let mockPackRegistry: { getById: jest.Mock };
+  let mockIntegrationRouter: { dispatch: jest.Mock };
+  let mockPluginCatalog: { getPlugins: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -29,6 +33,8 @@ describe('CommandService', () => {
       decrementCredit: jest.fn(),
     };
     mockPackRegistry = { getById: jest.fn().mockReturnValue(undefined) };
+    mockIntegrationRouter = { dispatch: jest.fn().mockResolvedValue({ success: true }) };
+    mockPluginCatalog = { getPlugins: jest.fn().mockReturnValue([]) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -39,6 +45,8 @@ describe('CommandService', () => {
         { provide: KeystrokeService,    useValue: mockKeystroke },
         { provide: LicenseService,      useValue: mockLicenseService },
         { provide: PackRegistryService, useValue: mockPackRegistry },
+        { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
+        { provide: PluginCatalogService, useValue: mockPluginCatalog },
       ],
     }).compile();
 
@@ -171,6 +179,8 @@ describe('CommandService', () => {
           { provide: KeystrokeService,    useValue: mockKeystroke },
           { provide: LicenseService,      useValue: mockLicenseService },
           { provide: PackRegistryService, useValue: mockPackRegistry },
+          { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
+          { provide: PluginCatalogService, useValue: mockPluginCatalog },
         ],
       }).compile();
       clipboardService = moduleRef.get(ClipboardService);
@@ -202,5 +212,27 @@ describe('CommandService', () => {
       });
       expect(mockAiRouter.call).toHaveBeenCalledWith('Inline prompt', 'some text');
     });
+  });
+
+  it('executes INTEGRATION_ACTION through the integration router with tool schema', async () => {
+    const paramsSchema = { type: 'object', required: ['sceneName'] };
+    mockPluginCatalog.getPlugins.mockReturnValue([
+      { id: 'plugin-obs', tools: [{ id: 'tool-scene', paramsSchema }] },
+    ]);
+
+    const result = await commandService.execute({
+      kind: 'INTEGRATION_ACTION',
+      pluginId: 'plugin-obs',
+      toolId: 'tool-scene',
+      actionId: 'obs.scene.switch',
+      params: { sceneName: 'Gaming' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockIntegrationRouter.dispatch).toHaveBeenCalledWith(
+      'obs.scene.switch',
+      { sceneName: 'Gaming' },
+      paramsSchema,
+    );
   });
 });

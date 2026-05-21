@@ -1,5 +1,6 @@
 import {
   AgentMessage,
+  MobileMessage,
   ButtonAction,
   ButtonTapMessage,
   ActionResultMessage,
@@ -33,6 +34,15 @@ import {
   MediaBringToFrontMessage,
   MediaPinAppMessage,
   MediaSetVolumeMessage,
+  IntegrationPlugin,
+  IntegrationStateMessage,
+  PluginInstallStatusMessage,
+  PluginConnectionStatusMessage,
+  GetPluginCatalogMessage,
+  InstallPluginMessage,
+  UninstallPluginMessage,
+  SetPluginConnectionMessage,
+  TestPluginConnectionMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -55,6 +65,11 @@ type ContextShortcutsCallback = (msg: ContextShortcutsMessage) => void;
 type ContextProfilesCallback  = (msg: ContextProfilesMessage) => void;
 type PackRegistryCallback = (msg: PackRegistryMessage) => void;
 type MediaStateCallback = (msg: MediaStateMessage) => void;
+type PluginCatalogCallback = (plugins: IntegrationPlugin[]) => void;
+type InstalledPluginsCallback = (ids: string[]) => void;
+type PluginInstallStatusCallback = (msg: PluginInstallStatusMessage) => void;
+type IntegrationStateCallback = (msg: IntegrationStateMessage) => void;
+type PluginConnectionStatusCallback = (msg: PluginConnectionStatusMessage) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -70,6 +85,14 @@ export class WebSocketService {
   private contextProfilesCallbacks:  ContextProfilesCallback[]  = [];
   private packRegistryCallbacks: PackRegistryCallback[] = [];
   private mediaStateCallbacks: MediaStateCallback[] = [];
+  private pluginCatalog: IntegrationPlugin[] = [];
+  private installedPluginIds: string[] = [];
+  private integrationStates = new Map<string, IntegrationStateMessage['states']>();
+  private pluginCatalogListeners: PluginCatalogCallback[] = [];
+  private installedPluginsListeners: InstalledPluginsCallback[] = [];
+  private pluginInstallStatusListeners: PluginInstallStatusCallback[] = [];
+  private integrationStateListeners: IntegrationStateCallback[] = [];
+  private pluginConnStatusListeners: PluginConnectionStatusCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -106,6 +129,19 @@ export class WebSocketService {
         this.packRegistryCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'MEDIA_STATE') {
         this.mediaStateCallbacks.forEach((cb) => cb(msg as MediaStateMessage));
+      } else if (msg.type === 'PLUGIN_CATALOG') {
+        this.pluginCatalog = msg.plugins;
+        this.pluginCatalogListeners.forEach((cb) => cb(this.pluginCatalog));
+      } else if (msg.type === 'INSTALLED_PLUGINS') {
+        this.installedPluginIds = msg.installedPluginIds;
+        this.installedPluginsListeners.forEach((cb) => cb(this.installedPluginIds));
+      } else if (msg.type === 'PLUGIN_INSTALL_STATUS') {
+        this.pluginInstallStatusListeners.forEach((cb) => cb(msg));
+      } else if (msg.type === 'INTEGRATION_STATE') {
+        this.integrationStates.set(msg.pluginId, msg.states);
+        this.integrationStateListeners.forEach((cb) => cb(msg));
+      } else if (msg.type === 'PLUGIN_CONNECTION_STATUS') {
+        this.pluginConnStatusListeners.forEach((cb) => cb(msg));
       }
     };
 
@@ -258,6 +294,26 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
+  requestPluginCatalog(): void {
+    this.send({ type: 'GET_PLUGIN_CATALOG' } satisfies GetPluginCatalogMessage);
+  }
+
+  sendInstallPlugin(pluginId: string): void {
+    this.send({ type: 'INSTALL_PLUGIN', pluginId } satisfies InstallPluginMessage);
+  }
+
+  sendUninstallPlugin(pluginId: string): void {
+    this.send({ type: 'UNINSTALL_PLUGIN', pluginId } satisfies UninstallPluginMessage);
+  }
+
+  sendSetPluginConnection(pluginId: string, metadata: Record<string, unknown>): void {
+    this.send({ type: 'SET_PLUGIN_CONNECTION', pluginId, metadata } satisfies SetPluginConnectionMessage);
+  }
+
+  sendTestPluginConnection(pluginId: string): void {
+    this.send({ type: 'TEST_PLUGIN_CONNECTION', pluginId } satisfies TestPluginConnectionMessage);
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -333,6 +389,47 @@ export class WebSocketService {
     };
   }
 
+  onPluginCatalog(cb: PluginCatalogCallback): () => void {
+    this.pluginCatalogListeners.push(cb);
+    if (this.pluginCatalog.length > 0) cb(this.pluginCatalog);
+    return () => {
+      this.pluginCatalogListeners = this.pluginCatalogListeners.filter((c) => c !== cb);
+    };
+  }
+
+  onInstalledPlugins(cb: InstalledPluginsCallback): () => void {
+    this.installedPluginsListeners.push(cb);
+    cb(this.installedPluginIds);
+    return () => {
+      this.installedPluginsListeners = this.installedPluginsListeners.filter((c) => c !== cb);
+    };
+  }
+
+  onPluginInstallStatus(cb: PluginInstallStatusCallback): () => void {
+    this.pluginInstallStatusListeners.push(cb);
+    return () => {
+      this.pluginInstallStatusListeners = this.pluginInstallStatusListeners.filter((c) => c !== cb);
+    };
+  }
+
+  onIntegrationState(cb: IntegrationStateCallback): () => void {
+    this.integrationStateListeners.push(cb);
+    return () => {
+      this.integrationStateListeners = this.integrationStateListeners.filter((c) => c !== cb);
+    };
+  }
+
+  onPluginConnectionStatus(cb: PluginConnectionStatusCallback): () => void {
+    this.pluginConnStatusListeners.push(cb);
+    return () => {
+      this.pluginConnStatusListeners = this.pluginConnStatusListeners.filter((c) => c !== cb);
+    };
+  }
+
+  getIntegrationStates(pluginId: string): IntegrationStateMessage['states'] {
+    return this.integrationStates.get(pluginId) ?? [];
+  }
+
   reconnect(): void {
     this.disconnect();
     this.notifyStatus('connecting');
@@ -350,6 +447,11 @@ export class WebSocketService {
 
   private notifyConnectionError(error: ConnectionErrorInfo): void {
     this.connectionErrorCallbacks.forEach((cb) => cb(error));
+  }
+
+  private send(msg: MobileMessage): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify(msg));
   }
 }
 

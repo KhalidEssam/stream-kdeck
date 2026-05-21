@@ -31,8 +31,8 @@ export class PluginCatalogService {
 
   constructor() {
     this.supabase = createClient(
-      process.env.SUPABASE_URL ?? '',
-      process.env.SUPABASE_ANON_KEY ?? '',
+      process.env.SUPABASE_URL || 'http://localhost:54321',
+      process.env.SUPABASE_ANON_KEY || 'anon-key',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { realtime: { transport: ws as any } },
     );

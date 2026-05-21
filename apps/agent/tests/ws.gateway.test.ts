@@ -41,6 +41,8 @@ const mockLicenseService = {
   creditsRemaining:       () => 50,
   getClaims:              () => ({ licensed: true, ai_pro: false, credits_remaining: 50, credit_quota: 100 }),
   hasRefreshToken:        () => true,
+  getUserId:              () => null,
+  getAccessToken:         jest.fn().mockResolvedValue(null),
   onApplicationBootstrap: async () => {},
   refreshSession:         jest.fn().mockResolvedValue(undefined),
   decrementCredit:        async () => {},

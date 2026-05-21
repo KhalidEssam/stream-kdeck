@@ -12,7 +12,8 @@ export type ButtonAction =
   | { kind: 'URL_OPEN'; url: string }
   | { kind: 'CLIPBOARD_WRITE'; text: string }
   | { kind: 'EXEC'; exePath: string }
-  | { kind: 'WORKFLOW'; steps: WorkflowStep[]; stopOnError: boolean };
+  | { kind: 'WORKFLOW'; steps: WorkflowStep[]; stopOnError: boolean }
+  | { kind: 'INTEGRATION_ACTION'; pluginId: string; toolId: string; actionId: string; params: Record<string, unknown> };
 
 // WorkflowStepAction excludes AI_CLIPBOARD (no credit charges) and WORKFLOW (no nesting)
 export type WorkflowStepAction = Exclude<ButtonAction, { kind: 'AI_CLIPBOARD' | 'WORKFLOW' }>;
@@ -55,6 +56,102 @@ export interface PackRegistryMessage {
   packs: Pack[];
 }
 
+// --- Integration plugin types ---
+
+export type ConnectorType = 'oauth2' | 'api-key' | 'local-websocket' | 'local-http' | 'mdns-discovery' | 'none';
+export type PluginStatus = 'draft' | 'internal' | 'beta' | 'published' | 'deprecated' | 'disabled';
+export type ExecutionMode = 'agent' | 'mobile' | 'cloud';
+
+export interface IntegrationTool {
+  id: string;
+  pluginId: string;
+  slug: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  actionId: string;
+  executionMode: ExecutionMode;
+  paramsSchema: Record<string, unknown>;
+  supportsWorkflows: boolean;
+  supportsState: boolean;
+  requiresConfirmation: boolean;
+  minAgentCapability: number;
+  sortOrder: number;
+  status: PluginStatus;
+}
+
+export interface IntegrationPlugin {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  category: string;
+  icon: string;
+  color?: string;
+  publisher: string;
+  version: string;
+  status: PluginStatus;
+  minAgentCapability: number;
+  minMobileCapability: number;
+  supportedPlatforms: string[];
+  requiresConnector: boolean;
+  connectorType?: ConnectorType;
+  sortOrder: number;
+  tools: IntegrationTool[];
+}
+
+export interface GetPluginCatalogMessage { type: 'GET_PLUGIN_CATALOG' }
+export interface InstallPluginMessage { type: 'INSTALL_PLUGIN'; pluginId: string }
+export interface UninstallPluginMessage { type: 'UNINSTALL_PLUGIN'; pluginId: string }
+
+export interface SetPluginConnectionMessage {
+  type: 'SET_PLUGIN_CONNECTION';
+  pluginId: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface TestPluginConnectionMessage {
+  type: 'TEST_PLUGIN_CONNECTION';
+  pluginId: string;
+}
+
+export interface PluginCatalogMessage {
+  type: 'PLUGIN_CATALOG';
+  plugins: IntegrationPlugin[];
+}
+
+export interface InstalledPluginsMessage {
+  type: 'INSTALLED_PLUGINS';
+  installedPluginIds: string[];
+}
+
+export interface PluginInstallStatusMessage {
+  type: 'PLUGIN_INSTALL_STATUS';
+  pluginId: string;
+  status: 'installed' | 'uninstalled' | 'error';
+  error?: string;
+}
+
+export interface PluginConnectionStatusMessage {
+  type: 'PLUGIN_CONNECTION_STATUS';
+  pluginId: string;
+  status: 'not_configured' | 'connected' | 'error' | 'expired';
+  error?: string;
+}
+
+export interface IntegrationStateMessage {
+  type: 'INTEGRATION_STATE';
+  pluginId: string;
+  states: Array<{
+    toolId?: string;
+    key: string;
+    value: unknown;
+    label?: string;
+    updatedAt: string;
+  }>;
+}
+
 // Agent → Mobile
 export interface ActionResultMessage {
   type: 'ACTION_RESULT';
@@ -72,7 +169,7 @@ export interface ConnectedMessage {
 
 export interface TileConfig {
   id: string;
-  kind: 'app' | 'url' | 'ai' | 'shortcut' | 'custom' | 'workflow';
+  kind: 'app' | 'url' | 'ai' | 'shortcut' | 'custom' | 'workflow' | 'integration';
   label: string;
   iconId: string;
   color?: string;
@@ -239,7 +336,12 @@ export type AgentMessage =
   | ContextShortcutsMessage
   | ContextProfilesMessage
   | PackRegistryMessage
-  | MediaStateMessage;
+  | MediaStateMessage
+  | PluginCatalogMessage
+  | InstalledPluginsMessage
+  | PluginInstallStatusMessage
+  | PluginConnectionStatusMessage
+  | IntegrationStateMessage;
 
 // --- Media / Audio Session messages ---
 
@@ -308,4 +410,9 @@ export type MobileMessage =
   | MediaSetMuteMessage
   | MediaBringToFrontMessage
   | MediaPinAppMessage
-  | MediaSetVolumeMessage;
+  | MediaSetVolumeMessage
+  | GetPluginCatalogMessage
+  | InstallPluginMessage
+  | UninstallPluginMessage
+  | SetPluginConnectionMessage
+  | TestPluginConnectionMessage;
