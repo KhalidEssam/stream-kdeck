@@ -12,13 +12,14 @@ type SupabaseClientOptions = NonNullable<Parameters<typeof createClient>[2]>;
 type SupabaseRealtimeTransport = NonNullable<SupabaseClientOptions['realtime']>['transport'];
 
 export interface LicenseClaims {
-  licensed: boolean;
-  ai_pro: boolean;
+  sub:               string;
+  licensed:          boolean;
+  ai_pro:            boolean;
   credits_remaining: number;
-  credit_quota: number;
+  credit_quota:      number;
 }
 
-const DEFAULT_CLAIMS: LicenseClaims = { licensed: false, ai_pro: false, credits_remaining: 0, credit_quota: 0 };
+const DEFAULT_CLAIMS: LicenseClaims = { sub: '', licensed: false, ai_pro: false, credits_remaining: 0, credit_quota: 0 };
 
 export type LicenseActivationErrorCode =
   | 'INVALID_KEY'
@@ -144,6 +145,7 @@ export class LicenseService implements OnApplicationBootstrap {
   isAiPro(): boolean             { return this.claims.ai_pro; }
   creditsRemaining(): number     { return this.claims.credits_remaining; }
   getClaims(): LicenseClaims     { return { ...this.claims }; }
+  getUserId(): string | null     { return this.claims?.sub ?? null; }
 
   private loadCachedClaims(): void {
     const cached = this.storage.get(CACHED_CLAIMS_KEY);
@@ -158,6 +160,7 @@ export class LicenseService implements OnApplicationBootstrap {
       );
       console.log('[License] JWT claims:', { licensed: payload.licensed, ai_pro: payload.ai_pro, credits_remaining: payload.credits_remaining });
       this.claims = {
+        sub:               payload.sub               ?? '',
         licensed:          payload.licensed          ?? false,
         ai_pro:            payload.ai_pro            ?? false,
         credits_remaining: payload.credits_remaining ?? 0,
