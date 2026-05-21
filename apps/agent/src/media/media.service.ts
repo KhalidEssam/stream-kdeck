@@ -168,6 +168,22 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  setVolume(processName: string, volume: number): void {
+    const session = this.prevSnapshot.find(s => s.name.toLowerCase() === processName.toLowerCase());
+    const clamped = Math.max(0, Math.min(1, volume));
+    if (platform() === 'win32') {
+      if (!session) return;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { NodeAudioVolumeMixer: mixer } = require('node-audio-volume-mixer') as {
+        NodeAudioVolumeMixer: { setAudioSessionVolumeLevelScalar: (pid: number, vol: number) => void };
+      };
+      mixer.setAudioSessionVolumeLevelScalar(session.pid, clamped);
+    } else {
+      if (!session && processName !== 'system') return;
+      try { execSync(`osascript -e 'set volume output volume ${Math.round(clamped * 100)}'`); } catch {}
+    }
+  }
+
   setMute(processName: string, muted: boolean): void {
     const session = this.prevSnapshot.find(s => s.name.toLowerCase() === processName.toLowerCase());
     if (platform() === 'win32') {

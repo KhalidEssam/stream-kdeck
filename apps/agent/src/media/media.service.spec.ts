@@ -102,4 +102,18 @@ describe('MediaService', () => {
     (service as any).prevSnapshot = [{ pid: 1, name: 'Spotify.exe', volume: 0.7, muted: false }];
     expect((service as any).hasChanged([])).toBe(true);
   });
+
+  it('setVolume clamps to 0-1 and calls mixer', () => {
+    (service as any).prevSnapshot = [{ pid: 1, name: 'Spotify.exe', volume: 0.5, muted: false }];
+    mockSetVolume.mockClear();
+    service.setVolume('Spotify.exe', 1.5);
+    expect(mockSetVolume).toHaveBeenCalledWith(1, 1.0);
+  });
+
+  it('setVolume does nothing when session not found', () => {
+    (service as any).prevSnapshot = [];
+    mockSetVolume.mockClear();
+    service.setVolume('Unknown.exe', 0.5);
+    expect(mockSetVolume).not.toHaveBeenCalled();
+  });
 });

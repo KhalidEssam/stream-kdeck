@@ -19,6 +19,7 @@ import {
   MediaSetMuteMessage,
   MediaBringToFrontMessage,
   MediaPinAppMessage,
+  MediaSetVolumeMessage,
   MediaStateMessage,
   MediaSession,
 } from '@control-surface/shared';
@@ -228,6 +229,12 @@ export class WsGateway implements OnGatewayConnection {
       if (data.type === 'MEDIA_PIN_APP') {
         const d = data as MediaPinAppMessage;
         this.mediaService.pinApp(d.processName, d.label, d.pinned);
+        return;
+      }
+
+      if (data.type === 'MEDIA_SET_VOLUME') {
+        const d = data as MediaSetVolumeMessage;
+        this.mediaService.setVolume(d.processName, d.volume);
         return;
       }
 
