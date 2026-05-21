@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   StatusBar,
@@ -23,7 +24,7 @@ import { ContextStrip } from '../components/ContextStrip';
 import { ContextShortcutsMessage, ContextShortcut } from '../types/schema';
 import { ContextShortcutsScreen } from './ContextShortcutsScreen';
 import { TrackpadScreen } from './TrackpadScreen';
-import { discoverAgent } from '../services/discovery.service';
+import { discoverAgent, normalizeAgentWsUrl } from '../services/discovery.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingScreen } from './OnboardingScreen';
 import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
@@ -61,6 +62,7 @@ export function DeckScreen() {
   const retryCancelRef = useRef<(() => void) | null>(null);
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [discoveryAttempt, setDiscoveryAttempt] = useState(0);
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
   const [showContextSettings, setShowContextSettings] = useState(false);
   const [showTrackpad, setShowTrackpad] = useState(false);
@@ -69,6 +71,7 @@ export function DeckScreen() {
   const [convertingTile, setConvertingTile] = useState<TileConfig | null>(null);
   const [mediaSessions, setMediaSessions] = useState<MediaSession[]>([]);
   const [mediaPlatform, setMediaPlatform] = useState<'win32' | 'darwin' | null>(null);
+  const [manualIpInput, setManualIpInput] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -101,7 +104,7 @@ export function DeckScreen() {
     );
 
     return cancel;
-  }, [authenticated]);
+  }, [authenticated, discoveryAttempt]);
 
   // Effect 2: connect WebSocket once discovery succeeds
   useEffect(() => {
@@ -163,7 +166,22 @@ export function DeckScreen() {
     setViewerText(null);
     setTiles(null);
     setLicensed(null);
-    wsRef.current?.reconnect();
+    setStatus('connecting');
+    setDiscoveryError(null);
+    wsRef.current?.disconnect();
+    setAgentUrl(null);
+    setDiscoveryAttempt((attempt) => attempt + 1);
+  };
+
+  const handleConnectManual = () => {
+    const url = normalizeAgentWsUrl(manualIpInput.trim());
+    if (!url) {
+      Alert.alert('Invalid address', 'Enter the desktop IP, e.g. 192.168.1.10');
+      return;
+    }
+    retryCancelRef.current?.();
+    setDiscoveryError(null);
+    setAgentUrl(url);
   };
 
   const handleTap = (tile: TileConfig) => {
@@ -302,7 +320,7 @@ export function DeckScreen() {
         <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
         <View style={styles.centerFill}>
           <Text style={styles.loadingText}>Agent not found</Text>
-          <Text style={[styles.loadingText, { fontSize: 13, marginTop: 8, color: '#6B6B8A' }]}>
+          <Text style={[styles.loadingText, { fontSize: 13, marginTop: 8, color: '#6B6B8A', textAlign: 'center', paddingHorizontal: 32 }]}>
             {discoveryError}
           </Text>
           <TouchableOpacity
@@ -310,14 +328,32 @@ export function DeckScreen() {
             onPress={() => {
               retryCancelRef.current?.();
               setDiscoveryError(null);
-              retryCancelRef.current = discoverAgent(
-                (url) => { retryCancelRef.current = null; setAgentUrl(url); },
-                (msg) => { retryCancelRef.current = null; setDiscoveryError(msg); },
-              );
+              setDiscoveryAttempt((attempt) => attempt + 1);
             }}
             activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.manualDivider}>— or connect manually —</Text>
+          <TextInput
+            style={styles.ipInput}
+            value={manualIpInput}
+            onChangeText={setManualIpInput}
+            placeholder="192.168.x.x"
+            placeholderTextColor="#555566"
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleConnectManual}
+          />
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 10, paddingHorizontal: 28 }]}
+            onPress={handleConnectManual}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Connect</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -757,4 +793,18 @@ const styles = StyleSheet.create({
     alignItems:      'center',
   },
   buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  manualDivider: { color: '#44445A', fontSize: 12, marginTop: 32, marginBottom: 14 },
+  ipInput: {
+    backgroundColor: '#1A1A2E',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3A3A55',
+    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
+    width: 220,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
 });
