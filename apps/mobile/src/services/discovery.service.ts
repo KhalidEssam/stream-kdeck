@@ -61,19 +61,19 @@ export function discoverAgent(
   onFound:   (url: string) => void,
   onTimeout: (msg: string) => void,
 ): () => void {
+  // Dev shortcut: if EXPO_PUBLIC_AGENT_WS_URL is explicitly set, use it immediately
+  // and skip all discovery. Do NOT set this in production/preview builds.
+  if (MANUAL_AGENT_WS_URL) {
+    const timer = setTimeout(() => onFound(MANUAL_AGENT_WS_URL), 0);
+    return () => clearTimeout(timer);
+  }
+
   // Native module not linked (Expo Go / dev client without rebuild).
-  // Use the manual env-var URL as a dev escape hatch, or surface a clear error.
+  // Surface a clear error so the user can type the IP manually.
   if (!NativeModules.RNZeroconf) {
-    const timer = setTimeout(() => {
-      if (MANUAL_AGENT_WS_URL) {
-        onFound(MANUAL_AGENT_WS_URL);
-      } else {
-        onTimeout(
-          'mDNS discovery is not available. Rebuild the app with expo run:android, ' +
-          'or type your desktop IP in the field below.',
-        );
-      }
-    }, 0);
+    const timer = setTimeout(() => onTimeout(
+      'mDNS discovery is not available in this build. Type your desktop IP in the field below.',
+    ), 0);
     return () => clearTimeout(timer);
   }
 
