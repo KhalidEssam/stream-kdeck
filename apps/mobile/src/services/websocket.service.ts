@@ -16,6 +16,7 @@ import {
   AiQuotaExceededMessage,
   OpenActivationDialogMessage,
   GetLicenseStatusMessage,
+  RevalidateLicenseMessage,
   ContextShortcutsMessage,
   ContextProfilesMessage,
   AddContextShortcutMessage,
@@ -164,6 +165,12 @@ export class WebSocketService {
   openActivationDialog(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: OpenActivationDialogMessage = { type: 'OPEN_ACTIVATION_DIALOG' };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  revalidateLicense(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: RevalidateLicenseMessage = { type: 'REVALIDATE_LICENSE' };
     this.ws.send(JSON.stringify(msg));
   }
 

@@ -83,6 +83,11 @@ describe('WebSocketService', () => {
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'OPEN_ACTIVATION_DIALOG' }));
   });
 
+  it('sends REVALIDATE_LICENSE when revalidateLicense is called', async () => {
+    service.revalidateLicense();
+    await expect(server).toReceiveMessage(JSON.stringify({ type: 'REVALIDATE_LICENSE' }));
+  });
+
   it('sends GET_LICENSE_STATUS when requestLicenseStatus is called', async () => {
     service.requestLicenseStatus();
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'GET_LICENSE_STATUS' }));
