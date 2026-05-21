@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  View,
-  Text,
-  Image,
-  StyleSheet,
-} from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
 import { MediaSession } from '../types/schema';
 
 interface Props {
@@ -16,120 +9,142 @@ interface Props {
   onLongPress: (session: MediaSession) => void;
 }
 
-const RING_SIZE = 36;
-const RADIUS = 13;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const AVATAR_PALETTE = ['#5B4FE8', '#E85B7F', '#4FC8E8', '#E8A84F', '#7FE85B', '#B84FE8'];
 
-function ringColor(isActive: boolean, muted: boolean): string {
-  if (muted) return '#FF4444';
-  if (isActive) return '#5B4FE8';
-  return '#3A3A5A';
+function avatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+function AppIcon({ session, size }: { session: MediaSession; size: number }) {
+  if (session.iconBase64) {
+    return (
+      <Image
+        source={{ uri: `data:image/png;base64,${session.iconBase64}` }}
+        style={{ width: size, height: size, borderRadius: size * 0.25 }}
+      />
+    );
+  }
+  return (
+    <View
+      style={[
+        styles.avatar,
+        { width: size, height: size, borderRadius: size * 0.25, backgroundColor: avatarColor(session.processName) },
+      ]}
+    >
+      <Text style={[styles.avatarLetter, { fontSize: size * 0.45 }]}>
+        {session.label.charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
 }
 
 export function MediaAppCard({ session, isActive, onTap, onLongPress }: Props) {
-  const arc = CIRCUMFERENCE * Math.max(0, Math.min(1, session.volume));
-  const gap = CIRCUMFERENCE - arc;
+  const isPinnedOffline = session.pinned && session.volume === 0;
 
   return (
     <TouchableOpacity
-      style={[styles.card, isActive && styles.cardActive, session.muted && styles.cardMuted]}
+      style={[
+        styles.card,
+        isActive && styles.cardActive,
+        session.muted && !isPinnedOffline && styles.cardMuted,
+        isPinnedOffline && styles.cardPinned,
+      ]}
       onPress={() => onTap(session)}
       onLongPress={() => onLongPress(session)}
       activeOpacity={0.75}
     >
-      <View style={styles.ringContainer}>
-        <Svg width={RING_SIZE} height={RING_SIZE} style={styles.svg}>
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RADIUS}
-            stroke="#2A2040"
-            strokeWidth={3}
-            fill="none"
-          />
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RADIUS}
-            stroke={ringColor(isActive, session.muted)}
-            strokeWidth={3}
-            fill="none"
-            strokeDasharray={`${arc} ${gap}`}
-            strokeLinecap="round"
-            rotation={-90}
-            origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-          />
-        </Svg>
-        {session.iconBase64 ? (
-          <Image
-            source={{ uri: `data:image/png;base64,${session.iconBase64}` }}
-            style={styles.icon}
-          />
-        ) : (
-          <Text style={styles.iconFallback}>🔊</Text>
-        )}
+      <View style={styles.iconWrap}>
+        <AppIcon session={session} size={32} />
       </View>
       <Text style={[styles.label, isActive && styles.labelActive]} numberOfLines={1}>
         {session.label}
       </Text>
-      <Text style={[styles.volume, session.muted && styles.volumeMuted]}>
-        {session.muted ? '🔇' : `${Math.round(session.volume * 100)}%`}
-      </Text>
+      {isPinnedOffline ? (
+        <Text style={styles.pinnedLabel}>📌</Text>
+      ) : session.muted ? (
+        <Text style={styles.mutedLabel}>🔇</Text>
+      ) : (
+        <Text style={[styles.volLabel, isActive && styles.volLabelActive]}>
+          {Math.round(session.volume * 100)}%
+        </Text>
+      )}
+      {!isPinnedOffline && (
+        <View style={styles.miniBar}>
+          <View
+            style={[
+              styles.miniBarFill,
+              {
+                width: `${Math.round(session.volume * 100)}%`,
+                backgroundColor: session.muted ? '#ff444466' : isActive ? '#5B4FE8' : '#3a3a6a',
+              },
+            ]}
+          />
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1A1A2E',
+    flex: 1,
+    backgroundColor: '#111120',
     borderRadius: 10,
     padding: 8,
     alignItems: 'center',
-    width: 76,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#1a1a2e',
+    minWidth: 0,
   },
   cardActive: {
-    backgroundColor: '#1E1030',
+    backgroundColor: '#13133a',
     borderColor: '#5B4FE8',
   },
   cardMuted: {
-    opacity: 0.55,
+    opacity: 0.5,
+    backgroundColor: '#130d0d',
+    borderColor: '#1a1010',
   },
-  ringContainer: {
-    width: RING_SIZE,
-    height: RING_SIZE,
+  cardPinned: {
+    backgroundColor: '#0c0c18',
+    borderColor: '#22223a',
+    borderStyle: 'dashed',
+  },
+  iconWrap: {
+    marginBottom: 5,
+  },
+  avatar: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
-  svg: {
-    position: 'absolute',
-  },
-  icon: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-  },
-  iconFallback: {
-    fontSize: 14,
+  avatarLetter: {
+    color: '#fff',
+    fontWeight: '700',
   },
   label: {
-    color: '#888AAA',
-    fontSize: 8,
+    color: '#888',
+    fontSize: 9,
     fontWeight: '600',
     textAlign: 'center',
     width: '100%',
+    marginBottom: 2,
   },
-  labelActive: {
-    color: '#FFFFFF',
+  labelActive: { color: '#fff' },
+  volLabel: { color: '#555', fontSize: 9, marginBottom: 3 },
+  volLabelActive: { color: '#9b8fff' },
+  mutedLabel: { fontSize: 9, marginBottom: 3 },
+  pinnedLabel: { fontSize: 9, marginBottom: 3, color: '#555' },
+  miniBar: {
+    width: '100%',
+    height: 2,
+    backgroundColor: '#1e1e38',
+    borderRadius: 1,
+    overflow: 'hidden',
   },
-  volume: {
-    color: '#555',
-    fontSize: 7,
-    marginTop: 2,
-  },
-  volumeMuted: {
-    color: '#FF4444',
+  miniBarFill: {
+    height: '100%',
+    borderRadius: 1,
   },
 });
