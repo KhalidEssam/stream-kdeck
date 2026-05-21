@@ -1,12 +1,15 @@
-import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import Zeroconf from 'react-native-zeroconf';
 
 const SERVICE_TYPE   = 'controlsurface';
 const SERVICE_PROTO  = 'tcp';
 const SERVICE_DOMAIN = 'local.';
 const DEFAULT_PORT   = 3001;
-// DNSSD (embedded mDNSResponder) is far more reliable than Android's built-in NSD on real devices.
-const IMPL_TYPE      = 'DNSSD';
+// On Android 12+ (API 31+) apps cannot directly bind UDP 5353 — the OS reserves
+// it for the system mDNS daemon. DNSSD (Rx2DnssdEmbedded) tries to do exactly that
+// and silently fails. NSD routes through NsdManager (system API) which works on all
+// Android versions. iOS keeps DNSSD which uses the native Bonjour stack.
+const IMPL_TYPE      = Platform.OS === 'android' ? 'NSD' : 'DNSSD';
 const MAX_ATTEMPTS   = 2;
 const ATTEMPT_MS     = 5_000;
 
@@ -19,8 +22,6 @@ interface ResolvedService {
 }
 
 const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
-const NEARBY_WIFI_DEVICES_PERMISSION =
-  'android.permission.NEARBY_WIFI_DEVICES' as Parameters<typeof PermissionsAndroid.check>[0];
 
 export function normalizeAgentWsUrl(value: string | undefined): string | null {
   const raw = value?.trim();
@@ -57,26 +58,6 @@ function cleanupZeroconf(zc: Zeroconf): void {
     // Native module may be missing or already torn down.
   }
   zc.removeDeviceListeners();
-}
-
-async function ensureNearbyWifiPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
-
-  const androidVersion =
-    typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
-  if (!Number.isFinite(androidVersion) || androidVersion < 33) return true;
-
-  const alreadyGranted = await PermissionsAndroid.check(NEARBY_WIFI_DEVICES_PERMISSION);
-  if (alreadyGranted) return true;
-
-  const result = await PermissionsAndroid.request(NEARBY_WIFI_DEVICES_PERMISSION, {
-    title: 'Nearby devices',
-    message: 'KDeck uses nearby Wi-Fi discovery to find your desktop agent on this network.',
-    buttonPositive: 'Allow',
-    buttonNegative: 'Not now',
-  });
-
-  return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 export function discoverAgent(
@@ -155,26 +136,7 @@ export function discoverAgent(
     }, ATTEMPT_MS);
   };
 
-  void ensureNearbyWifiPermission()
-    .then((granted) => {
-      if (cancelled) return;
-      if (!granted) {
-        cancelled = true;
-        onTimeout(
-          'Nearby devices permission is needed for automatic discovery. Type your desktop IP below or enable the permission in Android settings.',
-        );
-        return;
-      }
-
-      startAttempt();
-    })
-    .catch(() => {
-      if (cancelled) return;
-      cancelled = true;
-      onTimeout(
-        'Nearby devices permission is needed for automatic discovery. Type your desktop IP below or enable the permission in Android settings.',
-      );
-    });
+  startAttempt();
 
   return () => {
     cancelled = true;

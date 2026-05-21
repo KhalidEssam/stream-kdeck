@@ -4,18 +4,10 @@ const mockScan = jest.fn();
 const mockStop = jest.fn();
 const mockRemoveDeviceListeners = jest.fn();
 const mockPlatform = { OS: 'android', Version: 35 };
-const mockPermissionCheck = jest.fn();
-const mockPermissionRequest = jest.fn();
-const mockPermissionResults = { GRANTED: 'granted', DENIED: 'denied' };
 
 jest.mock('react-native', () => ({
   NativeModules: mockNativeModules,
   Platform: mockPlatform,
-  PermissionsAndroid: {
-    check: mockPermissionCheck,
-    request: mockPermissionRequest,
-    RESULTS: mockPermissionResults,
-  },
 }));
 
 jest.mock('react-native-zeroconf', () => (
@@ -43,8 +35,6 @@ describe('discovery.service', () => {
     mockNativeModules.RNZeroconf = {};
     mockPlatform.OS = 'android';
     mockPlatform.Version = 35;
-    mockPermissionCheck.mockResolvedValue(true);
-    mockPermissionRequest.mockResolvedValue(mockPermissionResults.GRANTED);
   });
 
   it('normalizes raw manual host values into WebSocket URLs', () => {
@@ -79,7 +69,7 @@ describe('discovery.service', () => {
     discoverAgent(onFound, onTimeout);
     await flushPromises();
 
-    expect(mockScan).toHaveBeenCalledWith('controlsurface', 'tcp', 'local.', 'DNSSD');
+    expect(mockScan).toHaveBeenCalledWith('controlsurface', 'tcp', 'local.', 'NSD');
 
     mockHandlers.resolved({
       host: 'KDeck-Agent.local.',
@@ -89,37 +79,7 @@ describe('discovery.service', () => {
 
     expect(onFound).toHaveBeenCalledWith('ws://192.168.1.77:3001');
     expect(onTimeout).not.toHaveBeenCalled();
-    expect(mockStop).toHaveBeenCalledWith('DNSSD');
+    expect(mockStop).toHaveBeenCalledWith('NSD');
     expect(mockRemoveDeviceListeners).toHaveBeenCalled();
-  });
-
-  it('asks for nearby Wi-Fi permission before scanning on Android 13+', async () => {
-    const onFound = jest.fn();
-    const onTimeout = jest.fn();
-    mockPermissionCheck.mockResolvedValueOnce(false);
-    mockPermissionRequest.mockResolvedValueOnce(mockPermissionResults.GRANTED);
-
-    discoverAgent(onFound, onTimeout);
-    await flushPromises();
-
-    expect(mockPermissionRequest).toHaveBeenCalledWith(
-      'android.permission.NEARBY_WIFI_DEVICES',
-      expect.objectContaining({ title: 'Nearby devices' }),
-    );
-    expect(mockScan).toHaveBeenCalledWith('controlsurface', 'tcp', 'local.', 'DNSSD');
-  });
-
-  it('falls back to manual entry when nearby Wi-Fi permission is denied', async () => {
-    const onFound = jest.fn();
-    const onTimeout = jest.fn();
-    mockPermissionCheck.mockResolvedValueOnce(false);
-    mockPermissionRequest.mockResolvedValueOnce(mockPermissionResults.DENIED);
-
-    discoverAgent(onFound, onTimeout);
-    await flushPromises();
-
-    expect(mockScan).not.toHaveBeenCalled();
-    expect(onFound).not.toHaveBeenCalled();
-    expect(onTimeout).toHaveBeenCalledWith(expect.stringContaining('Nearby devices permission'));
   });
 });
