@@ -41,8 +41,10 @@ describe('ObsService', () => {
   });
 
   it('canExecute returns true for known obs actionIds', () => {
+    expect(service.canExecute('obs.stream.toggle')).toBe(true);
     expect(service.canExecute('obs.stream.start')).toBe(true);
     expect(service.canExecute('obs.stream.stop')).toBe(true);
+    expect(service.canExecute('obs.record.toggle')).toBe(true);
     expect(service.canExecute('obs.record.start')).toBe(true);
     expect(service.canExecute('obs.record.stop')).toBe(true);
     expect(service.canExecute('obs.scene.switch')).toBe(true);
@@ -71,6 +73,74 @@ describe('ObsService', () => {
     expect(result.success).toBe(true);
     expect(mockConnector.getDeviceConnection).toHaveBeenCalledWith('uuid-obs');
     expect(mockCall).toHaveBeenCalledWith('StartStream');
+  });
+
+  it('execute StreamToggle starts stream when inactive', async () => {
+    mockConnector.getDeviceConnection.mockResolvedValue({ host: 'localhost', port: 4455, password: '' });
+    mockConnect.mockResolvedValue(undefined);
+    mockCall.mockImplementation((method: string) => {
+      if (method === 'GetStreamStatus') {
+        return Promise.resolve({ outputActive: false });
+      }
+      return Promise.resolve({});
+    });
+
+    const result = await service.execute('obs.stream.toggle', {});
+
+    expect(result.success).toBe(true);
+    expect(mockCall).toHaveBeenCalledWith('GetStreamStatus');
+    expect(mockCall).toHaveBeenCalledWith('StartStream');
+  });
+
+  it('execute StreamToggle stops stream when active', async () => {
+    mockConnector.getDeviceConnection.mockResolvedValue({ host: 'localhost', port: 4455, password: '' });
+    mockConnect.mockResolvedValue(undefined);
+    mockCall.mockImplementation((method: string) => {
+      if (method === 'GetStreamStatus') {
+        return Promise.resolve({ outputActive: true });
+      }
+      return Promise.resolve({});
+    });
+
+    const result = await service.execute('obs.stream.toggle', {});
+
+    expect(result.success).toBe(true);
+    expect(mockCall).toHaveBeenCalledWith('GetStreamStatus');
+    expect(mockCall).toHaveBeenCalledWith('StopStream');
+  });
+
+  it('execute RecordToggle starts recording when inactive', async () => {
+    mockConnector.getDeviceConnection.mockResolvedValue({ host: 'localhost', port: 4455, password: '' });
+    mockConnect.mockResolvedValue(undefined);
+    mockCall.mockImplementation((method: string) => {
+      if (method === 'GetRecordStatus') {
+        return Promise.resolve({ outputActive: false });
+      }
+      return Promise.resolve({});
+    });
+
+    const result = await service.execute('obs.record.toggle', {});
+
+    expect(result.success).toBe(true);
+    expect(mockCall).toHaveBeenCalledWith('GetRecordStatus');
+    expect(mockCall).toHaveBeenCalledWith('StartRecord');
+  });
+
+  it('execute RecordToggle stops recording when active', async () => {
+    mockConnector.getDeviceConnection.mockResolvedValue({ host: 'localhost', port: 4455, password: '' });
+    mockConnect.mockResolvedValue(undefined);
+    mockCall.mockImplementation((method: string) => {
+      if (method === 'GetRecordStatus') {
+        return Promise.resolve({ outputActive: true });
+      }
+      return Promise.resolve({});
+    });
+
+    const result = await service.execute('obs.record.toggle', {});
+
+    expect(result.success).toBe(true);
+    expect(mockCall).toHaveBeenCalledWith('GetRecordStatus');
+    expect(mockCall).toHaveBeenCalledWith('StopRecord');
   });
 
   it('execute SwitchScene calls SetCurrentProgramScene with sceneName', async () => {

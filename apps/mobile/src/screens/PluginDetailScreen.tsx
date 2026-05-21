@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IntegrationPlugin } from '../types/schema';
+import { getPluginToolViews } from '../utils/pluginTools';
 
 interface Props {
   plugin: IntegrationPlugin | null;
@@ -32,6 +33,7 @@ export function PluginDetailScreen({
   if (!plugin) return null;
 
   const installed = installedIds.includes(plugin.id);
+  const toolViews = getPluginToolViews(plugin);
 
   return (
     <Modal visible={!!plugin} animationType="slide" presentationStyle="pageSheet" onRequestClose={onDismiss}>
@@ -62,14 +64,15 @@ export function PluginDetailScreen({
             <Text style={styles.infoValue}>{plugin.supportedPlatforms.join(', ')}</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Tools ({plugin.tools.length})</Text>
-          {plugin.tools.map((tool) => (
+          <Text style={styles.sectionTitle}>Tools ({toolViews.length})</Text>
+          {toolViews.map((tool) => (
             <View key={tool.id} style={styles.toolRow}>
-              <Text style={styles.toolName}>{tool.name}</Text>
+              <Text style={styles.toolName}>{tool.displayName}</Text>
               {tool.description ? <Text style={styles.toolDesc}>{tool.description}</Text> : null}
               <View style={styles.toolBadges}>
                 {tool.supportsWorkflows ? <Text style={styles.badge}>Workflow</Text> : null}
                 {tool.supportsState ? <Text style={styles.badge}>State</Text> : null}
+                {tool.deckActionId !== tool.actionId ? <Text style={styles.badge}>Toggle</Text> : null}
                 {tool.requiresConfirmation ? <Text style={styles.badgeWarn}>Confirm</Text> : null}
               </View>
             </View>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IntegrationPlugin } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
+
+const INSTALL_ACK_TIMEOUT_MS = 15000;
 
 interface Props {
   visible: boolean;
@@ -27,6 +29,34 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
   const [category, setCategory] = useState<string | null>(null);
   const [pendingPluginId, setPendingPluginId] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const pendingPluginIdRef = useRef<string | null>(null);
+  const pendingOperationRef = useRef<'install' | 'uninstall' | null>(null);
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPendingTimeout = () => {
+    if (!pendingTimeoutRef.current) return;
+    clearTimeout(pendingTimeoutRef.current);
+    pendingTimeoutRef.current = null;
+  };
+
+  const finishPending = (pluginId: string) => {
+    if (pendingPluginIdRef.current !== pluginId) return;
+    clearPendingTimeout();
+    pendingPluginIdRef.current = null;
+    pendingOperationRef.current = null;
+    setPendingPluginId(null);
+  };
+
+  const startPending = (plugin: IntegrationPlugin, operation: 'install' | 'uninstall') => {
+    clearPendingTimeout();
+    pendingPluginIdRef.current = plugin.id;
+    pendingOperationRef.current = operation;
+    setPendingPluginId(plugin.id);
+    pendingTimeoutRef.current = setTimeout(() => {
+      finishPending(plugin.id);
+      setInstallError(`Timed out waiting for ${plugin.name}. Restart the desktop agent and try again.`);
+    }, INSTALL_ACK_TIMEOUT_MS);
+  };
 
   useEffect(() => {
     if (!wsService || !visible) return;
@@ -34,9 +64,14 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
     const unsubCatalog = wsService.onPluginCatalog(setPlugins);
     const unsubInstalled = wsService.onInstalledPlugins((ids) => {
       setInstalledIds(ids);
+      const pendingId = pendingPluginIdRef.current;
+      const pendingOperation = pendingOperationRef.current;
+      if (!pendingId || !pendingOperation) return;
+      if (pendingOperation === 'install' && ids.includes(pendingId)) finishPending(pendingId);
+      if (pendingOperation === 'uninstall' && !ids.includes(pendingId)) finishPending(pendingId);
     });
     const unsubInstallStatus = wsService.onPluginInstallStatus((msg) => {
-      setPendingPluginId((current) => current === msg.pluginId ? null : current);
+      finishPending(msg.pluginId);
       if (msg.status === 'error') {
         setInstallError(msg.error ?? 'Plugin install failed.');
         return;
@@ -54,6 +89,7 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
       unsubCatalog();
       unsubInstalled();
       unsubInstallStatus();
+      clearPendingTimeout();
     };
   }, [wsService, visible]);
 
@@ -75,8 +111,12 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
 
   const toggleInstall = (plugin: IntegrationPlugin, installed: boolean) => {
     if (!wsService) return;
+    if (!wsService.isConnected()) {
+      setInstallError('Desktop agent is not connected.');
+      return;
+    }
     setInstallError(null);
-    setPendingPluginId(plugin.id);
+    startPending(plugin, installed ? 'uninstall' : 'install');
     if (installed) wsService.sendUninstallPlugin(plugin.id);
     else wsService.sendInstallPlugin(plugin.id);
   };
@@ -100,7 +140,8 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
           style={[styles.ctaBtn, installed ? styles.ctaBtnInstalled : styles.ctaBtnAvailable]}
           onPress={(event) => {
             event.stopPropagation();
-            toggleInstall(item, installed);
+            if (installed) onOpenDetail(item);
+            else toggleInstall(item, installed);
           }}
           disabled={pending}
           activeOpacity={0.78}
@@ -108,7 +149,7 @@ export function PluginLibraryScreen({ visible, wsService, onDismiss, onOpenDetai
           {pending ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.ctaBtnText}>{installed ? 'Remove' : 'Install'}</Text>
+            <Text style={styles.ctaBtnText}>{installed ? 'Open' : 'Install'}</Text>
           )}
         </TouchableOpacity>
       </TouchableOpacity>

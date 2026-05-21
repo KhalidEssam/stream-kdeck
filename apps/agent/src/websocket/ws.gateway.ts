@@ -319,7 +319,7 @@ export class WsGateway implements OnGatewayConnection {
       }
 
       if (data.type === 'INSTALL_PLUGIN') {
-        const result = await this.pluginInstall.install(data.pluginId);
+        const result = await this.safePluginInstall(() => this.pluginInstall.install(data.pluginId));
         this.sendPluginInstallStatus(client, {
           pluginId: data.pluginId,
           status: result.success ? 'installed' : 'error',
@@ -330,7 +330,7 @@ export class WsGateway implements OnGatewayConnection {
       }
 
       if (data.type === 'UNINSTALL_PLUGIN') {
-        const result = await this.pluginInstall.uninstall(data.pluginId);
+        const result = await this.safePluginInstall(() => this.pluginInstall.uninstall(data.pluginId));
         this.sendPluginInstallStatus(client, {
           pluginId: data.pluginId,
           status: result.success ? 'uninstalled' : 'error',
@@ -502,9 +502,23 @@ export class WsGateway implements OnGatewayConnection {
       };
       client.send(JSON.stringify(response));
 
+      if (result.success && data.action.kind === 'INTEGRATION_ACTION') {
+        void this.integrationState.pollNow();
+      }
+
       if (data.action.kind === 'AI_CLIPBOARD') {
         this.sendLicenseStatus(client);
       }
     });
+  }
+
+  private async safePluginInstall(
+    operation: () => Promise<{ success: boolean; error?: string }>,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      return await operation();
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 }

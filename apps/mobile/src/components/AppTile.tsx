@@ -72,6 +72,8 @@ interface Props {
   isLoading?: boolean;
   isSelected?: boolean;
   stateBadge?: string | null;
+  stateActive?: boolean;
+  displayLabel?: string | null;
   creditsRemaining?: number;
   onTap: (tile: TileConfig) => void;
   onLongPress?: (tile: TileConfig) => void;
@@ -82,6 +84,8 @@ export function AppTile({
   isLoading,
   isSelected,
   stateBadge,
+  stateActive,
+  displayLabel,
   creditsRemaining,
   onTap,
   onLongPress,
@@ -164,9 +168,13 @@ export function AppTile({
           )}
         </View>
 
+        {tile.kind === 'integration' && stateActive ? (
+          <View style={styles.liveDot} />
+        ) : null}
+
         {/* Label */}
         <Text style={styles.label} numberOfLines={2}>
-          {tile.label}
+          {displayLabel ?? tile.label}
         </Text>
 
         {/* AI badge + credit counter */}
@@ -294,6 +302,17 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.15)',
   },
   workflowBadgeText: { fontSize: 10 },
+  liveDot: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FF3B30',
+    borderWidth: 2,
+    borderColor: '#1A1A2E',
+  },
   stateBadge: {
     position: 'absolute',
     bottom: 5,

@@ -57,6 +57,88 @@ const DECK_TABS: Array<{ key: DeckTab; label: string }> = [
   { key: 'media', label: 'Media' },
 ];
 
+const OBS_STREAM_ACTION_IDS = new Set(['obs.stream.toggle', 'obs.stream.start', 'obs.stream.stop']);
+const OBS_RECORD_ACTION_IDS = new Set(['obs.record.toggle', 'obs.record.start', 'obs.record.stop']);
+
+type IntegrationStatesByPlugin = Map<string, IntegrationStateMessage['states']>;
+type IntegrationStateEntry = IntegrationStateMessage['states'][number];
+
+interface TileRuntimeState {
+  badge: string | null;
+  active: boolean;
+  displayLabel: string | null;
+}
+
+function getStateEntry(states: IntegrationStateMessage['states'], key: string): IntegrationStateEntry | undefined {
+  return states.find((state) => state.key === key);
+}
+
+function getStateLabel(state: IntegrationStateEntry | undefined, fallback: string): string {
+  return typeof state?.label === 'string' && state.label.trim() ? state.label : fallback;
+}
+
+function normalizeObsDeckTapAction(action: ButtonAction): ButtonAction {
+  if (action.kind !== 'INTEGRATION_ACTION') return action;
+  if (OBS_STREAM_ACTION_IDS.has(action.actionId)) {
+    return { ...action, actionId: 'obs.stream.toggle' };
+  }
+  if (OBS_RECORD_ACTION_IDS.has(action.actionId)) {
+    return { ...action, actionId: 'obs.record.toggle' };
+  }
+  return action;
+}
+
+function getTileRuntimeState(
+  action: ButtonAction,
+  integrationStates: IntegrationStatesByPlugin,
+): TileRuntimeState {
+  if (action.kind !== 'INTEGRATION_ACTION') {
+    return { badge: null, active: false, displayLabel: null };
+  }
+
+  const states = integrationStates.get(action.pluginId) ?? [];
+  const streaming = getStateEntry(states, 'streaming');
+  const recording = getStateEntry(states, 'recording');
+
+  if (OBS_STREAM_ACTION_IDS.has(action.actionId)) {
+    const active = streaming?.value === true;
+    return {
+      badge: active ? getStateLabel(streaming, 'Live') : null,
+      active,
+      displayLabel: active ? 'Stop Stream' : 'Start Stream',
+    };
+  }
+
+  if (OBS_RECORD_ACTION_IDS.has(action.actionId)) {
+    const active = recording?.value === true;
+    return {
+      badge: active ? getStateLabel(recording, 'Recording') : null,
+      active,
+      displayLabel: active ? 'Stop Recording' : 'Start Recording',
+    };
+  }
+
+  if (action.actionId === 'obs.scene.switch') {
+    const scene = getStateEntry(states, 'scene');
+    return {
+      badge: typeof scene?.label === 'string' && scene.label ? scene.label : null,
+      active: false,
+      displayLabel: null,
+    };
+  }
+
+  if (action.actionId.startsWith('obs.')) {
+    return { badge: null, active: false, displayLabel: null };
+  }
+
+  const activeState = states.find((state) => state.value === true && typeof state.label === 'string' && state.label);
+  return {
+    badge: typeof activeState?.label === 'string' ? activeState.label : null,
+    active: false,
+    displayLabel: null,
+  };
+}
+
 function getManualInputFromAgentUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -311,7 +393,7 @@ export function DeckScreen() {
       return;
     }
     setLoadingId(tile.id);
-    wsRef.current?.tap(tile.id, tile.action);
+    wsRef.current?.tap(tile.id, normalizeObsDeckTapAction(tile.action));
   };
 
   const handleAddTile = (tile: Omit<TileConfig, 'id'>) => {
@@ -405,22 +487,20 @@ export function DeckScreen() {
       .filter((tile) => activeTab === 'ai' ? tile.kind === 'ai' : tile.kind !== 'ai' && tile.kind !== 'shortcut')
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }, [activeTab, tiles]);
-  const getStateBadge = (action: ButtonAction): string | null => {
-    if (action.kind !== 'INTEGRATION_ACTION') return null;
-    const states = integrationStates.get(action.pluginId) ?? [];
-    const streaming = states.find((state) => state.key === 'streaming');
-    if (streaming?.value === true) return typeof streaming.label === 'string' ? streaming.label : 'Live';
-    const recording = states.find((state) => state.key === 'recording');
-    if (recording?.value === true) return typeof recording.label === 'string' ? recording.label : 'Recording';
-    const scene = states.find((state) => state.key === 'scene');
-    return typeof scene?.label === 'string' && scene.label ? scene.label : null;
-  };
-  const tileStateBadges = useMemo(() => {
-    const badges: Record<string, string | null> = {};
+  const tileRuntimeState = useMemo(() => {
+    const runtime: {
+      badges: Record<string, string | null>;
+      active: Record<string, boolean>;
+      labels: Record<string, string | null>;
+    } = { badges: {}, active: {}, labels: {} };
+
     for (const tile of visibleTiles) {
-      badges[tile.id] = getStateBadge(tile.action);
+      const state = getTileRuntimeState(tile.action, integrationStates);
+      runtime.badges[tile.id] = state.badge;
+      runtime.active[tile.id] = state.active;
+      runtime.labels[tile.id] = state.displayLabel;
     }
-    return badges;
+    return runtime;
   }, [integrationStates, visibleTiles]);
   const emptyCopy = activeTab === 'ai'
     ? { title: 'No AI tools yet.', hint: 'Reconnect to load the built-in tools.' }
@@ -647,7 +727,9 @@ export function DeckScreen() {
             onAddTile={() => handleOpenAddTile()}
             emptyTitle={emptyCopy.title}
             emptyHint={emptyCopy.hint}
-            stateBadges={tileStateBadges}
+            stateBadges={tileRuntimeState.badges}
+            stateActive={tileRuntimeState.active}
+            displayLabels={tileRuntimeState.labels}
           />
         </View>
       )}

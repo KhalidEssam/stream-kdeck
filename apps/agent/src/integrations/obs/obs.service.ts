@@ -8,8 +8,10 @@ import { PluginCatalogService } from '../plugin-catalog.service';
 const OBS_PLUGIN_SLUG = 'obs';
 
 const SUPPORTED_ACTIONS = new Set([
+  'obs.stream.toggle',
   'obs.stream.start',
   'obs.stream.stop',
+  'obs.record.toggle',
   'obs.record.start',
   'obs.record.stop',
   'obs.scene.switch',
@@ -52,6 +54,12 @@ export class ObsService implements IntegrationAdapter {
       await this.ensureConnected(this.normalizeConnection(connMeta));
 
       switch (actionId) {
+        case 'obs.stream.toggle': {
+          const status = await this.obs.call('GetStreamStatus') as unknown as { outputActive: boolean };
+          await this.obs.call(status.outputActive ? 'StopStream' : 'StartStream');
+          break;
+        }
+
         case 'obs.stream.start':
           await this.obs.call('StartStream');
           break;
@@ -59,6 +67,12 @@ export class ObsService implements IntegrationAdapter {
         case 'obs.stream.stop':
           await this.obs.call('StopStream');
           break;
+
+        case 'obs.record.toggle': {
+          const status = await this.obs.call('GetRecordStatus') as unknown as { outputActive: boolean };
+          await this.obs.call(status.outputActive ? 'StopRecord' : 'StartRecord');
+          break;
+        }
 
         case 'obs.record.start':
           await this.obs.call('StartRecord');

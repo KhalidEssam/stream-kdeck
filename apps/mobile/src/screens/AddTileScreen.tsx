@@ -15,11 +15,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTile } from '../components/AppTile';
-import { IntegrationPlugin, IntegrationTool, TileConfig, Pack } from '../types/schema';
+import { IntegrationPlugin, TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
 import { GamesTab } from './GamesTab';
 import { AiToolsTab } from './AiToolsTab';
 import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
+import {
+  getPluginToolViews,
+  getRequiredParams,
+} from '../utils/pluginTools';
+import type { IntegrationTileAction, PluginToolView } from '../utils/pluginTools';
 
 // ─── Curated Apps ─────────────────────────────────────────────────────────────
 
@@ -159,6 +164,7 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
         {activeTab === 'plugins' && (
           <PluginsTabContent
             wsService={ws}
+            currentTiles={currentTiles}
             onAddTile={onAdd}
           />
         )}
@@ -639,15 +645,17 @@ const workflowTabStyles = StyleSheet.create({
 
 function PluginsTabContent({
   wsService,
+  currentTiles,
   onAddTile,
 }: {
   wsService: WebSocketService;
+  currentTiles: TileConfig[];
   onAddTile: (tile: Omit<TileConfig, 'id'>) => void;
 }) {
   const [plugins, setPlugins] = useState<IntegrationPlugin[]>([]);
   const [installedIds, setInstalledIds] = useState<string[]>([]);
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null);
-  const [selectedConfig, setSelectedConfig] = useState<{ plugin: IntegrationPlugin; tool: IntegrationTool } | null>(null);
+  const [selectedConfig, setSelectedConfig] = useState<{ plugin: IntegrationPlugin; tool: PluginToolView } | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -665,21 +673,35 @@ function PluginsTabContent({
     [installedIds, plugins],
   );
 
+  const existingIntegrationActions = useMemo(
+    () => currentTiles
+      .map((tile) => tile.action)
+      .filter((action): action is IntegrationTileAction => action.kind === 'INTEGRATION_ACTION'),
+    [currentTiles],
+  );
+
+  const isToolOnDeck = (plugin: IntegrationPlugin, tool: PluginToolView): boolean => {
+    return existingIntegrationActions.some((action) => {
+      if (action.pluginId !== plugin.id) return false;
+      return action.toolId === tool.id || tool.selectedActionIds.includes(action.actionId);
+    });
+  };
+
   const submitTile = (
     plugin: IntegrationPlugin,
-    tool: IntegrationTool,
+    tool: PluginToolView,
     resolvedParams: Record<string, unknown>,
   ) => {
     onAddTile({
       kind: 'integration',
-      label: tool.name,
+      label: tool.tileLabel,
       iconId: plugin.icon,
       color: tool.color ?? plugin.color,
       action: {
         kind: 'INTEGRATION_ACTION',
         pluginId: plugin.id,
         toolId: tool.id,
-        actionId: tool.actionId,
+        actionId: tool.deckActionId,
         params: resolvedParams,
       },
     });
@@ -687,8 +709,12 @@ function PluginsTabContent({
     setParams({});
   };
 
-  const handleAddTool = (plugin: IntegrationPlugin, tool: IntegrationTool) => {
-    const requiredParams = (tool.paramsSchema as { required?: string[] }).required ?? [];
+  const handleAddTool = (plugin: IntegrationPlugin, tool: PluginToolView) => {
+    const requiredParams = getRequiredParams(tool);
+    if (requiredParams.length === 0 && isToolOnDeck(plugin, tool)) {
+      return;
+    }
+
     if (requiredParams.length === 0) {
       submitTile(plugin, tool, {});
       return;
@@ -718,41 +744,64 @@ function PluginsTabContent({
 
   return (
     <ScrollView contentContainerStyle={pluginTabStyles.container} keyboardShouldPersistTaps="handled">
-      {installedPlugins.map((plugin) => (
-        <View key={plugin.id} style={pluginTabStyles.pluginGroup}>
-          <TouchableOpacity
-            style={pluginTabStyles.pluginHeader}
-            onPress={() => setExpandedPlugin(expandedPlugin === plugin.id ? null : plugin.id)}
-            activeOpacity={0.78}
-          >
-            <View style={[pluginTabStyles.pluginIcon, { backgroundColor: plugin.color ?? '#2A2A4A' }]}>
-              <Text style={pluginTabStyles.pluginIconText}>{plugin.icon.slice(0, 2).toUpperCase()}</Text>
-            </View>
-            <View style={pluginTabStyles.pluginInfo}>
-              <Text style={pluginTabStyles.pluginName}>{plugin.name}</Text>
-              <Text style={pluginTabStyles.pluginMeta}>{plugin.tools.length} tools</Text>
-            </View>
-            <Text style={pluginTabStyles.expandText}>{expandedPlugin === plugin.id ? '-' : '+'}</Text>
-          </TouchableOpacity>
-
-          {expandedPlugin === plugin.id && plugin.tools.map((tool) => (
+      {installedPlugins.map((plugin) => {
+        const toolViews = getPluginToolViews(plugin);
+        return (
+          <View key={plugin.id} style={pluginTabStyles.pluginGroup}>
             <TouchableOpacity
-              key={tool.id}
-              style={pluginTabStyles.toolRow}
-              onPress={() => handleAddTool(plugin, tool)}
+              style={pluginTabStyles.pluginHeader}
+              onPress={() => setExpandedPlugin(expandedPlugin === plugin.id ? null : plugin.id)}
               activeOpacity={0.78}
             >
-              <Text style={pluginTabStyles.toolName}>{tool.name}</Text>
-              {tool.description ? <Text style={pluginTabStyles.toolDesc}>{tool.description}</Text> : null}
-              {tool.supportsState ? <Text style={pluginTabStyles.toolBadge}>State badge</Text> : null}
+              <View style={[pluginTabStyles.pluginIcon, { backgroundColor: plugin.color ?? '#2A2A4A' }]}>
+                <Text style={pluginTabStyles.pluginIconText}>{plugin.icon.slice(0, 2).toUpperCase()}</Text>
+              </View>
+              <View style={pluginTabStyles.pluginInfo}>
+                <Text style={pluginTabStyles.pluginName}>{plugin.name}</Text>
+                <Text style={pluginTabStyles.pluginMeta}>{toolViews.length} tools</Text>
+              </View>
+              <Text style={pluginTabStyles.expandText}>{expandedPlugin === plugin.id ? '-' : '+'}</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      ))}
+
+            {expandedPlugin === plugin.id && toolViews.map((tool) => {
+              const requiredParams = getRequiredParams(tool);
+              const selected = isToolOnDeck(plugin, tool);
+              const disabled = selected && requiredParams.length === 0;
+              return (
+                <TouchableOpacity
+                  key={tool.id}
+                  style={[
+                    pluginTabStyles.toolRow,
+                    selected && pluginTabStyles.toolRowSelected,
+                    disabled && pluginTabStyles.toolRowDisabled,
+                  ]}
+                  onPress={() => handleAddTool(plugin, tool)}
+                  activeOpacity={0.78}
+                  disabled={disabled}
+                >
+                  <View style={pluginTabStyles.toolTitleRow}>
+                    <Text style={pluginTabStyles.toolName}>{tool.displayName}</Text>
+                    {selected ? (
+                      <Text style={pluginTabStyles.selectedToolBadge}>
+                        {disabled ? 'Added' : 'Configured'}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {tool.description ? <Text style={pluginTabStyles.toolDesc}>{tool.description}</Text> : null}
+                  <View style={pluginTabStyles.toolBadgeRow}>
+                    {tool.supportsState ? <Text style={pluginTabStyles.toolBadge}>State badge</Text> : null}
+                    {tool.deckActionId !== tool.actionId ? <Text style={pluginTabStyles.toolBadge}>Toggle</Text> : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      })}
 
       {selectedConfig ? (
         <View style={pluginTabStyles.paramSheet}>
-          <Text style={pluginTabStyles.paramTitle}>Configure {selectedConfig.tool.name}</Text>
+          <Text style={pluginTabStyles.paramTitle}>Configure {selectedConfig.tool.displayName}</Text>
           {Object.keys(params).map((key) => (
             <View key={key}>
               <Text style={pluginTabStyles.paramLabel}>{key}</Text>
@@ -811,8 +860,31 @@ const pluginTabStyles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#11111A',
   },
+  toolRowSelected: {
+    backgroundColor: '#191936',
+    borderWidth: 1,
+    borderColor: '#5B4FE8',
+  },
+  toolRowDisabled: { opacity: 0.82 },
+  toolTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   toolName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   toolDesc: { color: '#8A8AAA', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  selectedToolBadge: {
+    marginLeft: 'auto',
+    backgroundColor: '#263A2F',
+    color: '#7BFFA8',
+    fontSize: 10,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  toolBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   toolBadge: {
     alignSelf: 'flex-start',
     marginTop: 7,

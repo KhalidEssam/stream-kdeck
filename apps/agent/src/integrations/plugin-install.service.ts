@@ -3,10 +3,16 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { LicenseService } from '../license/license.service';
 import ws from 'ws';
 
+const PLUGIN_INSTALL_REQUEST_TIMEOUT_MS = 12000;
+
 export interface PluginInstallResult {
   success: boolean;
   error?: string;
 }
+
+type MaybeAbortableRequest<T> = PromiseLike<T> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<T>;
+};
 
 @Injectable()
 export class PluginInstallService {
@@ -28,12 +34,22 @@ export class PluginInstallService {
     const supabase = await this.getAuthorizedClient();
     if (!supabase) return;
 
-    const { data, error } = await supabase
-      .from('user_plugin_installs')
-      .select('plugin_id')
-      .eq('user_id', userId)
-      .eq('status', 'installed')
-      .is('deleted_at', null);
+    let response: { data: Array<{ plugin_id: string }> | null; error: { message: string } | null };
+    try {
+      response = await this.runSupabaseRequest(
+        supabase
+          .from('user_plugin_installs')
+          .select('plugin_id')
+          .eq('user_id', userId)
+          .eq('status', 'installed')
+          .is('deleted_at', null),
+      );
+    } catch (err) {
+      console.warn('[PluginInstall] Failed to fetch installs:', this.formatRequestError(err, 'fetch'));
+      return;
+    }
+
+    const { data, error } = response;
 
     if (error) {
       console.warn('[PluginInstall] Failed to fetch installs:', error.message);
@@ -49,12 +65,23 @@ export class PluginInstallService {
     const supabase = await this.getAuthorizedClient();
     if (!supabase) return { success: false, error: 'Supabase is not configured for plugin installs.' };
 
-    const { error } = await supabase
-      .from('user_plugin_installs')
-      .upsert(
-        { user_id: userId, plugin_id: pluginId, status: 'installed', deleted_at: null, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,plugin_id' },
+    let response: { error: { message: string } | null };
+    try {
+      response = await this.runSupabaseRequest(
+        supabase
+          .from('user_plugin_installs')
+          .upsert(
+            { user_id: userId, plugin_id: pluginId, status: 'installed', deleted_at: null, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,plugin_id' },
+          ),
       );
+    } catch (err) {
+      const error = this.formatRequestError(err, 'install');
+      console.warn('[PluginInstall] Failed to install:', error);
+      return { success: false, error };
+    }
+
+    const { error } = response;
 
     if (error) {
       console.warn('[PluginInstall] Failed to install:', error.message);
@@ -71,12 +98,23 @@ export class PluginInstallService {
     const supabase = await this.getAuthorizedClient();
     if (!supabase) return { success: false, error: 'Supabase is not configured for plugin installs.' };
 
-    const { error } = await supabase
-      .from('user_plugin_installs')
-      .upsert(
-        { user_id: userId, plugin_id: pluginId, status: 'uninstalled', deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,plugin_id' },
+    let response: { error: { message: string } | null };
+    try {
+      response = await this.runSupabaseRequest(
+        supabase
+          .from('user_plugin_installs')
+          .upsert(
+            { user_id: userId, plugin_id: pluginId, status: 'uninstalled', deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,plugin_id' },
+          ),
       );
+    } catch (err) {
+      const error = this.formatRequestError(err, 'uninstall');
+      console.warn('[PluginInstall] Failed to uninstall:', error);
+      return { success: false, error };
+    }
+
+    const { error } = response;
 
     if (error) {
       console.warn('[PluginInstall] Failed to uninstall:', error.message);
@@ -126,5 +164,24 @@ export class PluginInstallService {
     } catch {
       return null;
     }
+  }
+
+  private async runSupabaseRequest<T>(request: MaybeAbortableRequest<T>): Promise<T> {
+    if (!request.abortSignal) return request;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PLUGIN_INSTALL_REQUEST_TIMEOUT_MS);
+    try {
+      return await request.abortSignal(controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private formatRequestError(err: unknown, action: string): string {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return `Plugin ${action} timed out. Check the desktop agent network and Supabase configuration.`;
+    }
+    return err instanceof Error ? err.message : String(err);
   }
 }

@@ -24,6 +24,10 @@ export class IntegrationStateService implements OnModuleDestroy {
     this.intervalHandle = setInterval(() => void this.poll(), intervalMs);
   }
 
+  async pollNow(): Promise<void> {
+    await this.poll();
+  }
+
   onModuleDestroy(): void {
     if (this.intervalHandle) clearInterval(this.intervalHandle);
   }
