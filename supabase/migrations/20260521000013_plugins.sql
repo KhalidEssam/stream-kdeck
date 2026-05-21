@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.integration_plugins (
   color                  text,
   publisher              text NOT NULL DEFAULT 'KDeck',
   version                text NOT NULL DEFAULT '1.0.0',
-  status                 text CHECK (status IN ('draft','internal','beta','published','deprecated','disabled')),
+  status                 text NOT NULL CHECK (status IN ('draft','internal','beta','published','deprecated','disabled')),
   min_agent_capability   int NOT NULL DEFAULT 1,
   min_mobile_capability  int NOT NULL DEFAULT 1,
   supported_platforms    text[] NOT NULL DEFAULT ARRAY['win32','darwin'],
