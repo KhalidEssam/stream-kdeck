@@ -32,6 +32,7 @@ import {
   MediaSetMuteMessage,
   MediaBringToFrontMessage,
   MediaPinAppMessage,
+  MediaSetVolumeMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -248,6 +249,12 @@ export class WebSocketService {
   sendMediaPinApp(processName: string, label: string, pinned: boolean): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: MediaPinAppMessage = { type: 'MEDIA_PIN_APP', processName, label, pinned };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  sendSetVolume(processName: string, volume: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: MediaSetVolumeMessage = { type: 'MEDIA_SET_VOLUME', processName, volume };
     this.ws.send(JSON.stringify(msg));
   }
 
