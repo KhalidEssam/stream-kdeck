@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=invalid_token', request.url));
   }
 
-  const response = NextResponse.redirect(new URL('/dashboard', request.url));
+  const needsPassword = data.user?.user_metadata?.password_set !== true;
+  const nextUrl = needsPassword ? '/dashboard/account?password=required' : '/dashboard';
+  const response = NextResponse.redirect(new URL(nextUrl, request.url));
   setSessionCookies(response.cookies, data.session);
   return response;
 }

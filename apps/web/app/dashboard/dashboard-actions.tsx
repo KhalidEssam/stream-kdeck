@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 
 export function RevealLicenseKey({ licenseKey }: { licenseKey: string | null }) {
   const [revealed, setRevealed] = useState(false);
@@ -157,6 +157,82 @@ export function DeleteAccountButton() {
       </button>
       {error && <p className="error">{error}</p>}
     </div>
+  );
+}
+
+export function PasswordSetupForm({ required }: { required?: boolean }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setStatus('saving');
+    const response = await fetch('/api/auth/set-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = (await response.json()) as { error?: string };
+
+    if (!response.ok) {
+      setError(data.error === 'WEAK_PASSWORD' ? 'Password must be at least 8 characters.' : (data.error ?? 'Could not save password.'));
+      setStatus('idle');
+      return;
+    }
+
+    setPassword('');
+    setConfirmPassword('');
+    setStatus('saved');
+  }
+
+  return (
+    <form className="dashboard-action-stack" onSubmit={save}>
+      {required && (
+        <p className="notice-banner">
+          Create a password to finish moving this account from magic-link sign-in to password sign-in.
+        </p>
+      )}
+      <label className="field">
+        <span>New password</span>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+          minLength={8}
+        />
+      </label>
+      <label className="field">
+        <span>Confirm password</span>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          required
+          minLength={8}
+        />
+      </label>
+      <button className="primary compact" type="submit" disabled={status === 'saving'}>
+        {status === 'saving' ? 'Saving...' : 'Save password'}
+      </button>
+      {status === 'saved' && <p className="fine-print">Password saved. Use it the next time you sign in.</p>}
+      {error && <p className="error">{error}</p>}
+    </form>
   );
 }
 

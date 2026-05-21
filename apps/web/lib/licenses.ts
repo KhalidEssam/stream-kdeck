@@ -104,6 +104,7 @@ async function ensureUser(email: string, plan: PlanId): Promise<string> {
     user_metadata: {
       source: 'paymob',
       initial_plan: plan,
+      password_set: false,
     },
   });
 

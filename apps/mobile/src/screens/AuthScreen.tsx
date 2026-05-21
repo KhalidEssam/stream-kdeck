@@ -11,28 +11,56 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 
-type Step = 'email' | 'otp';
+type Step = 'password' | 'otp' | 'setPassword';
 
 interface Props {
   onAuthenticated: () => void;
 }
 
 export function AuthScreen({ onAuthenticated }: Props) {
-  const [step, setStep]       = useState<Step>('email');
-  const [email, setEmail]     = useState('');
-  const [token, setToken]     = useState('');
+  const [step, setStep] = useState<Step>('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [token, setToken] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingUserMetadata, setPendingUserMetadata] = useState<Record<string, unknown>>({});
+
+  const signInWithPassword = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (err) {
+        setError('Invalid email or password. If you have not created a password yet, use a sign-in code.');
+        return;
+      }
+
+      if (data.user?.user_metadata?.password_set !== true) {
+        await markPasswordSet(data.user?.user_metadata ?? {});
+      }
+      onAuthenticated();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sendOtp = async () => {
     setError(null);
     setLoading(true);
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim().toLowerCase(),
         options: { shouldCreateUser: false },
       });
       if (err) { setError(err.message); return; }
+      setOtpSent(true);
       setStep('otp');
     } finally {
       setLoading(false);
@@ -43,11 +71,57 @@ export function AuthScreen({ onAuthenticated }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const { error: err } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+      const { data, error: err } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token,
+        type: 'email',
+      });
+      if (err) { setError(err.message); return; }
+
+      const metadata = data.user?.user_metadata ?? {};
+      if (metadata.password_set === true) {
+        onAuthenticated();
+        return;
+      }
+
+      setPendingUserMetadata(metadata);
+      setStep('setPassword');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createPassword = async () => {
+    setError(null);
+
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.updateUser({
+        password: newPassword,
+        data: { ...pendingUserMetadata, password_set: true },
+      });
       if (err) { setError(err.message); return; }
       onAuthenticated();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markPasswordSet = async (metadata: Record<string, unknown>) => {
+    const { error: err } = await supabase.auth.updateUser({
+      data: { ...metadata, password_set: true },
+    });
+    if (err) {
+      console.warn('[mobile] Could not mark password_set', err.message);
     }
   };
 
@@ -59,11 +133,9 @@ export function AuthScreen({ onAuthenticated }: Props) {
       >
         <Text style={styles.logo}>KDeck</Text>
 
-        {step === 'email' ? (
+        {step === 'password' && (
           <>
-            <Text style={styles.tagline}>
-              Enter the email you used to purchase your license
-            </Text>
+            <Text style={styles.tagline}>Sign in with the email connected to your KDeck purchase</Text>
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -73,53 +145,137 @@ export function AuthScreen({ onAuthenticated }: Props) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
             />
-            {error && <Text style={styles.error}>{error}</Text>}
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={sendOtp}
-              disabled={loading || !email.trim()}
-              activeOpacity={0.8}
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Send Sign-In Code</Text>
-              }
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={styles.tagline}>
-              Enter the 6-digit code sent to{'\n'}{email}
-            </Text>
             <TextInput
-              style={[styles.input, styles.otpInput]}
-              placeholder="00000000"
+              style={styles.input}
+              placeholder="Password"
               placeholderTextColor="#555"
-              value={token}
-              onChangeText={setToken}
-              keyboardType="number-pad"
-              maxLength={8}
-              autoFocus
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password"
             />
             {error && <Text style={styles.error}>{error}</Text>}
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={verifyOtp}
-              disabled={loading || token.length < 6}
+              onPress={signInWithPassword}
+              disabled={loading || !email.trim() || !password}
               activeOpacity={0.8}
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Verify Code</Text>
+                : <Text style={styles.buttonText}>Sign In</Text>
               }
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.backLink}
-              onPress={() => { setStep('email'); setToken(''); setError(null); }}
+              onPress={() => { setStep('otp'); setOtpSent(false); setToken(''); setError(null); }}
               activeOpacity={0.7}
             >
-              <Text style={styles.backLinkText}>Use a different email</Text>
+              <Text style={styles.backLinkText}>No password yet? Use a sign-in code</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {step === 'otp' && (
+          <>
+            <Text style={styles.tagline}>
+              {otpSent ? `Enter the code sent to ${email.trim()}` : 'Enter the email you used to purchase your license'}
+            </Text>
+            {!otpSent ? (
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#555"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+              />
+            ) : (
+              <TextInput
+                style={[styles.input, styles.otpInput]}
+                placeholder="00000000"
+                placeholderTextColor="#555"
+                value={token}
+                onChangeText={setToken}
+                keyboardType="number-pad"
+                maxLength={8}
+                autoFocus
+              />
+            )}
+            {error && <Text style={styles.error}>{error}</Text>}
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={otpSent ? verifyOtp : sendOtp}
+              disabled={loading || !email.trim() || (otpSent && token.length < 6)}
+              activeOpacity={0.8}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.buttonText}>{otpSent ? 'Verify Code' : 'Send Sign-In Code'}</Text>
+              }
+            </TouchableOpacity>
+            {!otpSent ? (
+              <TouchableOpacity
+                style={styles.backLink}
+                onPress={() => { setStep('password'); setOtpSent(false); setToken(''); setError(null); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.backLinkText}>Use password instead</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.backLink}
+                onPress={() => { setOtpSent(false); setToken(''); setError(null); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.backLinkText}>Use a different email</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {step === 'setPassword' && (
+          <>
+            <Text style={styles.tagline}>
+              Create a password to use email and password sign-in next time
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="New password"
+              placeholderTextColor="#555"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm password"
+              placeholderTextColor="#555"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+            {error && <Text style={styles.error}>{error}</Text>}
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={createPassword}
+              disabled={loading || !newPassword || !confirmPassword}
+              activeOpacity={0.8}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.buttonText}>Create Password</Text>
+              }
             </TouchableOpacity>
           </>
         )}
@@ -144,8 +300,8 @@ const styles = StyleSheet.create({
     fontSize:          15,
     marginBottom:      12,
   },
-  otpInput:        { textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: '700' },
-  error:           { color: '#FF6B6B', fontSize: 13, marginBottom: 10, textAlign: 'center' },
+  otpInput:      { textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: '700' },
+  error:         { color: '#FF6B6B', fontSize: 13, marginBottom: 10, textAlign: 'center' },
   button: {
     backgroundColor: '#5B4FE8',
     borderRadius:    10,
