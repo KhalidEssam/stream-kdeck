@@ -116,7 +116,7 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
       <View style={[styles.sliderRow, isMuted && styles.sliderRowMuted]}>
         <Text style={styles.sliderEdge}>0</Text>
         <View
-          style={styles.sliderTrack}
+          style={styles.sliderHitArea}
           onLayout={(e) => {
             const w = e.nativeEvent.layout.width;
             sliderWidthRef.current = w;
@@ -124,12 +124,14 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
           }}
           {...panResponder.panHandlers}
         >
-          <View
-            style={[
-              styles.sliderFill,
-              { width: fillPct, backgroundColor: isMuted ? '#882222' : '#5B4FE8' },
-            ]}
-          />
+          <View style={styles.sliderTrack}>
+            <View
+              style={[
+                styles.sliderFill,
+                { width: fillPct, backgroundColor: isMuted ? '#882222' : '#5B4FE8' },
+              ]}
+            />
+          </View>
           {sliderWidth > 0 && (
             <View style={[styles.sliderThumb, { left: thumbLeft }]} />
           )}
@@ -202,13 +204,15 @@ const styles = StyleSheet.create({
   },
   sliderRowMuted: { opacity: 0.45 },
   sliderEdge: { color: '#444', fontSize: 9, minWidth: 8, textAlign: 'center' },
-  sliderTrack: {
+  sliderHitArea: {
     flex: 1,
+    height: 28,
+    justifyContent: 'center',
+  },
+  sliderTrack: {
     height: 6,
     backgroundColor: '#1e1e38',
     borderRadius: 3,
-    overflow: 'visible',
-    position: 'relative',
   },
   sliderFill: {
     position: 'absolute',
@@ -219,7 +223,7 @@ const styles = StyleSheet.create({
   },
   sliderThumb: {
     position: 'absolute',
-    top: -THUMB_RADIUS + 3,
+    top: 7,
     width: THUMB_RADIUS * 2,
     height: THUMB_RADIUS * 2,
     borderRadius: THUMB_RADIUS,
