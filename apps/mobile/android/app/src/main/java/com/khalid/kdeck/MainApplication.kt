@@ -1,4 +1,4 @@
-package com.mobile
+package com.khalid.kdeck
 
 import android.app.Application
 import android.content.res.Configuration

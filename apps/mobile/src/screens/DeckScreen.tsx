@@ -18,6 +18,7 @@ import { AddTileScreen } from './AddTileScreen';
 import { AuthScreen } from './AuthScreen';
 import { LicenseGateScreen } from './LicenseGateScreen';
 import { WebSocketService } from '../services/websocket.service';
+import type { ConnectionErrorInfo } from '../services/websocket.service';
 import { TileConfig, Pack, PackRegistryMessage, MediaSession } from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
@@ -34,6 +35,7 @@ import { MediaTab } from './MediaTab';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
+const AGENT_URL_STORAGE_KEY = 'kdeck.agentUrl';
 
 type DeckTab = 'ai' | 'apps' | 'media';
 
@@ -42,6 +44,17 @@ const DECK_TABS: Array<{ key: DeckTab; label: string }> = [
   { key: 'apps', label: 'Apps' },
   { key: 'media', label: 'Media' },
 ];
+
+function getManualInputFromAgentUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.port && parsed.port !== '3001'
+      ? `${parsed.hostname}:${parsed.port}`
+      : parsed.hostname;
+  } catch {
+    return url.replace(/^wss?:\/\//i, '').replace(/\/$/, '');
+  }
+}
 
 export function DeckScreen() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -62,6 +75,7 @@ export function DeckScreen() {
   const retryCancelRef = useRef<(() => void) | null>(null);
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<ConnectionErrorInfo | null>(null);
   const [discoveryAttempt, setDiscoveryAttempt] = useState(0);
   const [contextMsg, setContextMsg] = useState<ContextShortcutsMessage | null>(null);
   const [showContextSettings, setShowContextSettings] = useState(false);
@@ -90,33 +104,83 @@ export function DeckScreen() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Effect 1: run mDNS discovery when authenticated
+  // Effect 1: reconnect to a saved agent first, then fall back to mDNS discovery.
   useEffect(() => {
-    retryCancelRef.current?.();
-    retryCancelRef.current = null;
+    let cancelled = false;
+
+    const stopDiscovery = () => {
+      retryCancelRef.current?.();
+      retryCancelRef.current = null;
+    };
+
+    const startDiscovery = () => {
+      if (cancelled) return;
+
+      const cancel = discoverAgent(
+        (url) => {
+          retryCancelRef.current = null;
+          if (!cancelled) setAgentUrl(url);
+        },
+        (msg) => {
+          retryCancelRef.current = null;
+          if (!cancelled) setDiscoveryError(msg);
+        },
+      );
+      retryCancelRef.current = cancel;
+    };
+
+    stopDiscovery();
     setAgentUrl(null);
     setDiscoveryError(null);
-    if (!authenticated) return;
+    setConnectionError(null);
+    if (!authenticated) {
+      return () => {
+        cancelled = true;
+        stopDiscovery();
+      };
+    }
 
-    const cancel = discoverAgent(
-      (url) => setAgentUrl(url),
-      (msg) => setDiscoveryError(msg),
-    );
+    AsyncStorage.getItem(AGENT_URL_STORAGE_KEY)
+      .then((savedUrl) => {
+        if (cancelled) return;
 
-    return cancel;
+        const normalizedUrl = normalizeAgentWsUrl(savedUrl ?? undefined);
+        if (normalizedUrl) {
+          setManualIpInput(getManualInputFromAgentUrl(normalizedUrl));
+          setAgentUrl(normalizedUrl);
+          return;
+        }
+
+        startDiscovery();
+      })
+      .catch(() => {
+        startDiscovery();
+      });
+
+    return () => {
+      cancelled = true;
+      stopDiscovery();
+    };
   }, [authenticated, discoveryAttempt]);
 
   // Effect 2: connect WebSocket once discovery succeeds
   useEffect(() => {
     if (!agentUrl) return;
 
+    setConnectionError(null);
     const ws = new WebSocketService(agentUrl);
     wsRef.current = ws;
     setWsService(ws);
     ws.onStatusChange((nextStatus) => {
       setStatus(nextStatus);
-      if (nextStatus === 'connected') ws.requestLicenseStatus();
+      if (nextStatus === 'connected') {
+        setConnectionError(null);
+        setManualIpInput(getManualInputFromAgentUrl(agentUrl));
+        void AsyncStorage.setItem(AGENT_URL_STORAGE_KEY, agentUrl);
+        ws.requestLicenseStatus();
+      }
     });
+    const unsubscribeConnectionError = ws.onConnectionError(setConnectionError);
     ws.onResult((result) => {
       setLoadingId(null);
       if (result.output) setViewerText(result.output);
@@ -150,6 +214,7 @@ export function DeckScreen() {
 
     return () => {
       unsubscribeLicense();
+      unsubscribeConnectionError();
       unsubscribeQuota();
       unsubscribeContext();
       unsubscribePackRegistry();
@@ -168,9 +233,27 @@ export function DeckScreen() {
     setLicensed(null);
     setStatus('connecting');
     setDiscoveryError(null);
+    setConnectionError(null);
     wsRef.current?.disconnect();
     setAgentUrl(null);
     setDiscoveryAttempt((attempt) => attempt + 1);
+  };
+
+  const handleChangeAgent = () => {
+    retryCancelRef.current?.();
+    retryCancelRef.current = null;
+    setLoadingId(null);
+    setViewerText(null);
+    setTiles(null);
+    setLicensed(null);
+    setStatus('connecting');
+    setDiscoveryError(null);
+    setConnectionError(null);
+    wsRef.current?.disconnect();
+    setAgentUrl(null);
+    void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY).finally(() => {
+      setDiscoveryAttempt((attempt) => attempt + 1);
+    });
   };
 
   const handleConnectManual = () => {
@@ -180,7 +263,10 @@ export function DeckScreen() {
       return;
     }
     retryCancelRef.current?.();
+    retryCancelRef.current = null;
     setDiscoveryError(null);
+    setConnectionError(null);
+    setStatus('connecting');
     setAgentUrl(url);
   };
 
@@ -418,6 +504,31 @@ export function DeckScreen() {
           <Text style={styles.refreshIcon}>↺</Text>
         </TouchableOpacity>
       </View>
+
+      {status === 'disconnected' && connectionError && (
+        <View style={styles.connectionErrorBanner}>
+          <Text style={styles.connectionErrorTitle}>Could not connect to agent</Text>
+          <Text style={styles.connectionErrorBody} selectable>
+            {connectionError.url} - {connectionError.message}
+          </Text>
+          <View style={styles.connectionErrorActions}>
+            <TouchableOpacity
+              style={styles.connectionErrorButton}
+              onPress={handleRefresh}
+              activeOpacity={0.78}
+            >
+              <Text style={styles.connectionErrorButtonText}>Retry</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.connectionErrorButton, styles.connectionErrorButtonSecondary]}
+              onPress={handleChangeAgent}
+              activeOpacity={0.78}
+            >
+              <Text style={styles.connectionErrorButtonText}>Change IP</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <View style={styles.tabBar}>
         {DECK_TABS.map((tab) => {
@@ -695,6 +806,27 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 12, fontWeight: '600' },
   refreshIcon: { color: '#6B6B8A', fontSize: 16, marginLeft: 2 },
+  connectionErrorBanner: {
+    marginHorizontal: 12,
+    marginBottom: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#5A2731',
+    backgroundColor: '#24151B',
+    padding: 12,
+  },
+  connectionErrorTitle: { color: '#FF6B7A', fontSize: 13, fontWeight: '800', marginBottom: 4 },
+  connectionErrorBody: { color: '#C8B8BE', fontSize: 12, lineHeight: 17 },
+  connectionErrorActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  connectionErrorButton: {
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: '#5B4FE8',
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  connectionErrorButtonSecondary: { backgroundColor: '#3A3348' },
+  connectionErrorButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   tabBar: {
     flexDirection: 'row',
     paddingHorizontal: 12,

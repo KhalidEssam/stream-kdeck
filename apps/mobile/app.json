@@ -1,22 +1,38 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "KDeck",
     "slug": "kdeck",
     "version": "1.0.0",
     "runtimeVersion": "1.0.0",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0d14"
+    },
     "updates": {
       "url": "https://u.expo.dev/e422608d-551d-4484-8c73-52706be9e0f6"
     },
+    "plugins": [
+      "./plugins/with-android-cleartext"
+    ],
     "android": {
       "package": "com.khalid.kdeck",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d0d14"
+      },
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.ACCESS_WIFI_STATE",
-        "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+        "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+        "android.permission.NEARBY_WIFI_DEVICES"
       ]
     },
     "ios": {
+      "bundleIdentifier": "com.khalid.kdeck",
       "infoPlist": {
         "NSBonjourServices": [
           "_controlsurface._tcp."

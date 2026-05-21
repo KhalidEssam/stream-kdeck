@@ -1,4 +1,4 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import Zeroconf from 'react-native-zeroconf';
 
 const SERVICE_TYPE   = 'controlsurface';
@@ -19,6 +19,8 @@ interface ResolvedService {
 }
 
 const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const NEARBY_WIFI_DEVICES_PERMISSION =
+  'android.permission.NEARBY_WIFI_DEVICES' as Parameters<typeof PermissionsAndroid.check>[0];
 
 export function normalizeAgentWsUrl(value: string | undefined): string | null {
   const raw = value?.trim();
@@ -55,6 +57,26 @@ function cleanupZeroconf(zc: Zeroconf): void {
     // Native module may be missing or already torn down.
   }
   zc.removeDeviceListeners();
+}
+
+async function ensureNearbyWifiPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+
+  const androidVersion =
+    typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
+  if (!Number.isFinite(androidVersion) || androidVersion < 33) return true;
+
+  const alreadyGranted = await PermissionsAndroid.check(NEARBY_WIFI_DEVICES_PERMISSION);
+  if (alreadyGranted) return true;
+
+  const result = await PermissionsAndroid.request(NEARBY_WIFI_DEVICES_PERMISSION, {
+    title: 'Nearby devices',
+    message: 'KDeck uses nearby Wi-Fi discovery to find your desktop agent on this network.',
+    buttonPositive: 'Allow',
+    buttonNegative: 'Not now',
+  });
+
+  return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 export function discoverAgent(
@@ -133,7 +155,26 @@ export function discoverAgent(
     }, ATTEMPT_MS);
   };
 
-  startAttempt();
+  void ensureNearbyWifiPermission()
+    .then((granted) => {
+      if (cancelled) return;
+      if (!granted) {
+        cancelled = true;
+        onTimeout(
+          'Nearby devices permission is needed for automatic discovery. Type your desktop IP below or enable the permission in Android settings.',
+        );
+        return;
+      }
+
+      startAttempt();
+    })
+    .catch(() => {
+      if (cancelled) return;
+      cancelled = true;
+      onTimeout(
+        'Nearby devices permission is needed for automatic discovery. Type your desktop IP below or enable the permission in Android settings.',
+      );
+    });
 
   return () => {
     cancelled = true;

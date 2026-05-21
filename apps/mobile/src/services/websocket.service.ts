@@ -35,6 +35,14 @@ import {
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 type StatusCallback = (status: Status) => void;
+export interface ConnectionErrorInfo {
+  url: string;
+  phase: 'open' | 'close';
+  message: string;
+  code?: number;
+  reason?: string;
+}
+type ConnectionErrorCallback = (error: ConnectionErrorInfo) => void;
 type ResultCallback = (msg: ActionResultMessage) => void;
 type DeckConfigCallback = (msg: DeckConfigMessage) => void;
 type SearchAppsResultCallback = (msg: SearchAppsResultMessage) => void;
@@ -49,6 +57,7 @@ type MediaStateCallback = (msg: MediaStateMessage) => void;
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private statusCallbacks: StatusCallback[] = [];
+  private connectionErrorCallbacks: ConnectionErrorCallback[] = [];
   private resultCallbacks: ResultCallback[] = [];
   private deckConfigCallbacks: DeckConfigCallback[] = [];
   private searchAppsCallbacks: SearchAppsResultCallback[] = [];
@@ -102,7 +111,12 @@ export class WebSocketService {
       this.notifyStatus('disconnected');
     };
 
-    this.ws.onerror = () => {
+    this.ws.onerror = (event) => {
+      this.notifyConnectionError({
+        url: this.url,
+        phase: 'open',
+        message: getWebSocketEventMessage(event, 'WebSocket connection failed'),
+      });
       this.notifyStatus('disconnected');
     };
   }
@@ -234,6 +248,13 @@ export class WebSocketService {
     this.statusCallbacks.push(cb);
   }
 
+  onConnectionError(cb: ConnectionErrorCallback): () => void {
+    this.connectionErrorCallbacks.push(cb);
+    return () => {
+      this.connectionErrorCallbacks = this.connectionErrorCallbacks.filter((c) => c !== cb);
+    };
+  }
+
   onResult(cb: ResultCallback): void {
     this.resultCallbacks.push(cb);
   }
@@ -312,4 +333,22 @@ export class WebSocketService {
   private notifyStatus(status: Status): void {
     this.statusCallbacks.forEach((cb) => cb(status));
   }
+
+  private notifyConnectionError(error: ConnectionErrorInfo): void {
+    this.connectionErrorCallbacks.forEach((cb) => cb(error));
+  }
+}
+
+function getWebSocketEventMessage(event: Event, fallback: string): string {
+  const candidate = event as Event & { message?: unknown; error?: unknown };
+  if (typeof candidate.message === 'string' && candidate.message.trim()) {
+    return candidate.message;
+  }
+  if (candidate.error instanceof Error && candidate.error.message.trim()) {
+    return candidate.error.message;
+  }
+  if (typeof candidate.error === 'string' && candidate.error.trim()) {
+    return candidate.error;
+  }
+  return fallback;
 }

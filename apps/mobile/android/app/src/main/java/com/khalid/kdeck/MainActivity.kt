@@ -1,4 +1,4 @@
-package com.mobile
+package com.khalid.kdeck
 
 import android.os.Build
 import android.os.Bundle
