@@ -3,11 +3,9 @@ const mockHandlers: Record<string, (payload: unknown) => void> = {};
 const mockScan = jest.fn();
 const mockStop = jest.fn();
 const mockRemoveDeviceListeners = jest.fn();
-const mockPlatform = { OS: 'android', Version: 35 };
 
 jest.mock('react-native', () => ({
   NativeModules: mockNativeModules,
-  Platform: mockPlatform,
 }));
 
 jest.mock('react-native-zeroconf', () => (
@@ -23,18 +21,11 @@ jest.mock('react-native-zeroconf', () => (
 
 import { discoverAgent, getAgentUrlFromService, normalizeAgentWsUrl } from './discovery.service';
 
-async function flushPromises(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 describe('discovery.service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     for (const key of Object.keys(mockHandlers)) delete mockHandlers[key];
     mockNativeModules.RNZeroconf = {};
-    mockPlatform.OS = 'android';
-    mockPlatform.Version = 35;
   });
 
   it('normalizes raw manual host values into WebSocket URLs', () => {
@@ -62,14 +53,13 @@ describe('discovery.service', () => {
     })).toBe('ws://KDeck-Agent.local:3001');
   });
 
-  it('scans the KDeck mDNS service and resolves to the discovered WebSocket URL', async () => {
+  it('scans the KDeck mDNS service and resolves to the discovered WebSocket URL', () => {
     const onFound = jest.fn();
     const onTimeout = jest.fn();
 
     discoverAgent(onFound, onTimeout);
-    await flushPromises();
 
-    expect(mockScan).toHaveBeenCalledWith('controlsurface', 'tcp', 'local.', 'NSD');
+    expect(mockScan).toHaveBeenCalledWith('controlsurface', 'tcp', 'local.', 'DNSSD');
 
     mockHandlers.resolved({
       host: 'KDeck-Agent.local.',
@@ -79,7 +69,7 @@ describe('discovery.service', () => {
 
     expect(onFound).toHaveBeenCalledWith('ws://192.168.1.77:3001');
     expect(onTimeout).not.toHaveBeenCalled();
-    expect(mockStop).toHaveBeenCalledWith('NSD');
+    expect(mockStop).toHaveBeenCalledWith('DNSSD');
     expect(mockRemoveDeviceListeners).toHaveBeenCalled();
   });
 });

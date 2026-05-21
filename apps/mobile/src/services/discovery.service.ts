@@ -1,15 +1,13 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 import Zeroconf from 'react-native-zeroconf';
 
 const SERVICE_TYPE   = 'controlsurface';
 const SERVICE_PROTO  = 'tcp';
 const SERVICE_DOMAIN = 'local.';
 const DEFAULT_PORT   = 3001;
-// On Android 12+ (API 31+) apps cannot directly bind UDP 5353 — the OS reserves
-// it for the system mDNS daemon. DNSSD (Rx2DnssdEmbedded) tries to do exactly that
-// and silently fails. NSD routes through NsdManager (system API) which works on all
-// Android versions. iOS keeps DNSSD which uses the native Bonjour stack.
-const IMPL_TYPE      = Platform.OS === 'android' ? 'NSD' : 'DNSSD';
+// Keep this on DNSSD. The f8f83d7 preview build proved this path works in the
+// shipped native shell; switching Android to NSD in an OTA broke discovery.
+const IMPL_TYPE      = 'DNSSD';
 const MAX_ATTEMPTS   = 2;
 const ATTEMPT_MS     = 5_000;
 

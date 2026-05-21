@@ -27,25 +27,24 @@ function getLanWebSocketUrls(): string[] {
 
 // Attempt to add a Windows Firewall inbound rule so the phone can reach the agent.
 // Runs silently — fails gracefully if the process lacks admin rights or the rule exists.
-function ensureWindowsFirewallRule(port: number): void {
+function ensureWindowsFirewallRule(ruleName: string, protocol: 'TCP' | 'UDP', port: number): void {
   if (platform() !== 'win32') return;
-  const rule = `KDeck Agent port ${port}`;
   const cmd = [
     `netsh advfirewall firewall add rule`,
-    `name="${rule}"`,
-    `dir=in action=allow protocol=TCP`,
+    `name="${ruleName}"`,
+    `dir=in action=allow protocol=${protocol}`,
     `localport=${port}`,
     `profile=private,domain`,
   ].join(' ');
   exec(cmd, { timeout: 5000 }, (err) => {
     if (err) {
       console.warn(
-        `[Agent] Could not auto-add firewall rule (needs admin or already exists). ` +
+        `[Agent] Could not auto-add firewall rule "${ruleName}" (needs admin or already exists). ` +
         `If your phone cannot connect, run this in PowerShell as Administrator:\n` +
-        `  New-NetFirewallRule -DisplayName "${rule}" -Direction Inbound -Protocol TCP -LocalPort ${port} -Action Allow`,
+        `  New-NetFirewallRule -DisplayName "${ruleName}" -Direction Inbound -Protocol ${protocol} -LocalPort ${port} -Action Allow`,
       );
     } else {
-      console.log(`[Agent] Windows Firewall: inbound rule added for TCP port ${port}`);
+      console.log(`[Agent] Windows Firewall: inbound rule added for ${protocol} port ${port}`);
     }
   });
 }
@@ -56,7 +55,8 @@ export async function bootstrapNestJS(): Promise<{ nestApp: INestApplication }> 
   });
   nestApp.useWebSocketAdapter(new WsAdapter(nestApp));
   await nestApp.listen(AGENT_PORT, '0.0.0.0');
-  ensureWindowsFirewallRule(AGENT_PORT);
+  ensureWindowsFirewallRule(`KDeck Agent port ${AGENT_PORT}`, 'TCP', AGENT_PORT);
+  ensureWindowsFirewallRule('KDeck Agent mDNS', 'UDP', 5353);
   console.log(`[Agent] WebSocket server ready on ws://localhost:${AGENT_PORT}`);
   for (const url of getLanWebSocketUrls()) {
     console.log(`[Agent] Phone connection URL: ${url}`);

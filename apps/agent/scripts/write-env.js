@@ -3,8 +3,13 @@
 
 const fs   = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env.local'), override: true });
 
 const REQUIRED = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+const OPTIONAL = ['KDECK_AGENT_UPDATE_BASE_URL', 'KDECK_AGENT_UPDATE_CHANNEL'];
 const missing  = REQUIRED.filter((k) => !process.env[k]);
 
 if (missing.length > 0) {
@@ -13,7 +18,8 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const lines   = REQUIRED.map((k) => `${k}=${process.env[k]}`).join('\n') + '\n';
+const keys    = [...REQUIRED, ...OPTIONAL.filter((k) => process.env[k])];
+const lines   = keys.map((k) => `${k}=${process.env[k]}`).join('\n') + '\n';
 const outPath = path.join(__dirname, '../.env');
 
 fs.writeFileSync(outPath, lines, 'utf8');

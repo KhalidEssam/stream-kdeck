@@ -3,8 +3,10 @@ import path from 'path';
 import { bootstrapNestJS } from './nestjs';
 import { LicenseService } from './license/license.service';
 import { ActivationDialogService } from './license/activation-dialog.service';
+import { configureAgentAutoUpdates, type AgentUpdaterHandle } from './updater/agent-updater';
 
 let tray: Tray | null = null;
+let updater: AgentUpdaterHandle | null = null;
 
 app.whenReady().then(async () => {
   app.dock?.hide();
@@ -15,6 +17,8 @@ app.whenReady().then(async () => {
 
   const licenseService   = nestApp.get(LicenseService);
   const activationDialog = nestApp.get(ActivationDialogService);
+  const updateHandle = configureAgentAutoUpdates();
+  updater = updateHandle;
 
   const buildTrayMenu = () =>
     Menu.buildFromTemplate([
@@ -24,6 +28,13 @@ app.whenReady().then(async () => {
         label:   licenseService.isLicensed() ? 'Licensed ✓' : 'Activate License…',
         enabled: !licenseService.isLicensed(),
         click:   () => activationDialog.open(),
+      },
+      { type: 'separator' },
+      { label: `Updates: ${updateHandle.enabled ? updateHandle.channel : 'disabled'}`, enabled: false },
+      {
+        label:   'Check for Updates',
+        enabled: updateHandle.enabled,
+        click:   () => { void updateHandle.checkNow(); },
       },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
@@ -47,4 +58,8 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('window-all-closed', () => { /* tray-only — stay alive */ });
+app.on('window-all-closed', () => { /* tray-only - stay alive */ });
+app.on('before-quit', () => {
+  updater?.dispose();
+  updater = null;
+});

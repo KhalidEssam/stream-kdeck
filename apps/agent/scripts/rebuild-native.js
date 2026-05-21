@@ -2,6 +2,7 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
+const path = require('path');
 
 const isDesktopPlatform = process.platform === 'win32' || process.platform === 'darwin';
 const isEasBuild = process.env.EAS_BUILD === 'true' || !!process.env.EAS_BUILD_PLATFORM;
@@ -11,8 +12,12 @@ if (!isDesktopPlatform || isEasBuild) {
   process.exit(0);
 }
 
-const command = process.platform === 'win32' ? 'electron-rebuild.cmd' : 'electron-rebuild';
-const result = spawnSync(command, ['-f', '-w', 'node-audio-volume-mixer'], {
+const result = spawnSync(process.execPath, [
+  path.join(path.dirname(require.resolve('@electron/rebuild')), 'cli.js'),
+  '-f',
+  '-o',
+  'node-audio-volume-mixer',
+], {
   stdio: 'inherit',
 });
 
