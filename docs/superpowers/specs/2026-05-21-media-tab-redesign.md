@@ -36,9 +36,8 @@ The current media tab has two compounding issues:
 Two-layer filter applied in `MediaService.getSessions()` before building state:
 
 **Layer 1 — Heuristic** (catches unknown system processes):
-- Exclude processes with no visible window (check via Windows API or `tasklist`)
+- Exclude processes with no visible window (check via `tasklist /FI "WINDOWTITLE ne N/A"` or equivalent)
 - Exclude processes whose exe path is under `System32`, `SysWOW64`, or `\Windows\`
-- Exclude processes with no extractable file icon (icon extraction fails = system stub)
 
 **Layer 2 — Blocklist** (known offenders that slip past the heuristic):
 ```ts
@@ -60,7 +59,7 @@ Match is case-insensitive, prefix-based (e.g., `qemu-system` matches `qemu-syste
 
 New `IconService` (or method within `MediaService`) responsible for:
 
-1. Resolve exe path from PID using Windows API (via `process.env` + `tasklist /FO CSV /NH /FI "PID eq <pid>"` or a native module)
+1. Resolve exe path from PID using `tasklist /FO CSV /NH /FI "PID eq <pid>"` or a native Node module (e.g. `pidusage` + `process-list`)
 2. Extract icon from exe using `extract-file-icon` npm package → returns PNG `Buffer`
 3. Base64-encode and cache result in a `Map<processName, string>` — icons don't change per session
 4. Attach `iconBase64` to `MediaSession` before broadcast
@@ -106,7 +105,7 @@ Remove the paginated `FlatList` + pagination dots entirely. Replace with:
 
 - Grid is a `FlatList` with `numColumns={3}`, no paging, vertical scroll
 - No pagination dots
-- Tab badge shows count of active (non-silent, non-muted-only) sessions after filtering
+- Tab badge shows count of sessions with `volume > 0` after filtering (i.e. currently making sound — muted sessions still count)
 
 #### 2. Hero Card (`MediaHeroCard`)
 
