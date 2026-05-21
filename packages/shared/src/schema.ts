@@ -156,6 +156,10 @@ export interface GetLicenseStatusMessage {
   type: 'GET_LICENSE_STATUS';
 }
 
+export interface RevalidateLicenseMessage {
+  type: 'REVALIDATE_LICENSE';
+}
+
 // --- Context-aware deck messages ---
 
 export interface ContextShortcut {
@@ -288,6 +292,7 @@ export type MobileMessage =
   | ValidatePathMessage
   | OpenActivationDialogMessage
   | GetLicenseStatusMessage
+  | RevalidateLicenseMessage
   | AddContextShortcutMessage
   | RemoveContextShortcutMessage
   | GetContextProfilesMessage
