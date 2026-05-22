@@ -78,7 +78,10 @@ describe('PackRegistryService', () => {
     await service.load();
     const tool = service.getById('tool-uuid-1');
     expect(tool).toBeDefined();
-    expect(tool!.prompt).toBe('Explain this error.');
+    expect(tool!.kind).toBe('ai');
+    if (tool?.kind === 'ai') {
+      expect(tool.prompt).toBe('Explain this error.');
+    }
     expect(tool!.outputMode).toBe('viewer');
   });
 

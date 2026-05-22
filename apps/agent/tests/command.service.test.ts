@@ -188,7 +188,7 @@ describe('CommandService', () => {
     }
 
     it('resolves prompt and outputMode from registry when toolId is present', async () => {
-      const registryTool = { prompt: 'Registry prompt', outputMode: 'viewer' };
+      const registryTool = { kind: 'ai' as const, prompt: 'Registry prompt', outputMode: 'viewer' as const };
       const svc = await buildWithRegistry(registryTool);
       await clipboardService.write('some text');
       const result = await svc.execute({

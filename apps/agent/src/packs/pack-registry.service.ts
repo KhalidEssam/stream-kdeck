@@ -62,7 +62,8 @@ export class PackRegistryService {
         const tools: PackTool[] = (raw.pack_tools ?? [])
           .filter((t) => t.phase <= AGENT_CAPABILITY)
           .sort((a, b) => a.order - b.order)
-          .map((t) => ({
+          .map((t): PackTool => ({
+            kind: 'ai',
             id: t.id,
             packId: t.pack_id,
             label: t.label,
