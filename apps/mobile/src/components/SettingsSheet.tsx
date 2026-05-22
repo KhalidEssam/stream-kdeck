@@ -24,6 +24,7 @@ interface SettingsSheetProps {
   onNavigateToShortcuts: () => void;
   tileLayoutPresetId: TileLayoutPresetId;
   onTileLayoutChange: (presetId: TileLayoutPresetId) => void;
+  onEnterRearrange: () => void;
 }
 
 export function SettingsSheet({
@@ -39,6 +40,7 @@ export function SettingsSheet({
   onNavigateToShortcuts,
   tileLayoutPresetId,
   onTileLayoutChange,
+  onEnterRearrange,
 }: SettingsSheetProps) {
   const [revalidating, setRevalidating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -197,6 +199,14 @@ export function SettingsSheet({
               );
             })}
           </View>
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={onEnterRearrange}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowText}>Rearrange Tiles</Text>
+            <Text style={styles.navRowArrow}>→</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Shortcuts section */}
