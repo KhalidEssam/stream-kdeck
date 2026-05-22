@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { createPaymobCheckoutSession } from '@/lib/paymob';
-import { isPlanId } from '@/lib/plans';
+import { isPlanId, getPlanConfig } from '@/lib/plans';
 import { checkExistingSubscriptionForCheckout } from '@/lib/subscriptions';
+import { getUserLicenseByEmail } from '@/lib/licenses';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const session = await createPaymobCheckoutSession({ plan: body.plan, email });
+    const planConfig = await getPlanConfig(body.plan);
+    let bundleDesktopLicense = true;
+    if (planConfig.includesAiPro) {
+      const existingLicense = await getUserLicenseByEmail(email);
+      bundleDesktopLicense = existingLicense === null;
+    }
+
+    const session = await createPaymobCheckoutSession({ plan: body.plan, email, bundleDesktopLicense });
     return Response.json(session);
   } catch (err) {
     console.error('[web] Paymob create-order failed', err);

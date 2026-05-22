@@ -18,6 +18,8 @@ interface PaymobIntentionResponse {
 export async function createPaymobCheckoutSession(input: {
   plan: PlanId;
   email: string;
+  /** Pass false when the user already owns a desktop license (upgrade flow). */
+  bundleDesktopLicense?: boolean;
 }): Promise<PaymobCheckoutSession> {
   const siteUrl = getSiteUrl();
   const plan = await getPlanConfig(input.plan);
@@ -25,14 +27,16 @@ export async function createPaymobCheckoutSession(input: {
   const currency = getEnv('PAYMOB_CURRENCY', 'USD');
   const paymentMethods = getPaymentMethods();
 
-  // For AI Pro plans the order charges desktop license + AI Pro addon together.
-  const isAiPro = plan.includesAiPro;
-  const desktopPlan = isAiPro ? await getPlanConfig('desktop_license') : null;
-  const totalAmount = isAiPro
+  // bundleDesktopLicense is true only when the user does not yet own a license
+  // (i.e. first-time purchase from the landing page). Existing users upgrading from
+  // /dashboard/upgrade already paid for the desktop license and must not be charged again.
+  const shouldBundle = plan.includesAiPro && (input.bundleDesktopLicense !== false);
+  const desktopPlan = shouldBundle ? await getPlanConfig('desktop_license') : null;
+  const totalAmount = shouldBundle
     ? (desktopPlan?.amountCents ?? 0) + plan.amountCents
     : plan.amountCents;
 
-  const items = isAiPro && desktopPlan
+  const items = shouldBundle && desktopPlan
     ? [
         { name: desktopPlan.name, amount: desktopPlan.amountCents, description: desktopPlan.name, quantity: 1 },
         { name: plan.name, amount: plan.amountCents, description: plan.name, quantity: 1 },

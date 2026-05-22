@@ -13,33 +13,98 @@ interface ProvisionInput {
   paymobSubscriptionId?: string | null;
 }
 
+export async function getUserLicenseByEmail(
+  email: string,
+): Promise<{ paymobOrderId: string; planId: PlanId } | null> {
+  const user = await findAuthUserByEmail(email);
+  if (!user) return null;
+
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from('licenses')
+    .select('paymob_order_id, plan_id')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data || typeof data.paymob_order_id !== 'string') return null;
+  return {
+    paymobOrderId: data.paymob_order_id,
+    planId: (data.plan_id ?? 'desktop_license') as PlanId,
+  };
+}
+
 export async function provisionPaidOrder(input: ProvisionInput): Promise<{ status: 'created' | 'already_processed' }> {
   const supabase = getSupabaseAdmin();
   const plan = await getPlanConfig(input.plan);
-  const licenseKey = deriveLicenseKey(input);
-  const keyHash = hashLicenseKey(licenseKey);
 
-  const { data: existing, error: existingError } = await supabase
+  // Idempotency: order already produced a license row
+  const { data: existingByOrder, error: existingError } = await supabase
     .from('licenses')
     .select('id, user_id')
     .eq('paymob_order_id', input.paymobOrderId)
     .maybeSingle();
   if (existingError) throw existingError;
 
-  if (existing) {
+  if (existingByOrder) {
     if (plan.includesAiPro) {
       await ensureSubscription({
-        userId: existing.user_id,
+        userId: existingByOrder.user_id,
         plan: input.plan,
         paymobOrderId: input.paymobOrderId,
         paymobSubscriptionId: input.paymobSubscriptionId,
       });
     }
+    const licenseKey = deriveLicenseKey(input);
     await sendLicenseEmail({ to: input.email, licenseKey, planName: plan.name });
     return { status: 'already_processed' };
   }
 
+  // Idempotency for upgrade orders (no license row expected): check subscriptions table
+  if (plan.includesAiPro) {
+    const { data: existingSub } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('paymob_order_id', input.paymobOrderId)
+      .maybeSingle();
+    if (existingSub) return { status: 'already_processed' };
+  }
+
   const userId = await ensureUser(input.email, input.plan);
+
+  // Check if user already has a license — if so this is an upgrade, not a first purchase
+  const { data: existingLicenseRow } = await supabase
+    .from('licenses')
+    .select('paymob_order_id, plan_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const isUpgrade = plan.includesAiPro && !!existingLicenseRow;
+
+  if (isUpgrade && existingLicenseRow) {
+    // Only add the subscription; do not create a second license record
+    await ensureSubscription({
+      userId,
+      plan: input.plan,
+      paymobOrderId: input.paymobOrderId,
+      paymobSubscriptionId: input.paymobSubscriptionId,
+    });
+    // Email the user their original key so they know it still works
+    const originalKey = deriveLicenseKey({
+      email: input.email,
+      plan: existingLicenseRow.plan_id as PlanId,
+      paymobOrderId: existingLicenseRow.paymob_order_id as string,
+    });
+    await sendLicenseEmail({ to: input.email, licenseKey: originalKey, planName: plan.name });
+    return { status: 'created' };
+  }
+
+  // First-time purchase: create license
+  const licenseKey = deriveLicenseKey(input);
+  const keyHash = hashLicenseKey(licenseKey);
   const nextReset = nextMonthlyReset();
 
   const { error: licenseError } = await supabase.from('licenses').insert({
