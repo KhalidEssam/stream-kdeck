@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { platform, homedir } from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TileConfig } from '@control-surface/shared';
+import { TileConfig, TileIconOverride } from '@control-surface/shared';
 import { randomUUID } from 'crypto';
 import { AppSearchService } from '../app-search/app-search.service';
 
@@ -23,6 +23,24 @@ interface RegistryEntry {
 interface AppConfig {
   tiles: TileConfig[];
   overrides: Record<string, string>;
+}
+
+function normalizeTileIconOverride(icon: TileIconOverride | undefined): TileIconOverride | undefined {
+  if (!icon) return undefined;
+
+  if (icon.kind === 'glyph' || icon.kind === 'emoji') {
+    const value = icon.value.trim().slice(0, 8);
+    return value ? { kind: icon.kind, value } : undefined;
+  }
+
+  if (icon.kind === 'image') {
+    const uri = icon.uri.trim();
+    const validRemote = /^https?:\/\/\S{3,4096}$/i.test(uri);
+    const validDataImage = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=]{16,200000}$/i.test(uri);
+    return validRemote || validDataImage ? { kind: 'image', uri } : undefined;
+  }
+
+  return undefined;
 }
 
 const BUILT_IN_REGISTRY: Record<string, RegistryEntry> = {
@@ -294,6 +312,19 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
     const updated = { ...tile, pinned: pinned || undefined };
     if (pinned) this.config.tiles.unshift(updated);
     else this.config.tiles.push(updated);
+    this.persist();
+  }
+
+  setTileIcon(tileId: string, customIcon: TileIconOverride | undefined): void {
+    const index = this.config.tiles.findIndex((tile) => tile.id === tileId);
+    if (index === -1) return;
+
+    const normalized = normalizeTileIconOverride(customIcon);
+    this.config.tiles[index] = {
+      ...this.config.tiles[index],
+      customIcon: normalized,
+    };
+    if (!normalized) delete this.config.tiles[index].customIcon;
     this.persist();
   }
 

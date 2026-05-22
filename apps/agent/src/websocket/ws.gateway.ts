@@ -27,6 +27,7 @@ import {
   PluginInstallStatusMessage,
   IntegrationStateMessage,
   PluginConnectionStatusMessage,
+  ButtonAction,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -46,6 +47,14 @@ import { IntegrationStateService } from '../integrations/integration-state.servi
 import { ObsService } from '../integrations/obs/obs.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { PluginInstallService } from '../integrations/plugin-install.service';
+
+function actionIncludesIntegration(action: ButtonAction): boolean {
+  if (action.kind === 'INTEGRATION_ACTION') return true;
+  if (action.kind === 'WORKFLOW') {
+    return action.steps.some((step) => actionIncludesIntegration(step.action));
+  }
+  return false;
+}
 
 @WebSocketGateway()
 export class WsGateway implements OnGatewayConnection {
@@ -410,6 +419,12 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'SET_TILE_ICON') {
+        this.appRegistry.setTileIcon(data.tileId, data.customIcon);
+        this.sendDeckConfig(client);
+        return;
+      }
+
       if (data.type === 'SEARCH_APPS') {
         const startedAt = Date.now();
         console.log(`[Agent] SEARCH_APPS "${data.query}"`);
@@ -502,7 +517,7 @@ export class WsGateway implements OnGatewayConnection {
       };
       client.send(JSON.stringify(response));
 
-      if (result.success && data.action.kind === 'INTEGRATION_ACTION') {
+      if (result.success && actionIncludesIntegration(data.action)) {
         void this.integrationState.pollNow();
       }
 

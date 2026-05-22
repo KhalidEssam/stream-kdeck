@@ -174,9 +174,15 @@ export interface TileConfig {
   iconId: string;
   color?: string;
   iconBase64?: string;
+  customIcon?: TileIconOverride;
   pinned?: boolean;
   action: ButtonAction;
 }
+
+export type TileIconOverride =
+  | { kind: 'glyph'; value: string }
+  | { kind: 'emoji'; value: string }
+  | { kind: 'image'; uri: string };
 
 export interface DeckConfigMessage {
   type: 'DECK_CONFIG';
@@ -197,6 +203,12 @@ export interface SetTilePinnedMessage {
   type: 'SET_TILE_PINNED';
   tileId: string;
   pinned: boolean;
+}
+
+export interface SetTileIconMessage {
+  type: 'SET_TILE_ICON';
+  tileId: string;
+  customIcon?: TileIconOverride;
 }
 
 // Trackpad/Mouse messages (Mobile → Agent)
@@ -395,6 +407,7 @@ export type MobileMessage =
   | AddTileMessage
   | RemoveTileMessage
   | SetTilePinnedMessage
+  | SetTileIconMessage
   | SearchAppsMessage
   | ValidatePathMessage
   | OpenActivationDialogMessage
