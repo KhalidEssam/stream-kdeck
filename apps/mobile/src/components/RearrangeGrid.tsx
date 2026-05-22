@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -63,6 +63,7 @@ export function RearrangeGrid({
   const hoverSlotRef = useRef(-1);
   const inEdgeZoneRef = useRef<'left' | 'right' | null>(null);
   const edgeFlipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleEdgeFlipRef = useRef<(direction: 'left' | 'right') => void>(() => {});
 
   // Shared values for UI-thread animation
   const dragX = useSharedValue(0);
@@ -144,11 +145,15 @@ export function RearrangeGrid({
           currentPageRef.current = next;
           setCurrentPage(next);
         }
-        scheduleEdgeFlip(direction);
+        scheduleEdgeFlipRef.current(direction);
       }, FLIP_DELAY_MS);
     },
     [tilesPerPage],
   );
+
+  useEffect(() => {
+    scheduleEdgeFlipRef.current = scheduleEdgeFlip;
+  }, [scheduleEdgeFlip]);
 
   const onDragUpdate = useCallback(
     (absX: number, absY: number) => {
@@ -202,26 +207,30 @@ export function RearrangeGrid({
 
   // ── Gesture ────────────────────────────────────────────────────────────────
 
-  const panGesture = Gesture.Pan()
-    .activateAfterLongPress(LONG_PRESS_MS)
-    .onStart((e) => {
-      'worklet';
-      runOnJS(onDragStart)(e.absoluteX, e.absoluteY);
-    })
-    .onUpdate((e) => {
-      'worklet';
-      dragX.value = e.absoluteX;
-      dragY.value = e.absoluteY;
-      runOnJS(onDragUpdate)(e.absoluteX, e.absoluteY);
-    })
-    .onEnd(() => {
-      'worklet';
-      runOnJS(onDragEnd)();
-    })
-    .onFinalize(() => {
-      'worklet';
-      isDragging.value = false;
-    });
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activateAfterLongPress(LONG_PRESS_MS)
+        .onStart((e) => {
+          'worklet';
+          runOnJS(onDragStart)(e.absoluteX, e.absoluteY);
+        })
+        .onUpdate((e) => {
+          'worklet';
+          dragX.value = e.absoluteX;
+          dragY.value = e.absoluteY;
+          runOnJS(onDragUpdate)(e.absoluteX, e.absoluteY);
+        })
+        .onEnd(() => {
+          'worklet';
+          runOnJS(onDragEnd)();
+        })
+        .onFinalize(() => {
+          'worklet';
+          isDragging.value = false;
+        }),
+    [onDragStart, onDragUpdate, onDragEnd, dragX, dragY, isDragging],
+  );
 
   // ── Floating overlay style (UI thread) ────────────────────────────────────
 
