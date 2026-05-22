@@ -112,7 +112,7 @@ export class CommandService {
           try {
             const { stdout } = await execAsync(action.command, { timeout: 10000 });
             if (action.outputMode === 'viewer') {
-              return { success: true, output: stdout };
+              return { success: true, output: stdout.trim() };
             }
             if (action.outputMode === 'clipboard' || action.outputMode === 'autopaste') {
               await this.clipboard.write(stdout.trim());

@@ -105,7 +105,9 @@ export function OnboardingScreen({ packs, onComplete, onSkip }: Props) {
             <Text style={styles.subtitle}>All selected — deselect any you don't want.</Text>
           </View>
           <ScrollView contentContainerStyle={styles.toolList}>
-            {chosenPack.tools.map((tool: PackTool) => {
+            {chosenPack.tools
+              .filter((t) => t.kind === 'ai')
+              .map((tool: PackTool) => {
               const selected = !deselected.has(tool.id);
               return (
                 <TouchableOpacity
