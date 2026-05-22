@@ -181,6 +181,7 @@ export interface ConnectedMessage {
   type: 'CONNECTED';
   agentVersion: string;
   platform: 'darwin' | 'win32' | 'linux';
+  userId?: string | null;
 }
 
 export interface TileConfig {
