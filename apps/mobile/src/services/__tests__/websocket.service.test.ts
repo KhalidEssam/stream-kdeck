@@ -17,15 +17,38 @@ describe('WebSocketService', () => {
     WS.clean();
   });
 
-  it('emits "connected" status when server sends CONNECTED message', async () => {
+  it('emits "connected" status after acceptConnection is called from onConnected', async () => {
     const statuses: string[] = [];
     service.onStatusChange((s) => statuses.push(s));
+    service.onConnected(() => service.acceptConnection());
+
+    const msg: ConnectedMessage = { type: 'CONNECTED', agentVersion: '0.1.0', platform: 'darwin', userId: null };
+    server.send(JSON.stringify(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(statuses).toContain('connected');
+  });
+
+  it('calls onConnected with userId from CONNECTED message', async () => {
+    const received: Array<string | null> = [];
+    service.onConnected((id) => received.push(id));
+
+    const msg: ConnectedMessage = { type: 'CONNECTED', agentVersion: '0.1.0', platform: 'darwin', userId: 'user-abc' };
+    server.send(JSON.stringify(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(received).toEqual(['user-abc']);
+  });
+
+  it('calls onConnected with null when userId is absent from CONNECTED message', async () => {
+    const received: Array<string | null> = [];
+    service.onConnected((id) => received.push(id));
 
     const msg: ConnectedMessage = { type: 'CONNECTED', agentVersion: '0.1.0', platform: 'darwin' };
     server.send(JSON.stringify(msg));
 
     await new Promise((r) => setTimeout(r, 50));
-    expect(statuses).toContain('connected');
+    expect(received).toEqual([null]);
   });
 
   it('sends a valid BUTTON_TAP message when tap() is called', async () => {

@@ -73,6 +73,7 @@ type InstalledPluginsCallback = (ids: string[]) => void;
 type PluginInstallStatusCallback = (msg: PluginInstallStatusMessage) => void;
 type IntegrationStateCallback = (msg: IntegrationStateMessage) => void;
 type PluginConnectionStatusCallback = (msg: PluginConnectionStatusMessage) => void;
+type ConnectedCallback = (userId: string | null) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -96,6 +97,7 @@ export class WebSocketService {
   private pluginInstallStatusListeners: PluginInstallStatusCallback[] = [];
   private integrationStateListeners: IntegrationStateCallback[] = [];
   private pluginConnStatusListeners: PluginConnectionStatusCallback[] = [];
+  private connectedCallbacks: ConnectedCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -111,7 +113,8 @@ export class WebSocketService {
     this.ws.onmessage = (event: MessageEvent) => {
       const msg: AgentMessage = JSON.parse(event.data as string);
       if (msg.type === 'CONNECTED') {
-        this.notifyStatus('connected');
+        const userId = msg.userId ?? null;
+        this.connectedCallbacks.forEach((cb) => cb(userId));
       } else if (msg.type === 'ACTION_RESULT') {
         this.resultCallbacks.forEach((cb) => cb(msg));
       } else if (msg.type === 'DECK_CONFIG') {
@@ -331,6 +334,14 @@ export class WebSocketService {
 
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
+  }
+
+  onConnected(cb: ConnectedCallback): void {
+    this.connectedCallbacks.push(cb);
+  }
+
+  acceptConnection(): void {
+    this.notifyStatus('connected');
   }
 
   onConnectionError(cb: ConnectionErrorCallback): () => void {
