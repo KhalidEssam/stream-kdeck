@@ -61,7 +61,7 @@ function cleanupZeroconf(zc: Zeroconf): void {
 export function discoverAgent(
   onFound:   (url: string) => void,
   onTimeout: (msg: string) => void,
-  skipUrls?: Set<string>,
+  skipUrls?: ReadonlySet<string>,
 ): () => void {
   // Dev shortcut: if EXPO_PUBLIC_AGENT_WS_URL is explicitly set, use it immediately
   // and skip all discovery. Do NOT set this in production/preview builds.

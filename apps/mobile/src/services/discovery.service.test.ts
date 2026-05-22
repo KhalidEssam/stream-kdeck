@@ -114,6 +114,7 @@ describe('discovery.service', () => {
 
     expect(onFound).not.toHaveBeenCalled();
     expect(mockStop).not.toHaveBeenCalled();
+    expect(onTimeout).not.toHaveBeenCalled();
   });
 
   it('resolves a service not in skipUrls even when skipUrls is provided', () => {
@@ -131,5 +132,19 @@ describe('discovery.service', () => {
 
     expect(onFound).toHaveBeenCalledWith('ws://192.168.1.77:3001');
     expect(onTimeout).not.toHaveBeenCalled();
+  });
+
+  it('still resolves the next service after skipping one URL', () => {
+    const onFound = jest.fn();
+    const skipUrls = new Set(['ws://192.168.1.77:3001']);
+    discoverAgent(onFound, jest.fn(), skipUrls);
+
+    // Skipped
+    mockHandlers.resolved({ host: 'KDeck.local.', port: 3001, addresses: ['192.168.1.77'] });
+    expect(onFound).not.toHaveBeenCalled();
+
+    // Accepted
+    mockHandlers.resolved({ host: 'KDeck2.local.', port: 3001, addresses: ['192.168.1.88'] });
+    expect(onFound).toHaveBeenCalledWith('ws://192.168.1.88:3001');
   });
 });
