@@ -189,6 +189,7 @@ export function DeckScreen() {
   const wsRef = useRef<WebSocketService | null>(null);
   const peekFabRef = useRef<PeekFabHandle>(null);
   const retryCancelRef = useRef<(() => void) | null>(null);
+  const rejectedUrls = useRef<Set<string>>(new Set());
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<ConnectionErrorInfo | null>(null);
@@ -282,6 +283,7 @@ export function DeckScreen() {
           retryCancelRef.current = null;
           if (!cancelled) setDiscoveryError(msg);
         },
+        rejectedUrls.current,
       );
       retryCancelRef.current = cancel;
     };
@@ -328,6 +330,20 @@ export function DeckScreen() {
     const ws = new WebSocketService(agentUrl);
     wsRef.current = ws;
     setWsService(ws);
+    ws.onConnected(async (agentUserId) => {
+      if (agentUserId !== null) {
+        const { data } = await supabase.auth.getSession();
+        const myId = data.session?.user.id;
+        if (myId && agentUserId !== myId) {
+          ws.disconnect();
+          rejectedUrls.current.add(agentUrl);
+          setAgentUrl(null);
+          setDiscoveryAttempt((n) => n + 1);
+          return;
+        }
+      }
+      ws.acceptConnection();
+    });
     ws.onStatusChange((nextStatus) => {
       setStatus(nextStatus);
       if (nextStatus === 'connected') {
@@ -425,6 +441,12 @@ export function DeckScreen() {
     });
   };
 
+  const handleSwitchAccount = () => {
+    rejectedUrls.current.clear();
+    void supabase.auth.signOut();
+    void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY);
+  };
+
   const handleConnectManual = () => {
     const url = normalizeAgentWsUrl(manualIpInput.trim());
     if (!url) {
@@ -502,10 +524,6 @@ export function DeckScreen() {
   const handlePendingReorder = (newOrder: TileConfig[]) => {
     setPendingVisibleOrder(newOrder);
   };
-
-  const isDirty =
-    pendingVisibleOrder.map((t) => t.id).join(',') !==
-    visibleTiles.map((t) => t.id).join(',');
 
   const handleDoneRearrange = () => {
     if (!wsRef.current?.isConnected()) {
@@ -603,6 +621,9 @@ export function DeckScreen() {
       .filter((tile) => activeTab === 'ai' ? tile.kind === 'ai' : tile.kind !== 'ai' && tile.kind !== 'shortcut')
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }, [activeTab, tiles]);
+  const isDirty =
+    pendingVisibleOrder.map((t) => t.id).join(',') !==
+    visibleTiles.map((t) => t.id).join(',');
   const tileRuntimeState = useMemo(() => {
     const runtime: {
       badges: Record<string, string | null>;
@@ -713,6 +734,13 @@ export function DeckScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>Connect</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 12, paddingHorizontal: 28, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }]}
+            onPress={handleSwitchAccount}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.buttonText, { color: '#6B6B8A' }]}>Switch Account</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1356,6 +1384,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#12121C',
     borderTopWidth: 1,
     borderTopColor: '#1E1E2E',
+    zIndex: 100,
+    elevation: 10,
   },
   doneBarCancel: { paddingVertical: 8, paddingHorizontal: 4 },
   doneBarCancelText: { color: '#8888AA', fontSize: 16 },
