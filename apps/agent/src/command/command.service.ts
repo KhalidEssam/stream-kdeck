@@ -47,7 +47,7 @@ export class CommandService {
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
-            if (tool) {
+            if (tool && tool.kind === 'ai') {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
             }
@@ -102,6 +102,22 @@ export class CommandService {
             action.params,
             tool?.paramsSchema as Record<string, unknown> | undefined,
           );
+        }
+
+        case 'SHELL_RUN': {
+          const { execSync } = await import('child_process');
+          try {
+            const output = execSync(action.command, { encoding: 'utf8', timeout: 10000 });
+            if (action.outputMode === 'viewer') {
+              return { success: true, output };
+            }
+            if (action.outputMode === 'clipboard' || action.outputMode === 'autopaste') {
+              await this.clipboard.write(output.trim());
+            }
+            return { success: true };
+          } catch (shellErr: unknown) {
+            return { success: false, error: shellErr instanceof Error ? shellErr.message : String(shellErr) };
+          }
         }
 
         default: {
