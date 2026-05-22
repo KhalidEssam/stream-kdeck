@@ -881,11 +881,13 @@ export function DeckScreen() {
       </Animated.View>
 
       {/* FAB — add tile */}
-      <PeekFab
-        ref={peekFabRef}
-        onPress={() => handleOpenAddTile()}
-        showBadge={!!packRegistry?.length}
-      />
+      {!rearrangeMode && (
+        <PeekFab
+          ref={peekFabRef}
+          onPress={() => handleOpenAddTile()}
+          showBadge={!!packRegistry?.length}
+        />
+      )}
 
       {/* AddTile modal */}
       <Modal
