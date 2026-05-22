@@ -1,12 +1,23 @@
-const mockNativeModules = { RNZeroconf: {} };
 const mockHandlers: Record<string, (payload: unknown) => void> = {};
 const mockScan = jest.fn();
 const mockStop = jest.fn();
 const mockRemoveDeviceListeners = jest.fn();
 
-jest.mock('react-native', () => ({
-  NativeModules: mockNativeModules,
-}));
+// jest.mock factories are hoisted before variable initializers run, so outer
+// const variables are undefined inside the factory. We work around this by
+// having the factory create the shared NativeModules object itself and export
+// it via a module-level symbol so beforeEach can mutate it by reference.
+let mockNativeModules: { RNZeroconf: Record<string, unknown> | undefined };
+
+jest.mock('react-native', () => {
+  // Create the shared object inside the factory so it is initialized here.
+  // Then assign it back to the outer let so tests can mutate it via beforeEach.
+  // This assignment runs before any test body executes.
+  const obj: { RNZeroconf: Record<string, unknown> | undefined } = { RNZeroconf: {} };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).__mockNativeModules = obj;
+  return { NativeModules: obj };
+});
 
 jest.mock('react-native-zeroconf', () => (
   jest.fn().mockImplementation(() => ({
@@ -21,11 +32,26 @@ jest.mock('react-native-zeroconf', () => (
 
 import { discoverAgent, getAgentUrlFromService, normalizeAgentWsUrl } from './discovery.service';
 
+// Retrieve the shared object created inside the factory.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+mockNativeModules = (globalThis as any).__mockNativeModules;
+
 describe('discovery.service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     for (const key of Object.keys(mockHandlers)) delete mockHandlers[key];
     mockNativeModules.RNZeroconf = {};
+    // Restore mockImplementation cleared by clearAllMocks.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ZeroconfMock = require('react-native-zeroconf');
+    ZeroconfMock.mockImplementation(() => ({
+      on: (event: string, handler: (payload: unknown) => void) => {
+        mockHandlers[event] = handler;
+      },
+      scan: mockScan,
+      stop: mockStop,
+      removeDeviceListeners: mockRemoveDeviceListeners,
+    }));
   });
 
   it('normalizes raw manual host values into WebSocket URLs', () => {
@@ -71,5 +97,39 @@ describe('discovery.service', () => {
     expect(onTimeout).not.toHaveBeenCalled();
     expect(mockStop).toHaveBeenCalledWith('DNSSD');
     expect(mockRemoveDeviceListeners).toHaveBeenCalled();
+  });
+
+  it('skips a resolved service whose URL is in skipUrls', () => {
+    const onFound = jest.fn();
+    const onTimeout = jest.fn();
+    const skipUrls = new Set(['ws://192.168.1.77:3001']);
+
+    discoverAgent(onFound, onTimeout, skipUrls);
+
+    mockHandlers.resolved({
+      host: 'KDeck-Agent.local.',
+      port: 3001,
+      addresses: ['192.168.1.77'],
+    });
+
+    expect(onFound).not.toHaveBeenCalled();
+    expect(mockStop).not.toHaveBeenCalled();
+  });
+
+  it('resolves a service not in skipUrls even when skipUrls is provided', () => {
+    const onFound = jest.fn();
+    const onTimeout = jest.fn();
+    const skipUrls = new Set(['ws://192.168.1.99:3001']);
+
+    discoverAgent(onFound, onTimeout, skipUrls);
+
+    mockHandlers.resolved({
+      host: 'KDeck-Agent.local.',
+      port: 3001,
+      addresses: ['192.168.1.77'],
+    });
+
+    expect(onFound).toHaveBeenCalledWith('ws://192.168.1.77:3001');
+    expect(onTimeout).not.toHaveBeenCalled();
   });
 });
