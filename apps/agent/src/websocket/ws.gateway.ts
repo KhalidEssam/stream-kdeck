@@ -265,6 +265,7 @@ export class WsGateway implements OnGatewayConnection {
       type:         'CONNECTED',
       agentVersion: '0.1.0',
       platform:     platform() as 'darwin' | 'win32' | 'linux',
+      userId:       this.licenseService.getUserId(),
     };
     client.send(JSON.stringify(connected));
     this.sendDeckConfig(client);
