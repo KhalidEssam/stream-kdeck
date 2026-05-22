@@ -51,6 +51,10 @@ function makeStepLabel(action: WorkflowStepAction): string {
       const t = action.text;
       return t.length > 24 ? `${t.slice(0, 24)}…` : t;
     }
+    case 'SHELL_RUN': {
+      const t = action.command;
+      return t.length > 24 ? `${t.slice(0, 24)}…` : t;
+    }
     case 'INTEGRATION_ACTION':
       return action.actionId;
   }

@@ -44,19 +44,22 @@ export function OnboardingScreen({ packs, onComplete, onSkip }: Props) {
   const handleStart = () => {
     if (!chosenPack) return;
     const selectedTools: Omit<TileConfig, 'id'>[] = chosenPack.tools
-      .filter((t) => !deselected.has(t.id))
-      .map((tool: PackTool) => ({
-        kind: 'ai' as const,
-        label: tool.label,
-        iconId: tool.icon ?? 'ai',
-        color: tool.color,
-        action: {
-          kind: 'AI_CLIPBOARD' as const,
-          toolId: tool.id,
-          prompt: '',
-          outputMode: tool.outputMode,
-        },
-      }));
+      .filter((t) => !deselected.has(t.id) && t.kind === 'ai')
+      .map((tool: PackTool) => {
+        if (tool.kind !== 'ai') throw new Error('Expected ai tool');
+        return {
+          kind: 'ai' as const,
+          label: tool.label,
+          iconId: tool.icon ?? 'ai',
+          color: tool.color,
+          action: {
+            kind: 'AI_CLIPBOARD' as const,
+            toolId: tool.id,
+            prompt: '',
+            outputMode: tool.outputMode,
+          },
+        };
+      });
     onComplete(selectedTools);
   };
 

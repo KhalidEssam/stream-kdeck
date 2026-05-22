@@ -34,6 +34,7 @@ export function AiToolsTab({ packs, currentTiles, onAdd, onRemove }: Props) {
   const activePack = packs.find((p) => p.id === selectedPackId) ?? null;
 
   const handleToggle = (tool: PackTool) => {
+    if (tool.kind !== 'ai') return;
     const existingId = selectedTilesByToolId.get(tool.id);
     if (existingId) {
       onRemove(existingId);

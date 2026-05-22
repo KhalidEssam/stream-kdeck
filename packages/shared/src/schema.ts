@@ -12,6 +12,7 @@ export type ButtonAction =
   | { kind: 'URL_OPEN'; url: string }
   | { kind: 'CLIPBOARD_WRITE'; text: string }
   | { kind: 'EXEC'; exePath: string }
+  | { kind: 'SHELL_RUN'; command: string; outputMode: 'clipboard' | 'autopaste' | 'viewer' | 'silent'; toolId?: string }
   | { kind: 'WORKFLOW'; steps: WorkflowStep[]; stopOnError: boolean }
   | { kind: 'INTEGRATION_ACTION'; pluginId: string; toolId: string; actionId: string; params: Record<string, unknown> };
 
@@ -26,19 +27,34 @@ export interface WorkflowStep {
 }
 
 // Pack catalog types (Agent → Mobile via PACK_REGISTRY)
-export interface PackTool {
-  id: string;
-  packId: string;
-  label: string;
-  prompt: string;
-  outputMode: 'clipboard' | 'autopaste' | 'viewer';
-  source: 'clipboard' | 'active_window' | 'shell';
-  icon: string;
-  color?: string;
-  order: number;
-  phase: number;
-  builtinId?: string;
-}
+export type PackTool =
+  | {
+      kind: 'ai';
+      id: string;
+      packId: string;
+      label: string;
+      prompt: string;
+      outputMode: 'clipboard' | 'autopaste' | 'viewer';
+      source: 'clipboard' | 'active_window' | 'shell';
+      icon: string;
+      color?: string;
+      order: number;
+      phase: number;
+      builtinId?: string;
+    }
+  | {
+      kind: 'command';
+      id: string;
+      packId: string;
+      label: string;
+      command: string;
+      outputMode: 'viewer' | 'silent';
+      icon: string;
+      color?: string;
+      order: number;
+      phase: number;
+      builtinId?: string;
+    };
 
 export interface Pack {
   id: string;
