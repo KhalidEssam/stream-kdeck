@@ -328,6 +328,20 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
     this.persist();
   }
 
+  reorderTiles(tileIds: string[]): void {
+    const lookup = new Map(this.config.tiles.map((t) => [t.id, t]));
+    const reordered: TileConfig[] = [];
+    for (const id of tileIds) {
+      const tile = lookup.get(id);
+      if (tile) reordered.push(tile);
+    }
+    for (const tile of this.config.tiles) {
+      if (!tileIds.includes(tile.id)) reordered.push(tile);
+    }
+    this.config.tiles = reordered;
+    this.persist();
+  }
+
   // Resolves the launch target for an appId.
   // Returns an absolute file path (use shell.openPath) or a URL/protocol (use shell.openExternal).
   resolveTarget(appId: string): string {

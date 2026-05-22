@@ -28,6 +28,7 @@ import {
   IntegrationStateMessage,
   PluginConnectionStatusMessage,
   ButtonAction,
+  ReorderTilesMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -421,6 +422,14 @@ export class WsGateway implements OnGatewayConnection {
 
       if (data.type === 'SET_TILE_ICON') {
         this.appRegistry.setTileIcon(data.tileId, data.customIcon);
+        this.sendDeckConfig(client);
+        return;
+      }
+
+      if (data.type === 'REORDER_TILES') {
+        if (Array.isArray(data.tileIds)) {
+          this.appRegistry.reorderTiles(data.tileIds as string[]);
+        }
         this.sendDeckConfig(client);
         return;
       }
