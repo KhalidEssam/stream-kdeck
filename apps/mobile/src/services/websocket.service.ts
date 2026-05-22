@@ -45,6 +45,7 @@ import {
   UninstallPluginMessage,
   SetPluginConnectionMessage,
   TestPluginConnectionMessage,
+  ReorderTilesMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -192,6 +193,12 @@ export class WebSocketService {
   setTileIcon(tileId: string, customIcon?: TileIconOverride): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: SetTileIconMessage = { type: 'SET_TILE_ICON', tileId, customIcon };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  reorderTiles(tileIds: string[]): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: ReorderTilesMessage = { type: 'REORDER_TILES', tileIds };
     this.ws.send(JSON.stringify(msg));
   }
 
