@@ -21,10 +21,13 @@ export function AiToolsTab({ packs, currentTiles, onAdd, onRemove }: Props) {
     packs.length > 0 ? packs[0].id : null,
   );
 
-  const selectedTilesByToolId = useMemo<Map<string, string>>(() => {
+  const selectedByToolId = useMemo<Map<string, string>>(() => {
     const map = new Map<string, string>();
     for (const tile of currentTiles) {
       if (tile.action.kind === 'AI_CLIPBOARD' && tile.action.toolId) {
+        map.set(tile.action.toolId, tile.id);
+      }
+      if (tile.action.kind === 'SHELL_RUN' && tile.action.toolId) {
         map.set(tile.action.toolId, tile.id);
       }
     }
@@ -34,11 +37,24 @@ export function AiToolsTab({ packs, currentTiles, onAdd, onRemove }: Props) {
   const activePack = packs.find((p) => p.id === selectedPackId) ?? null;
 
   const handleToggle = (tool: PackTool) => {
-    // command tool support added in Task 3; skip for now to avoid broken UX
-    if (tool.kind !== 'ai') return;
-    const existingId = selectedTilesByToolId.get(tool.id);
+    const existingId = selectedByToolId.get(tool.id);
     if (existingId) {
       onRemove(existingId);
+      return;
+    }
+    if (tool.kind === 'command') {
+      onAdd({
+        kind: 'custom',
+        label: tool.label,
+        iconId: tool.icon ?? 'terminal',
+        color: tool.color,
+        action: {
+          kind: 'SHELL_RUN',
+          command: tool.command,
+          outputMode: tool.outputMode,
+          toolId: tool.id,
+        },
+      });
     } else {
       onAdd({
         kind: 'ai',
@@ -91,7 +107,7 @@ export function AiToolsTab({ packs, currentTiles, onAdd, onRemove }: Props) {
           keyExtractor={(t) => t.id}
           contentContainerStyle={styles.toolList}
           renderItem={({ item: tool }) => {
-            const selected = selectedTilesByToolId.has(tool.id);
+            const selected = selectedByToolId.has(tool.id);
             return (
               <TouchableOpacity
                 style={[styles.toolRow, selected && styles.toolRowSelected]}
@@ -99,7 +115,15 @@ export function AiToolsTab({ packs, currentTiles, onAdd, onRemove }: Props) {
               >
                 <View style={styles.toolInfo}>
                   <Text style={styles.toolLabel}>{tool.label}</Text>
-                  <Text style={styles.toolMode}>{tool.outputMode}</Text>
+                  <View style={styles.toolMeta}>
+                    <Text style={[
+                      styles.kindBadge,
+                      tool.kind === 'command' ? styles.kindBadgeCommand : styles.kindBadgeAi,
+                    ]}>
+                      {tool.kind === 'command' ? 'Command' : 'AI'}
+                    </Text>
+                    <Text style={styles.toolMode}>{tool.outputMode}</Text>
+                  </View>
                 </View>
                 <View style={[styles.checkBox, selected && styles.checkBoxSelected]}>
                   {selected && <Text style={styles.checkMark}>✓</Text>}
@@ -145,4 +169,15 @@ const styles = StyleSheet.create({
   },
   checkBoxSelected: { backgroundColor: '#6C63FF', borderColor: '#6C63FF' },
   checkMark: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  toolMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  kindBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  kindBadgeAi: { backgroundColor: '#2A1A4A', color: '#B9B5FF' },
+  kindBadgeCommand: { backgroundColor: '#1A2A1A', color: '#7BFFA8' },
 });
