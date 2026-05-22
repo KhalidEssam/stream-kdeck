@@ -213,6 +213,11 @@ export interface SetTileIconMessage {
   customIcon?: TileIconOverride;
 }
 
+export interface ReorderTilesMessage {
+  type: 'REORDER_TILES';
+  tileIds: string[];
+}
+
 // Custom launcher messages
 export interface AppSearchResult {
   name: string;
@@ -411,6 +416,7 @@ export type MobileMessage =
   | RemoveTileMessage
   | SetTilePinnedMessage
   | SetTileIconMessage
+  | ReorderTilesMessage
   | SearchAppsMessage
   | ValidatePathMessage
   | OpenActivationDialogMessage

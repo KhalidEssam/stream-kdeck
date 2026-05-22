@@ -211,6 +211,11 @@ export interface SetTileIconMessage {
   customIcon?: TileIconOverride;
 }
 
+export interface ReorderTilesMessage {
+  type: 'REORDER_TILES';
+  tileIds: string[];
+}
+
 // Trackpad/Mouse messages (Mobile → Agent)
 export interface MouseMoveMessage {
   type: 'MOUSE_MOVE';
@@ -408,6 +413,7 @@ export type MobileMessage =
   | RemoveTileMessage
   | SetTilePinnedMessage
   | SetTileIconMessage
+  | ReorderTilesMessage
   | SearchAppsMessage
   | ValidatePathMessage
   | OpenActivationDialogMessage
