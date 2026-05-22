@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ButtonAction } from '@control-surface/shared';
 import { shell } from 'electron';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
@@ -16,6 +18,8 @@ export interface CommandResult {
   error?: string;
   quotaExceeded?: boolean;
 }
+
+const execAsync = promisify(exec);
 
 @Injectable()
 export class CommandService {
@@ -105,14 +109,13 @@ export class CommandService {
         }
 
         case 'SHELL_RUN': {
-          const { execSync } = await import('child_process');
           try {
-            const output = execSync(action.command, { encoding: 'utf8', timeout: 10000 });
+            const { stdout } = await execAsync(action.command, { timeout: 10000 });
             if (action.outputMode === 'viewer') {
-              return { success: true, output };
+              return { success: true, output: stdout };
             }
             if (action.outputMode === 'clipboard' || action.outputMode === 'autopaste') {
-              await this.clipboard.write(output.trim());
+              await this.clipboard.write(stdout.trim());
             }
             return { success: true };
           } catch (shellErr: unknown) {
