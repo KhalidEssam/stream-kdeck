@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { TileConfig } from '../types/schema';
+import type { TileDensity } from './tileLayout';
 
 // Clearbit logo service — high-quality brand logos, HTTPS, no key required for low volume.
 // Maps iconId → domain used to fetch the logo.
@@ -57,6 +58,35 @@ const BRAND_COLORS: Record<string, string> = {
   custom:     '#2D5A27',
 };
 
+const ICON_FALLBACKS: Record<string, string> = {
+  spotify: '♪',
+  discord: 'DC',
+  vscode: '</>',
+  chrome: '◎',
+  slack: '#',
+  notion: 'N',
+  obs: 'OBS',
+  figma: 'F',
+  claude: '✦',
+  github: 'GH',
+  youtube: '▶',
+  twitch: 'TW',
+  whatsapp: '☎',
+  powershell: '>_',
+  terminal: '$',
+  explorer: '▣',
+  steam: 'ST',
+  postman: 'PM',
+  linear: '◆',
+  vercel: '△',
+  ai: '✦',
+  shortcut: '⌨',
+  workflow: '⛓',
+  integration: '⚡',
+  url: '↗',
+  custom: '◇',
+};
+
 const TILE_BG: Record<string, string> = {
   ai:       '#1A1A2E',
   app:      '#1E1E2E',
@@ -75,6 +105,7 @@ interface Props {
   stateActive?: boolean;
   displayLabel?: string | null;
   creditsRemaining?: number;
+  density?: TileDensity;
   onTap: (tile: TileConfig) => void;
   onLongPress?: (tile: TileConfig) => void;
 }
@@ -87,12 +118,14 @@ export function AppTile({
   stateActive,
   displayLabel,
   creditsRemaining,
+  density = 'regular',
   onTap,
   onLongPress,
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const didLongPress = useRef(false);
   const [logoError, setLogoError] = useState(false);
+  const [customImageError, setCustomImageError] = useState(false);
 
   const handlePressIn = () => {
     didLongPress.current = false;
@@ -132,11 +165,46 @@ export function AppTile({
       : undefined;
   const logoUri = logoDomain ? `https://logo.clearbit.com/${logoDomain}` : undefined;
   const showLogo = !!logoUri && !logoError;
+  const isCompact = density === 'compact';
+  const isDense = density === 'dense';
+  const customImageUri = tile.customIcon?.kind === 'image' ? tile.customIcon.uri : undefined;
+  const customText =
+    tile.customIcon?.kind === 'glyph' || tile.customIcon?.kind === 'emoji'
+      ? tile.customIcon.value
+      : undefined;
+  const fallbackGlyphCandidate =
+    ICON_FALLBACKS[tile.iconId] ??
+    ICON_FALLBACKS[tile.kind] ??
+    tile.label.trim().charAt(0).toUpperCase();
+  const fallbackGlyph = fallbackGlyphCandidate || '?';
+  const logoSource = showBase64 && !logoError
+    ? { uri: `data:image/png;base64,${tile.iconBase64}` }
+    : showLogo
+      ? { uri: logoUri }
+      : null;
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [logoUri]);
+
+  useEffect(() => {
+    setCustomImageError(false);
+  }, [customImageUri]);
 
   return (
-    <Animated.View style={[styles.wrapper, { transform: [{ scale }] }]}>
+    <Animated.View style={[
+      styles.wrapper,
+      isCompact && styles.wrapperCompact,
+      isDense && styles.wrapperDense,
+      { transform: [{ scale }] },
+    ]}>
       <Pressable
-        style={[styles.tile, { backgroundColor: tileBg }]}
+        style={[
+          styles.tile,
+          isCompact && styles.tileCompact,
+          isDense && styles.tileDense,
+          { backgroundColor: tileBg },
+        ]}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onPress={handlePress}
@@ -145,26 +213,57 @@ export function AppTile({
         disabled={isLoading}
       >
         {/* Icon badge */}
-        <View style={[styles.iconBadge, { backgroundColor: brandColor }]}>
-          {tile.kind === 'ai' ? (
-            <Text style={styles.aiIcon}>✦</Text>
-          ) : tile.kind === 'shortcut' ? (
-            <Text style={styles.shortcutIcon}>⌨</Text>
-          ) : showBase64 ? (
-            <Image
-              source={{ uri: `data:image/png;base64,${tile.iconBase64}` }}
-              style={styles.logo}
-            />
-          ) : showLogo ? (
-            <Image
-              source={{ uri: logoUri }}
-              style={styles.logo}
-              onError={() => setLogoError(true)}
-            />
-          ) : (
-            <Text style={styles.fallbackLetter}>
-              {tile.label.charAt(0).toUpperCase()}
+        <View style={[
+          styles.iconBadge,
+          isCompact && styles.iconBadgeCompact,
+          isDense && styles.iconBadgeDense,
+          { backgroundColor: brandColor },
+        ]}>
+          {customImageUri && !customImageError ? (
+            <>
+              <Text style={[styles.fallbackLetter, isCompact && styles.fallbackLetterCompact, isDense && styles.fallbackLetterDense]}>
+                {fallbackGlyph}
+              </Text>
+              <Image
+                source={{ uri: customImageUri }}
+                style={[
+                  styles.logo,
+                  styles.logoOverlay,
+                  isCompact && styles.logoCompact,
+                  isDense && styles.logoDense,
+                ]}
+                onError={() => setCustomImageError(true)}
+              />
+            </>
+          ) : customText ? (
+            <Text
+              style={[
+                styles.customIconText,
+                isCompact && styles.customIconTextCompact,
+                isDense && styles.customIconTextDense,
+              ]}
+              numberOfLines={1}
+            >
+              {customText}
             </Text>
+          ) : (
+            <>
+              <Text style={[styles.fallbackLetter, isCompact && styles.fallbackLetterCompact, isDense && styles.fallbackLetterDense]}>
+                {fallbackGlyph}
+              </Text>
+              {logoSource ? (
+                <Image
+                  source={logoSource}
+                  style={[
+                    styles.logo,
+                    styles.logoOverlay,
+                    isCompact && styles.logoCompact,
+                    isDense && styles.logoDense,
+                  ]}
+                  onError={() => setLogoError(true)}
+                />
+              ) : null}
+            </>
           )}
         </View>
 
@@ -173,16 +272,20 @@ export function AppTile({
         ) : null}
 
         {/* Label */}
-        <Text style={styles.label} numberOfLines={2}>
+        <Text
+          style={[styles.label, isCompact && styles.labelCompact, isDense && styles.labelDense]}
+          numberOfLines={isDense ? 1 : 2}
+        >
           {displayLabel ?? tile.label}
         </Text>
 
         {/* AI badge + credit counter */}
         {tile.kind === 'ai' && creditsRemaining !== undefined && (
-          <View style={styles.creditBadge}>
+          <View style={[styles.creditBadge, isDense && styles.creditBadgeDense]}>
             <Text
               style={[
                 styles.creditBadgeText,
+                isDense && styles.creditBadgeTextDense,
                 creditsRemaining === 0 && styles.creditBadgeEmpty,
               ]}
             >
@@ -197,20 +300,20 @@ export function AppTile({
         )}
 
         {tile.pinned && (
-          <View style={styles.pinBadge}>
-            <Text style={styles.pinBadgeText}>PIN</Text>
+          <View style={[styles.pinBadge, isDense && styles.pinBadgeDense]}>
+            <Text style={[styles.pinBadgeText, isDense && styles.pinBadgeTextDense]}>PIN</Text>
           </View>
         )}
 
         {tile.kind === 'workflow' && (
-          <View style={styles.workflowBadge}>
-            <Text style={styles.workflowBadgeText}>⛓</Text>
+          <View style={[styles.workflowBadge, isDense && styles.workflowBadgeDense]}>
+            <Text style={[styles.workflowBadgeText, isDense && styles.workflowBadgeTextDense]}>⛓</Text>
           </View>
         )}
 
         {tile.kind === 'integration' && stateBadge ? (
-          <View style={styles.stateBadge}>
-            <Text style={styles.stateBadgeText} numberOfLines={1}>{stateBadge}</Text>
+          <View style={[styles.stateBadge, isDense && styles.stateBadgeDense]}>
+            <Text style={[styles.stateBadgeText, isDense && styles.stateBadgeTextDense]} numberOfLines={1}>{stateBadge}</Text>
           </View>
         ) : null}
 
@@ -233,7 +336,9 @@ export function AppTile({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, margin: 5, aspectRatio: 1 },
+  wrapper: { flex: 1, margin: 5 },
+  wrapperCompact: { margin: 4 },
+  wrapperDense: { margin: 3 },
   tile: {
     flex: 1,
     borderRadius: 14,
@@ -244,6 +349,8 @@ const styles = StyleSheet.create({
     padding: 8,
     overflow: 'hidden',
   },
+  tileCompact: { borderRadius: 12, padding: 6 },
+  tileDense: { borderRadius: 10, padding: 4 },
   iconBadge: {
     width: 48,
     height: 48,
@@ -252,10 +359,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  iconBadgeCompact: { width: 38, height: 38, borderRadius: 10 },
+  iconBadgeDense: { width: 28, height: 28, borderRadius: 7 },
   logo: { width: 36, height: 36, resizeMode: 'contain' },
+  logoOverlay: { position: 'absolute' },
+  logoCompact: { width: 28, height: 28 },
+  logoDense: { width: 21, height: 21 },
   fallbackLetter: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
+  fallbackLetterCompact: { fontSize: 18 },
+  fallbackLetterDense: { fontSize: 14 },
+  customIconText: { color: '#FFFFFF', fontSize: 25, fontWeight: '800' },
+  customIconTextCompact: { fontSize: 21 },
+  customIconTextDense: { fontSize: 16 },
   aiIcon: { color: '#FFFFFF', fontSize: 26, opacity: 0.9 },
+  aiIconCompact: { fontSize: 21 },
+  aiIconDense: { fontSize: 16 },
   shortcutIcon: { color: '#FFFFFF', fontSize: 24, opacity: 0.9 },
+  shortcutIconCompact: { fontSize: 20 },
+  shortcutIconDense: { fontSize: 15 },
   label: {
     color: '#CCCCCC',
     fontSize: 11,
@@ -263,6 +384,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
   },
+  labelCompact: { fontSize: 10, marginTop: 4 },
+  labelDense: { fontSize: 8, marginTop: 2, fontWeight: '700' },
   aiBadge: { position: 'absolute', top: 6, right: 6 },
   aiBadgeText: { color: 'rgba(255,255,255,0.6)', fontSize: 10 },
   creditBadge: {
@@ -276,7 +399,15 @@ const styles = StyleSheet.create({
     minWidth: 20,
     alignItems: 'center',
   },
+  creditBadgeDense: {
+    top: 3,
+    right: 3,
+    minWidth: 16,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
   creditBadgeText: { color: '#AAAACC', fontSize: 9, fontWeight: '800' },
+  creditBadgeTextDense: { fontSize: 8 },
   creditBadgeEmpty: { color: '#FF6B6B' },
   pinBadge: {
     position: 'absolute',
@@ -287,7 +418,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
+  pinBadgeDense: {
+    top: 3,
+    left: 3,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
   pinBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  pinBadgeTextDense: { fontSize: 7 },
   workflowBadge: {
     position: 'absolute',
     bottom: 4,
@@ -301,7 +440,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
+  workflowBadgeDense: {
+    bottom: 3,
+    right: 3,
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+  },
   workflowBadgeText: { fontSize: 10 },
+  workflowBadgeTextDense: { fontSize: 8 },
   liveDot: {
     position: 'absolute',
     top: 7,
@@ -324,7 +471,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.48)',
     alignItems: 'center',
   },
+  stateBadgeDense: {
+    bottom: 3,
+    left: 4,
+    right: 4,
+    borderRadius: 5,
+    paddingHorizontal: 3,
+    paddingVertical: 2,
+  },
   stateBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  stateBadgeTextDense: { fontSize: 7 },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(91,79,232,0.35)',

@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   TextInput,
@@ -12,8 +13,18 @@ import {
   ScrollView,
   StatusBar,
   Alert,
+  Image,
 } from 'react-native';
-import { TileConfig, WorkflowStep, WorkflowStepAction } from '../types/schema';
+import {
+  AppSearchResult,
+  IntegrationPlugin,
+  IntegrationTool,
+  TileConfig,
+  WorkflowStep,
+  WorkflowStepAction,
+} from '../types/schema';
+import { WebSocketService } from '../services/websocket.service';
+import { getRequiredParams } from '../utils/pluginTools';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,6 +63,7 @@ const DELAY_OPTIONS = [0, 500, 1000, 1500, 2000, 3000, 5000, 10000];
 export interface WorkflowBuilderScreenProps {
   initialSteps?: WorkflowStep[];
   initialLabel?: string;
+  ws?: WebSocketService | null;
   onSave: (tile: Omit<TileConfig, 'id'>) => void;
   onDismiss: () => void;
 }
@@ -61,6 +73,7 @@ export interface WorkflowBuilderScreenProps {
 export function WorkflowBuilderScreen({
   initialSteps = [],
   initialLabel = '',
+  ws,
   onSave,
   onDismiss,
 }: WorkflowBuilderScreenProps) {
@@ -80,7 +93,7 @@ export function WorkflowBuilderScreen({
     });
   };
 
-  const handleAddStep = (action: WorkflowStepAction) => {
+  const handleAddStep = (action: WorkflowStepAction, labelOverride?: string) => {
     const actionKey = JSON.stringify(action);
     if (action.kind !== 'KEYSTROKE' && steps.some(s => JSON.stringify(s.action) === actionKey)) {
       Alert.alert('Already in workflow', `"${makeStepLabel(action)} (${actionKey})" is already a step in this workflow.`);
@@ -91,7 +104,7 @@ export function WorkflowBuilderScreen({
       id: uuid(),
       action,
       delayBefore: 0,
-      label: makeStepLabel(action),
+      label: labelOverride ?? makeStepLabel(action),
     };
     setSteps(prev => [...prev, step]);
     setShowPicker(false);
@@ -202,6 +215,7 @@ export function WorkflowBuilderScreen({
         onRequestClose={() => setShowPicker(false)}
       >
         <StepPickerSheet
+          ws={ws}
           onSelect={handleAddStep}
           onDismiss={() => setShowPicker(false)}
         />
@@ -251,7 +265,9 @@ export function WorkflowBuilderScreen({
 
 // ── StepPickerSheet ───────────────────────────────────────────────────────────
 
-type PickerTab = 'apps' | 'url' | 'keys' | 'clipboard';
+type PickerTab = 'apps' | 'plugins' | 'url' | 'keys' | 'clipboard';
+
+const PICKER_TABS: PickerTab[] = ['apps', 'plugins', 'url', 'keys', 'clipboard'];
 
 const PICKER_APPS: { label: string; appId: string }[] = [
   { label: 'VS Code', appId: 'vscode' },
@@ -275,18 +291,167 @@ const PICKER_APPS: { label: string; appId: string }[] = [
 const PICKER_MODS = ['ctrl', 'alt', 'shift', 'win'] as const;
 type PickerMod = (typeof PICKER_MODS)[number];
 
+const SOURCE_LABEL: Record<AppSearchResult['source'], string> = {
+  startmenu: 'App',
+  windows: 'Windows',
+  filesystem: 'Folder',
+  steam: 'Steam',
+  epic: 'Epic',
+};
+
+const SOURCE_COLOR: Record<AppSearchResult['source'], string> = {
+  startmenu: '#4A4A6A',
+  windows: '#0078D4',
+  filesystem: '#2D5A27',
+  steam: '#1B2838',
+  epic: '#0060CC',
+};
+
+function actionForPathInput(exePath: string): WorkflowStepAction {
+  const trimmed = exePath.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? { kind: 'URL_OPEN', url: trimmed }
+    : { kind: 'EXEC', exePath: trimmed };
+}
+
+function labelForPathInput(value: string, fallback?: string): string {
+  if (fallback?.trim()) return fallback.trim();
+  const normalized = value.replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  return parts[parts.length - 1] || value;
+}
+
+function tabLabel(tab: PickerTab): string {
+  switch (tab) {
+    case 'apps': return 'Apps';
+    case 'plugins': return 'Plugins';
+    case 'url': return 'URL';
+    case 'keys': return 'Keys';
+    case 'clipboard': return 'Clip';
+  }
+}
+
+function getWorkflowTools(plugin: IntegrationPlugin): IntegrationTool[] {
+  return [...plugin.tools]
+    .filter((tool) => tool.supportsWorkflows && tool.status !== 'disabled' && tool.status !== 'deprecated')
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+}
+
 function StepPickerSheet({
+  ws,
   onSelect,
   onDismiss,
 }: {
-  onSelect: (action: WorkflowStepAction) => void;
+  ws?: WebSocketService | null;
+  onSelect: (action: WorkflowStepAction, labelOverride?: string) => void;
   onDismiss: () => void;
 }) {
   const [tab, setTab] = useState<PickerTab>('apps');
+  const [appSearch, setAppSearch] = useState('');
+  const [pathMode, setPathMode] = useState(false);
+  const [desktopResults, setDesktopResults] = useState<AppSearchResult[]>([]);
+  const [searchingDesktop, setSearchingDesktop] = useState(false);
+  const [searchedDesktop, setSearchedDesktop] = useState(false);
+  const [validatingPath, setValidatingPath] = useState(false);
+  const [pathValidation, setPathValidation] = useState<{
+    valid: boolean;
+    label?: string;
+    iconBase64?: string;
+    error?: string;
+  } | null>(null);
+  const [plugins, setPlugins] = useState<IntegrationPlugin[]>([]);
+  const [installedIds, setInstalledIds] = useState<string[]>([]);
+  const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null);
+  const [selectedPluginTool, setSelectedPluginTool] = useState<{ plugin: IntegrationPlugin; tool: IntegrationTool } | null>(null);
+  const [pluginParams, setPluginParams] = useState<Record<string, string>>({});
   const [url, setUrl] = useState('');
   const [clipText, setClipText] = useState('');
   const [key, setKey] = useState('');
   const [mods, setMods] = useState<Set<PickerMod>>(new Set());
+
+  const canUseAgent = Boolean(ws?.isConnected());
+
+  useEffect(() => {
+    if (!ws) return;
+    const unsubscribeSearch = ws.onSearchAppsResult((msg) => {
+      setDesktopResults(msg.results);
+      setSearchingDesktop(false);
+      setSearchedDesktop(true);
+    });
+    const unsubscribeValidate = ws.onValidatePathResult((msg) => {
+      setPathValidation(msg);
+      setValidatingPath(false);
+    });
+
+    return () => {
+      unsubscribeSearch();
+      unsubscribeValidate();
+    };
+  }, [ws]);
+
+  useEffect(() => {
+    if (!ws) return;
+    ws.requestPluginCatalog();
+    const unsubscribeCatalog = ws.onPluginCatalog(setPlugins);
+    const unsubscribeInstalled = ws.onInstalledPlugins(setInstalledIds);
+
+    return () => {
+      unsubscribeCatalog();
+      unsubscribeInstalled();
+    };
+  }, [ws]);
+
+  useEffect(() => {
+    const query = appSearch.trim();
+
+    if (pathMode) {
+      setDesktopResults([]);
+      setSearchedDesktop(false);
+      setSearchingDesktop(false);
+      if (!query) {
+        setPathValidation(null);
+        setValidatingPath(false);
+        return;
+      }
+      if (!canUseAgent) {
+        setPathValidation(null);
+        setValidatingPath(false);
+        return;
+      }
+
+      setPathValidation(null);
+      setValidatingPath(true);
+      const timeout = setTimeout(() => ws?.validatePath(query), 650);
+      return () => clearTimeout(timeout);
+    }
+
+    setPathValidation(null);
+    setValidatingPath(false);
+    if (!query || query.length < 2 || !canUseAgent) {
+      setDesktopResults([]);
+      setSearchedDesktop(false);
+      setSearchingDesktop(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setSearchingDesktop(true);
+      setSearchedDesktop(false);
+      ws?.searchApps(query);
+    }, 450);
+    return () => clearTimeout(timeout);
+  }, [appSearch, canUseAgent, pathMode, ws]);
+
+  const filteredPickerApps = useMemo(() => {
+    const query = appSearch.toLowerCase().trim();
+    if (pathMode) return [];
+    return query ? PICKER_APPS.filter((app) => app.label.toLowerCase().includes(query)) : PICKER_APPS;
+  }, [appSearch, pathMode]);
+
+  const installedPlugins = useMemo(
+    () => plugins.filter((plugin) => installedIds.includes(plugin.id)),
+    [installedIds, plugins],
+  );
 
   const toggleMod = (mod: PickerMod) => {
     setMods(prev => {
@@ -301,6 +466,75 @@ function StepPickerSheet({
     key.toLowerCase().trim(),
   ].filter(Boolean);
 
+  const handleAppSearchSubmit = () => {
+    const query = appSearch.trim();
+    if (!query || !canUseAgent) return;
+    if (pathMode) {
+      setValidatingPath(true);
+      setPathValidation(null);
+      ws?.validatePath(query);
+      return;
+    }
+    setSearchingDesktop(true);
+    setSearchedDesktop(false);
+    ws?.searchApps(query);
+  };
+
+  const togglePathMode = () => {
+    setPathMode((current) => !current);
+    setAppSearch('');
+    setDesktopResults([]);
+    setSearchedDesktop(false);
+    setSearchingDesktop(false);
+    setPathValidation(null);
+    setValidatingPath(false);
+  };
+
+  const handleAddDesktopResult = (item: AppSearchResult) => {
+    const action = actionForPathInput(item.exePath);
+    onSelect(action, item.name);
+  };
+
+  const handleAddPath = () => {
+    const value = appSearch.trim();
+    if (!pathValidation?.valid || !value) return;
+    onSelect(actionForPathInput(value), labelForPathInput(value, pathValidation.label));
+  };
+
+  const submitPluginStep = (
+    plugin: IntegrationPlugin,
+    tool: IntegrationTool,
+    resolvedParams: Record<string, unknown>,
+  ) => {
+    onSelect({
+      kind: 'INTEGRATION_ACTION',
+      pluginId: plugin.id,
+      toolId: tool.id,
+      actionId: tool.actionId,
+      params: resolvedParams,
+    }, `${plugin.name}: ${tool.name}`);
+  };
+
+  const handlePluginToolPress = (plugin: IntegrationPlugin, tool: IntegrationTool) => {
+    const requiredParams = getRequiredParams(tool);
+    if (requiredParams.length === 0) {
+      submitPluginStep(plugin, tool, {});
+      return;
+    }
+
+    const initial: Record<string, string> = {};
+    requiredParams.forEach((paramKey) => {
+      initial[paramKey] = '';
+    });
+    setSelectedPluginTool({ plugin, tool });
+    setPluginParams(initial);
+  };
+
+  const handleSubmitPluginParams = () => {
+    if (!selectedPluginTool) return;
+    submitPluginStep(selectedPluginTool.plugin, selectedPluginTool.tool, pluginParams);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0F14" />
@@ -312,14 +546,14 @@ function StepPickerSheet({
       </View>
 
       <View style={pickerStyles.tabBar}>
-        {(['apps', 'url', 'keys', 'clipboard'] as PickerTab[]).map(t => (
+        {PICKER_TABS.map(t => (
           <TouchableOpacity
             key={t}
             style={[pickerStyles.tab, tab === t && pickerStyles.tabActive]}
             onPress={() => setTab(t)}
           >
             <Text style={[pickerStyles.tabText, tab === t && pickerStyles.tabTextActive]}>
-              {t === 'apps' ? 'Apps' : t === 'url' ? 'URL' : t === 'keys' ? 'Keys' : 'Clipboard'}
+              {tabLabel(t)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -327,17 +561,220 @@ function StepPickerSheet({
 
       <ScrollView contentContainerStyle={pickerStyles.content} keyboardShouldPersistTaps="handled">
         {tab === 'apps' && (
-          <View style={pickerStyles.appGrid}>
-            {PICKER_APPS.map(app => (
+          <>
+            <View style={[pickerStyles.appSearchShell, pathMode && pickerStyles.appSearchShellPath]}>
+              <TextInput
+                style={pickerStyles.appSearchInput}
+                placeholder={pathMode ? 'C:\\Apps\\Custom\\app.exe' : 'Search apps on this PC...'}
+                placeholderTextColor="#6B6B8A"
+                value={appSearch}
+                onChangeText={(value) => {
+                  setAppSearch(value);
+                  if (pathMode) setPathValidation(null);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType={pathMode ? 'done' : 'search'}
+                onSubmitEditing={handleAppSearchSubmit}
+              />
+              {(searchingDesktop || validatingPath) ? (
+                <ActivityIndicator size="small" color="#B9B5FF" style={pickerStyles.searchSpinner} />
+              ) : null}
               <TouchableOpacity
-                key={app.appId}
-                style={pickerStyles.appChip}
-                onPress={() => onSelect({ kind: 'APP_LAUNCH', appId: app.appId })}
+                style={[pickerStyles.searchModeButton, pathMode && pickerStyles.searchModeButtonActive]}
+                onPress={togglePathMode}
+                activeOpacity={0.78}
               >
-                <Text style={pickerStyles.appChipText}>{app.label}</Text>
+                <Text style={[pickerStyles.searchModeButtonText, pathMode && pickerStyles.searchModeButtonTextActive]}>
+                  {pathMode ? 'APP' : 'EXE'}
+                </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            </View>
+
+            {!canUseAgent ? (
+              <Text style={pickerStyles.mutedHint}>Connect to the desktop agent to discover apps or validate executable paths.</Text>
+            ) : null}
+
+            {pathMode ? (
+              <View style={pickerStyles.section}>
+                <Text style={pickerStyles.sectionTitle}>Executable path</Text>
+                {pathValidation ? (
+                  <View style={[pickerStyles.resultRow, pathValidation.valid && pickerStyles.resultRowSelected]}>
+                    <View style={pickerStyles.resultIcon}>
+                      {pathValidation.iconBase64 ? (
+                        <Image
+                          source={{ uri: `data:image/png;base64,${pathValidation.iconBase64}` }}
+                          style={pickerStyles.iconImage}
+                        />
+                      ) : (
+                        <Text style={pickerStyles.iconLetter}>
+                          {(pathValidation.label ?? 'E').charAt(0).toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={pickerStyles.resultText}>
+                      <Text
+                        style={[
+                          pickerStyles.resultName,
+                          !pathValidation.valid && pickerStyles.validationError,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {pathValidation.valid ? pathValidation.label : pathValidation.error}
+                      </Text>
+                      <Text style={pickerStyles.resultPath} numberOfLines={1}>{appSearch.trim()}</Text>
+                    </View>
+                    {pathValidation.valid ? (
+                      <TouchableOpacity style={pickerStyles.resultButton} onPress={handleAddPath} activeOpacity={0.78}>
+                        <Text style={pickerStyles.resultButtonText}>Add</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : !validatingPath && appSearch.trim() ? (
+                  <Text style={pickerStyles.noResults}>No executable checked yet.</Text>
+                ) : null}
+              </View>
+            ) : (
+              <>
+                {appSearch.trim().length > 0 ? (
+                  <View style={pickerStyles.section}>
+                    <View style={pickerStyles.sectionHeader}>
+                      <Text style={pickerStyles.sectionTitle}>Discovered on this PC</Text>
+                      {searchingDesktop ? <ActivityIndicator size="small" color="#6B6B8A" /> : null}
+                    </View>
+                    {desktopResults.length > 0 ? (
+                      desktopResults.map((item, index) => (
+                        <View key={`${item.source}-${item.exePath}-${index}`} style={pickerStyles.resultRow}>
+                          <View style={[pickerStyles.resultIcon, { backgroundColor: SOURCE_COLOR[item.source] }]}>
+                            {item.iconBase64 ? (
+                              <Image
+                                source={{ uri: `data:image/png;base64,${item.iconBase64}` }}
+                                style={pickerStyles.iconImage}
+                              />
+                            ) : (
+                              <Text style={pickerStyles.iconLetter}>{item.name.charAt(0).toUpperCase()}</Text>
+                            )}
+                          </View>
+                          <View style={pickerStyles.resultText}>
+                            <Text style={pickerStyles.resultName} numberOfLines={1}>{item.name}</Text>
+                            <View style={[pickerStyles.sourceBadge, { backgroundColor: SOURCE_COLOR[item.source] }]}>
+                              <Text style={pickerStyles.sourceBadgeText}>{SOURCE_LABEL[item.source]}</Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            style={pickerStyles.resultButton}
+                            onPress={() => handleAddDesktopResult(item)}
+                            activeOpacity={0.78}
+                          >
+                            <Text style={pickerStyles.resultButtonText}>Add</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    ) : !searchingDesktop && searchedDesktop ? (
+                      <Text style={pickerStyles.noResults}>No desktop matches found.</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <View style={pickerStyles.section}>
+                  <Text style={pickerStyles.sectionTitle}>Presaved on Mobile</Text>
+                  {filteredPickerApps.length > 0 ? (
+                    <View style={pickerStyles.appGrid}>
+                      {filteredPickerApps.map(app => (
+                        <TouchableOpacity
+                          key={app.appId}
+                          style={pickerStyles.appChip}
+                          onPress={() => onSelect({ kind: 'APP_LAUNCH', appId: app.appId }, app.label)}
+                        >
+                          <Text style={pickerStyles.appChipText}>{app.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={pickerStyles.noResults}>No presaved apps match "{appSearch}".</Text>
+                  )}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'plugins' && (
+          <>
+            {installedPlugins.length === 0 ? (
+              <View style={pickerStyles.emptyState}>
+                <Text style={pickerStyles.emptyTitle}>No installed plugins.</Text>
+                <Text style={pickerStyles.emptyBody}>Install plugins from the deck header, then add their tools as workflow steps here.</Text>
+              </View>
+            ) : installedPlugins.map((plugin) => {
+              const workflowTools = getWorkflowTools(plugin);
+              return (
+                <View key={plugin.id} style={pickerStyles.pluginGroup}>
+                  <TouchableOpacity
+                    style={pickerStyles.pluginHeader}
+                    onPress={() => setExpandedPlugin(expandedPlugin === plugin.id ? null : plugin.id)}
+                    activeOpacity={0.78}
+                  >
+                    <View style={[pickerStyles.pluginIcon, { backgroundColor: plugin.color ?? '#2A2A4A' }]}>
+                      <Text style={pickerStyles.pluginIconText}>{plugin.icon.slice(0, 2).toUpperCase()}</Text>
+                    </View>
+                    <View style={pickerStyles.pluginInfo}>
+                      <Text style={pickerStyles.pluginName}>{plugin.name}</Text>
+                      <Text style={pickerStyles.pluginMeta}>{workflowTools.length} workflow tools</Text>
+                    </View>
+                    <Text style={pickerStyles.expandText}>{expandedPlugin === plugin.id ? '-' : '+'}</Text>
+                  </TouchableOpacity>
+
+                  {expandedPlugin === plugin.id && workflowTools.map((tool) => {
+                    const requiredParams = getRequiredParams(tool);
+                    return (
+                      <TouchableOpacity
+                        key={tool.id}
+                        style={pickerStyles.toolRow}
+                        onPress={() => handlePluginToolPress(plugin, tool)}
+                        activeOpacity={0.78}
+                      >
+                        <View style={pickerStyles.toolTitleRow}>
+                          <Text style={pickerStyles.toolName}>{tool.name}</Text>
+                          {requiredParams.length > 0 ? (
+                            <Text style={pickerStyles.toolBadge}>Needs input</Text>
+                          ) : null}
+                        </View>
+                        {tool.description ? <Text style={pickerStyles.toolDesc}>{tool.description}</Text> : null}
+                        <Text style={pickerStyles.toolActionId}>{tool.actionId}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              );
+            })}
+
+            {selectedPluginTool ? (
+              <View style={pickerStyles.paramSheet}>
+                <Text style={pickerStyles.paramTitle}>Configure {selectedPluginTool.tool.name}</Text>
+                {Object.keys(pluginParams).map((paramKey) => (
+                  <View key={paramKey}>
+                    <Text style={pickerStyles.paramLabel}>{paramKey}</Text>
+                    <TextInput
+                      style={pickerStyles.paramInput}
+                      value={pluginParams[paramKey]}
+                      onChangeText={(value) => setPluginParams((prev) => ({ ...prev, [paramKey]: value }))}
+                      placeholder={paramKey}
+                      placeholderTextColor="#6B6B8A"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                ))}
+                <TouchableOpacity style={pickerStyles.addBtn} onPress={handleSubmitPluginParams} activeOpacity={0.8}>
+                  <Text style={pickerStyles.addBtnText}>Add Plugin Step</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setSelectedPluginTool(null)} activeOpacity={0.78}>
+                  <Text style={pickerStyles.cancelLink}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
         )}
 
         {tab === 'url' && (
@@ -556,7 +993,7 @@ const pickerStyles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     paddingHorizontal: 12,
-    gap: 8,
+    gap: 6,
     marginBottom: 8,
   },
   tab: {
@@ -567,7 +1004,7 @@ const pickerStyles = StyleSheet.create({
     alignItems: 'center',
   },
   tabActive: { backgroundColor: '#5B4FE8' },
-  tabText: { color: '#6B6B8A', fontSize: 13, fontWeight: '600' },
+  tabText: { color: '#6B6B8A', fontSize: 12, fontWeight: '600' },
   tabTextActive: { color: '#FFFFFF' },
   content: { padding: 16, gap: 8 },
   label: { color: '#AAAACC', fontSize: 12, fontWeight: '600', marginBottom: 4, marginTop: 8 },
@@ -600,6 +1037,166 @@ const pickerStyles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   appChipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  appSearchShell: {
+    minHeight: 46,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 14,
+    paddingRight: 6,
+  },
+  appSearchShellPath: { borderColor: 'rgba(91,79,232,0.6)' },
+  appSearchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 14,
+    paddingVertical: 10,
+  },
+  searchSpinner: { marginHorizontal: 8 },
+  searchModeButton: {
+    minWidth: 44,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 7,
+    backgroundColor: '#25253A',
+  },
+  searchModeButtonActive: { backgroundColor: '#5B4FE8' },
+  searchModeButtonText: { color: '#AAAACC', fontSize: 11, fontWeight: '800' },
+  searchModeButtonTextActive: { color: '#FFFFFF' },
+  mutedHint: { color: '#6B6B8A', fontSize: 12, lineHeight: 17 },
+  section: { gap: 8, marginTop: 8 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { color: '#AAAACC', fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  noResults: { color: '#6B6B8A', fontSize: 12, lineHeight: 18 },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#151525',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    gap: 10,
+  },
+  resultRowSelected: {
+    borderColor: 'rgba(91,79,232,0.65)',
+    backgroundColor: 'rgba(91,79,232,0.14)',
+  },
+  resultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2A2A4A',
+    overflow: 'hidden',
+  },
+  iconImage: { width: 28, height: 28, resizeMode: 'contain' },
+  iconLetter: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  resultText: { flex: 1, minWidth: 0, gap: 4 },
+  resultName: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  validationError: { color: '#FF8A8A' },
+  resultPath: { color: '#6B6B8A', fontSize: 11 },
+  resultButton: {
+    backgroundColor: '#5B4FE8',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  resultButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  sourceBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sourceBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 34,
+    paddingHorizontal: 18,
+    gap: 8,
+  },
+  emptyTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  emptyBody: { color: '#6B6B8A', fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  pluginGroup: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: '#11111A',
+  },
+  pluginHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#1A1A2E',
+  },
+  pluginIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pluginIconText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  pluginInfo: { flex: 1, minWidth: 0 },
+  pluginName: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  pluginMeta: { color: '#6B6B8A', fontSize: 11, marginTop: 2 },
+  expandText: { color: '#AAAACC', fontSize: 20, fontWeight: '600' },
+  toolRow: {
+    padding: 12,
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#151525',
+  },
+  toolTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toolName: { flex: 1, color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  toolBadge: {
+    color: '#CFCBFF',
+    fontSize: 10,
+    fontWeight: '800',
+    backgroundColor: 'rgba(91,79,232,0.24)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  toolDesc: { color: '#AAAACC', fontSize: 12, lineHeight: 17 },
+  toolActionId: { color: '#6B6B8A', fontSize: 11, fontWeight: '600' },
+  paramSheet: {
+    marginTop: 8,
+    padding: 12,
+    gap: 8,
+    backgroundColor: '#151525',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(91,79,232,0.35)',
+  },
+  paramTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  paramLabel: { color: '#AAAACC', fontSize: 12, fontWeight: '700', marginBottom: 5 },
+  paramInput: {
+    backgroundColor: '#0F0F14',
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  cancelLink: {
+    color: '#6B6B8A',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
   modRow: { flexDirection: 'row', gap: 8 },
   modChip: {
     flex: 1,

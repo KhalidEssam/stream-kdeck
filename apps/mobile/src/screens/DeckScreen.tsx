@@ -24,6 +24,7 @@ import {
   IntegrationPlugin,
   IntegrationStateMessage,
   TileConfig,
+  TileIconOverride,
   Pack,
   PackRegistryMessage,
   MediaSession,
@@ -44,10 +45,14 @@ import { SettingsSheet } from '../components/SettingsSheet';
 import { PluginLibraryScreen } from './PluginLibraryScreen';
 import { PluginDetailScreen } from './PluginDetailScreen';
 import { PluginConnectionScreen } from './PluginConnectionScreen';
+import { normalizeTileLayoutPresetId } from '../components/tileLayout';
+import type { TileLayoutPresetId } from '../components/tileLayout';
+import { TileIconPickerSheet } from '../components/TileIconPickerSheet';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
 const AGENT_URL_STORAGE_KEY = 'kdeck.agentUrl';
+const TILE_LAYOUT_STORAGE_KEY = 'kdeck.tileLayoutPreset';
 
 type DeckTab = 'ai' | 'apps' | 'media';
 
@@ -163,6 +168,7 @@ export function DeckScreen() {
   const [showAddTile, setShowAddTile] = useState(false);
   const [addTileInitialTab, setAddTileInitialTab] = useState<'apps' | 'plugins'>('apps');
   const [actionTile, setActionTile] = useState<TileConfig | null>(null);
+  const [iconEditingTile, setIconEditingTile] = useState<TileConfig | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
   const [wsService, setWsService] = useState<WebSocketService | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
@@ -189,6 +195,7 @@ export function DeckScreen() {
   const [showPluginConnection, setShowPluginConnection] = useState(false);
   const [installedPluginIds, setInstalledPluginIds] = useState<string[]>([]);
   const [integrationStates, setIntegrationStates] = useState<Map<string, IntegrationStateMessage['states']>>(new Map());
+  const [tileLayoutPresetId, setTileLayoutPresetId] = useState<TileLayoutPresetId>('standard');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -207,6 +214,17 @@ export function DeckScreen() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(TILE_LAYOUT_STORAGE_KEY)
+      .then((savedPreset) => setTileLayoutPresetId(normalizeTileLayoutPresetId(savedPreset)))
+      .catch(() => undefined);
+  }, []);
+
+  const handleTileLayoutChange = (nextPresetId: TileLayoutPresetId) => {
+    setTileLayoutPresetId(nextPresetId);
+    void AsyncStorage.setItem(TILE_LAYOUT_STORAGE_KEY, nextPresetId);
+  };
 
   // Effect 1: reconnect to a saved agent first, then fall back to mDNS discovery.
   useEffect(() => {
@@ -422,6 +440,22 @@ export function DeckScreen() {
     if (!actionTile || actionTile.id.startsWith('builtin-')) return;
     wsRef.current?.setTilePinned(actionTile.id, !actionTile.pinned);
     setActionTile(null);
+  };
+
+  const handleCustomizeIcon = () => {
+    if (!actionTile || actionTile.id.startsWith('builtin-')) return;
+    setIconEditingTile(actionTile);
+    setActionTile(null);
+  };
+
+  const handleSaveTileIcon = (customIcon?: TileIconOverride) => {
+    if (!iconEditingTile) return;
+    if (!wsRef.current?.isConnected()) {
+      Alert.alert('Not Connected', 'Connect to the desktop agent before updating tile icons.');
+      return;
+    }
+    wsRef.current.setTileIcon(iconEditingTile.id, customIcon);
+    setIconEditingTile(null);
   };
 
   const handleContextShortcutTap = (shortcut: ContextShortcut) => {
@@ -730,6 +764,7 @@ export function DeckScreen() {
             stateBadges={tileRuntimeState.badges}
             stateActive={tileRuntimeState.active}
             displayLabels={tileRuntimeState.labels}
+            layoutPresetId={tileLayoutPresetId}
           />
         </View>
       )}
@@ -829,6 +864,15 @@ export function DeckScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              {!actionTile?.id.startsWith('builtin-') && (
+                <TouchableOpacity
+                  style={styles.optionButton}
+                  onPress={handleCustomizeIcon}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.optionButtonText}>Customize Icon</Text>
+                </TouchableOpacity>
+              )}
               {!actionTile?.id.startsWith('builtin-') &&
                 actionTile?.kind !== 'workflow' &&
                 actionTile?.action.kind !== 'AI_CLIPBOARD' && (
@@ -861,6 +905,21 @@ export function DeckScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={iconEditingTile !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIconEditingTile(null)}
+      >
+        {iconEditingTile ? (
+          <TileIconPickerSheet
+            tile={iconEditingTile}
+            onSave={handleSaveTileIcon}
+            onDismiss={() => setIconEditingTile(null)}
+          />
+        ) : null}
       </Modal>
 
       <Modal
@@ -911,6 +970,8 @@ export function DeckScreen() {
           setShowSettings(false);
           setShowContextSettings(true);
         }}
+        tileLayoutPresetId={tileLayoutPresetId}
+        onTileLayoutChange={handleTileLayoutChange}
       />
 
       <Modal
@@ -963,6 +1024,7 @@ export function DeckScreen() {
       >
           {convertingTile && (
             <WorkflowBuilderScreen
+              ws={wsService}
               initialLabel={convertingTile.label}
               initialSteps={[{
                 id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,

@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { TileConfig } from '../types/schema';
 import { AppTile } from './AppTile';
+import { getTileLayoutPreset } from './tileLayout';
+import type { TileLayoutPresetId } from './tileLayout';
 
-const IDEAL_TILE = 120;
 const DOT_ROW_HEIGHT = 28;
 
 type PageItem = TileConfig | null; // null = "add" placeholder
@@ -27,6 +28,7 @@ interface Props {
   stateBadges?: Record<string, string | null | undefined>;
   stateActive?: Record<string, boolean | undefined>;
   displayLabels?: Record<string, string | null | undefined>;
+  layoutPresetId?: TileLayoutPresetId;
 }
 
 export function TileGrid({
@@ -41,16 +43,19 @@ export function TileGrid({
   stateBadges,
   stateActive,
   displayLabels,
+  layoutPresetId = 'standard',
 }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const [gridHeight, setGridHeight] = useState(0);
   const flatListRef = useRef<FlatList<PageItem[]>>(null);
   const [currentPage, setCurrentPage] = useState(0);
 
-  const columns = Math.min(8, Math.max(2, Math.round(screenWidth / IDEAL_TILE)));
-  const tileSize = screenWidth / columns;
+  const layoutPreset = getTileLayoutPreset(layoutPresetId);
+  const columns = Math.min(10, Math.max(2, Math.round(screenWidth / layoutPreset.idealTileWidth)));
+  const tileWidth = screenWidth / columns;
+  const tileHeight = tileWidth / layoutPreset.aspectRatio;
   const pageHeight = gridHeight;
-  const rows = pageHeight > 0 ? Math.max(1, Math.floor(pageHeight / tileSize)) : 0;
+  const rows = pageHeight > 0 ? Math.max(1, Math.floor(pageHeight / tileHeight)) : 0;
   const tilesPerPage = columns * rows;
 
   const pages = React.useMemo((): PageItem[][] => {
@@ -72,6 +77,15 @@ export function TileGrid({
       setCurrentPage(0);
     }
   }, [screenWidth]);
+
+  const prevLayoutRef = useRef(layoutPresetId);
+  useEffect(() => {
+    if (prevLayoutRef.current !== layoutPresetId) {
+      prevLayoutRef.current = layoutPresetId;
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      setCurrentPage(0);
+    }
+  }, [layoutPresetId]);
 
   // Snap back to last valid page if tiles were removed
   useEffect(() => {
@@ -97,17 +111,27 @@ export function TileGrid({
           tile === null ? (
             <TouchableOpacity
               key="__add__"
-              style={{ width: tileSize, height: tileSize }}
+              style={{ width: tileWidth, height: tileHeight }}
               onPress={onAddTile}
               activeOpacity={0.7}
             >
-              <View style={styles.addPlaceholder}>
-                <Text style={styles.addPlus}>+</Text>
-                <Text style={styles.addLabel}>Add</Text>
+              <View style={[
+                styles.addPlaceholder,
+                layoutPreset.density === 'compact' && styles.addPlaceholderCompact,
+                layoutPreset.density === 'dense' && styles.addPlaceholderDense,
+              ]}>
+                <Text style={[
+                  styles.addPlus,
+                  layoutPreset.density === 'dense' && styles.addPlusDense,
+                ]}>+</Text>
+                <Text style={[
+                  styles.addLabel,
+                  layoutPreset.density === 'dense' && styles.addLabelDense,
+                ]}>Add</Text>
               </View>
             </TouchableOpacity>
           ) : (
-            <View key={tile.id} style={{ width: tileSize, height: tileSize }}>
+            <View key={tile.id} style={{ width: tileWidth, height: tileHeight }}>
               <AppTile
                 tile={tile}
                 isLoading={tile.id === loadingId}
@@ -115,6 +139,7 @@ export function TileGrid({
                 stateActive={stateActive?.[tile.id] ?? false}
                 displayLabel={displayLabels?.[tile.id] ?? null}
                 creditsRemaining={creditsRemaining}
+                density={layoutPreset.density}
                 onTap={onTap}
                 onLongPress={onLongPress}
               />
@@ -123,7 +148,7 @@ export function TileGrid({
         )}
       </View>
     ),
-    [screenWidth, pageHeight, tileSize, loadingId, stateBadges, stateActive, displayLabels, creditsRemaining, onTap, onLongPress, onAddTile],
+    [screenWidth, pageHeight, tileWidth, tileHeight, layoutPreset.density, loadingId, stateBadges, stateActive, displayLabels, creditsRemaining, onTap, onLongPress, onAddTile],
   );
 
   if (tiles.length === 0) {
@@ -193,8 +218,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
+  addPlaceholderCompact: { margin: 4, borderRadius: 12 },
+  addPlaceholderDense: { margin: 3, borderRadius: 10, gap: 1 },
   addPlus: { color: '#4A4A7A', fontSize: 24, fontWeight: '300' },
+  addPlusDense: { fontSize: 18 },
   addLabel: { color: '#4A4A7A', fontSize: 11, fontWeight: '600' },
+  addLabelDense: { fontSize: 9 },
   dotRow: {
     position: 'absolute',
     bottom: 0,

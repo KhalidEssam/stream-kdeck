@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   TextInput,
-  FlatList,
+  Image,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
@@ -15,9 +16,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTile } from '../components/AppTile';
-import { IntegrationPlugin, TileConfig, Pack } from '../types/schema';
+import { AppSearchResult, ButtonAction, IntegrationPlugin, TileConfig, Pack } from '../types/schema';
 import { WebSocketService } from '../services/websocket.service';
-import { GamesTab } from './GamesTab';
 import { AiToolsTab } from './AiToolsTab';
 import { WorkflowBuilderScreen } from './WorkflowBuilderScreen';
 import {
@@ -53,7 +53,7 @@ const CURATED_APPS: Omit<TileConfig, 'id'>[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'apps' | 'shortcut' | 'ai' | 'games' | 'workflow' | 'plugins';
+type Tab = 'apps' | 'shortcut' | 'ai' | 'workflow' | 'plugins';
 
 type Modifier = 'ctrl' | 'alt' | 'win' | 'shift';
 
@@ -112,7 +112,7 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['apps', 'shortcut', 'ai', 'games', 'workflow', 'plugins'] as Tab[]).map((tab) => (
+        {(['apps', 'shortcut', 'ai', 'workflow', 'plugins'] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -122,7 +122,6 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
               {tab === 'apps' ? 'Apps'
                 : tab === 'shortcut' ? 'Shortcut'
                 : tab === 'ai' ? 'AI Tools'
-                : tab === 'games' ? 'Games'
                 : tab === 'workflow' ? 'Workflow'
                 : 'Plugins'}
             </Text>
@@ -132,7 +131,7 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {activeTab === 'apps' && (
-          <AppsTab currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
+          <AppsTab ws={ws} currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
         )}
         {activeTab === 'shortcut' && (
           <ShortcutTab currentTiles={currentTiles} onAdd={onAdd} onRemove={onRemove} />
@@ -140,14 +139,6 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
         {activeTab === 'ai' && (
           <AiToolsTab
             packs={packRegistry ?? []}
-            currentTiles={currentTiles}
-            onAdd={onAdd}
-            onRemove={onRemove}
-          />
-        )}
-        {activeTab === 'games' && (
-          <GamesTab
-            ws={ws}
             currentTiles={currentTiles}
             onAdd={onAdd}
             onRemove={onRemove}
@@ -177,6 +168,7 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
         onRequestClose={() => setBuilderState(null)}
       >
         <WorkflowBuilderScreen
+          ws={ws}
           initialLabel={builderState?.mode === 'edit' ? builderState.tile.label : undefined}
           initialSteps={
             builderState?.mode === 'edit' && builderState.tile.action.kind === 'WORKFLOW'
@@ -193,9 +185,49 @@ export function AddTileScreen({ currentTiles, onAdd, onRemove, onDismiss, ws, pa
 
 // ─── Apps Tab ─────────────────────────────────────────────────────────────────
 
-function AppsTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' | 'onAdd' | 'onRemove'>) {
+const SOURCE_LABEL: Record<AppSearchResult['source'], string> = {
+  startmenu: 'App',
+  windows: 'Windows',
+  filesystem: 'Folder',
+  steam: 'Steam',
+  epic: 'Epic',
+};
+
+const SOURCE_COLOR: Record<AppSearchResult['source'], string> = {
+  startmenu: '#4A4A6A',
+  windows: '#0078D4',
+  filesystem: '#2D5A27',
+  steam: '#1B2838',
+  epic: '#0060CC',
+};
+
+function actionForPath(exePath: string): ButtonAction {
+  const trimmed = exePath.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? { kind: 'URL_OPEN', url: trimmed }
+    : { kind: 'EXEC', exePath: trimmed };
+}
+
+function actionKey(action: ButtonAction): string {
+  if (action.kind === 'EXEC') return `EXEC:${action.exePath.toLowerCase()}`;
+  if (action.kind === 'URL_OPEN') return `URL_OPEN:${action.url.toLowerCase()}`;
+  return JSON.stringify(action);
+}
+
+function AppsTab({ ws, currentTiles, onAdd, onRemove }: Pick<Props, 'ws' | 'currentTiles' | 'onAdd' | 'onRemove'>) {
   const [search, setSearch] = useState('');
   const [customUrl, setCustomUrl] = useState('');
+  const [pathMode, setPathMode] = useState(false);
+  const [desktopResults, setDesktopResults] = useState<AppSearchResult[]>([]);
+  const [searchingDesktop, setSearchingDesktop] = useState(false);
+  const [searchedDesktop, setSearchedDesktop] = useState(false);
+  const [validatingPath, setValidatingPath] = useState(false);
+  const [pathValidation, setPathValidation] = useState<{
+    valid: boolean;
+    label?: string;
+    iconBase64?: string;
+    error?: string;
+  } | null>(null);
 
   const selectedByAppId = useMemo<Map<string, string>>(() => {
     const map = new Map<string, string>();
@@ -205,16 +237,148 @@ function AppsTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' |
     return map;
   }, [currentTiles]);
 
+  const selectedByAction = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const tile of currentTiles) {
+      if (tile.action.kind === 'EXEC' || tile.action.kind === 'URL_OPEN') {
+        map.set(actionKey(tile.action), tile.id);
+      }
+    }
+    return map;
+  }, [currentTiles]);
+
+  useEffect(() => {
+    const unsubscribeSearch = ws.onSearchAppsResult((msg) => {
+      setDesktopResults(msg.results);
+      setSearchingDesktop(false);
+      setSearchedDesktop(true);
+    });
+    const unsubscribeValidate = ws.onValidatePathResult((msg) => {
+      setPathValidation(msg);
+      setValidatingPath(false);
+    });
+
+    return () => {
+      unsubscribeSearch();
+      unsubscribeValidate();
+    };
+  }, [ws]);
+
+  useEffect(() => {
+    const nextQuery = search.trim();
+
+    if (pathMode) {
+      setDesktopResults([]);
+      setSearchedDesktop(false);
+      setSearchingDesktop(false);
+      if (!nextQuery) {
+        setPathValidation(null);
+        setValidatingPath(false);
+        return;
+      }
+
+      setPathValidation(null);
+      setValidatingPath(true);
+      const timeout = setTimeout(() => {
+        ws.validatePath(nextQuery);
+      }, 650);
+      return () => clearTimeout(timeout);
+    }
+
+    setPathValidation(null);
+    setValidatingPath(false);
+    if (!nextQuery) {
+      setDesktopResults([]);
+      setSearchedDesktop(false);
+      setSearchingDesktop(false);
+      return;
+    }
+
+    if (nextQuery.length < 2) {
+      setDesktopResults([]);
+      setSearchedDesktop(false);
+      setSearchingDesktop(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setSearchingDesktop(true);
+      setSearchedDesktop(false);
+      ws.searchApps(nextQuery);
+    }, 450);
+    return () => clearTimeout(timeout);
+  }, [pathMode, search, ws]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
+    if (pathMode) return [];
     return q ? CURATED_APPS.filter((a) => a.label.toLowerCase().includes(q)) : CURATED_APPS;
-  }, [search]);
+  }, [pathMode, search]);
 
-  const handleToggle = (item: Omit<TileConfig, 'id'>) => {
+  const handleToggleCurated = (item: Omit<TileConfig, 'id'>) => {
     if (item.action.kind !== 'APP_LAUNCH') return;
     const existingId = selectedByAppId.get(item.action.appId);
     if (existingId) onRemove(existingId);
     else onAdd(item);
+  };
+
+  const tileForDesktopResult = (item: AppSearchResult): Omit<TileConfig, 'id'> => ({
+    kind: 'custom',
+    label: item.name,
+    iconId: 'custom',
+    iconBase64: item.iconBase64,
+    action: actionForPath(item.exePath),
+  });
+
+  const handleToggleDesktopResult = (item: AppSearchResult) => {
+    const tile = tileForDesktopResult(item);
+    const existingId = selectedByAction.get(actionKey(tile.action));
+    if (existingId) onRemove(existingId);
+    else onAdd(tile);
+  };
+
+  const handleTogglePath = () => {
+    const nextPath = search.trim();
+    if (!pathValidation?.valid || !pathValidation.label || !nextPath) return;
+    const tile: Omit<TileConfig, 'id'> = {
+      kind: 'custom',
+      label: pathValidation.label,
+      iconId: 'custom',
+      iconBase64: pathValidation.iconBase64,
+      action: actionForPath(nextPath),
+    };
+    const existingId = selectedByAction.get(actionKey(tile.action));
+    if (existingId) {
+      onRemove(existingId);
+    } else {
+      onAdd(tile);
+      setSearch('');
+      setPathValidation(null);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    const nextQuery = search.trim();
+    if (!nextQuery) return;
+    if (pathMode) {
+      setValidatingPath(true);
+      setPathValidation(null);
+      ws.validatePath(nextQuery);
+      return;
+    }
+    setSearchingDesktop(true);
+    setSearchedDesktop(false);
+    ws.searchApps(nextQuery);
+  };
+
+  const togglePathMode = () => {
+    setPathMode((current) => !current);
+    setSearch('');
+    setDesktopResults([]);
+    setSearchedDesktop(false);
+    setSearchingDesktop(false);
+    setPathValidation(null);
+    setValidatingPath(false);
   };
 
   const handleAddUrl = () => {
@@ -226,38 +390,161 @@ function AppsTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' |
   };
 
   return (
-    <>
+    <View style={styles.appsContainer}>
       <View style={styles.searchRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Search apps…"
-          placeholderTextColor="#6B6B8A"
-          value={search}
-          onChangeText={setSearch}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
+        <View style={[styles.appSearchShell, pathMode && styles.appSearchShellPath]}>
+          <TextInput
+            style={styles.appSearchInput}
+            placeholder={pathMode ? 'C:\\Games\\MyGame\\game.exe' : 'Search apps and games...'}
+            placeholderTextColor="#6B6B8A"
+            value={search}
+            onChangeText={(value) => {
+              setSearch(value);
+              if (pathMode) setPathValidation(null);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType={pathMode ? 'done' : 'search'}
+            onSubmitEditing={handleSearchSubmit}
+          />
+          {(searchingDesktop || validatingPath) && (
+            <ActivityIndicator size="small" color="#B9B5FF" style={styles.searchSpinner} />
+          )}
+          <TouchableOpacity
+            style={[styles.searchModeButton, pathMode && styles.searchModeButtonActive]}
+            onPress={togglePathMode}
+            activeOpacity={0.78}
+          >
+            <Text style={[styles.searchModeButtonText, pathMode && styles.searchModeButtonTextActive]}>
+              {pathMode ? 'APP' : 'EXE'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.iconId}
-        numColumns={3}
-        renderItem={({ item }) => {
-          const appId = item.action.kind === 'APP_LAUNCH' ? item.action.appId : '';
-          return (
-            <AppTile
-              tile={{ ...item, id: item.iconId }}
-              isSelected={selectedByAppId.has(appId)}
-              onTap={() => handleToggle(item)}
-            />
-          );
-        }}
-        contentContainerStyle={styles.grid}
-        ListEmptyComponent={<Text style={styles.noResults}>No apps match "{search}"</Text>}
-      />
+      <ScrollView contentContainerStyle={styles.appsScrollContent} keyboardShouldPersistTaps="handled">
+        {pathMode ? (
+          <View style={styles.appSection}>
+            <Text style={styles.appSectionTitle}>Executable path</Text>
+            {pathValidation ? (
+              <View style={[styles.resultRow, pathValidation.valid && styles.resultRowSelected]}>
+                <View style={styles.resultIcon}>
+                  {pathValidation.iconBase64 ? (
+                    <Image
+                      source={{ uri: `data:image/png;base64,${pathValidation.iconBase64}` }}
+                      style={styles.iconImage}
+                    />
+                  ) : (
+                    <Text style={styles.iconLetter}>
+                      {(pathValidation.label ?? 'E').charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.resultText}>
+                  <Text
+                    style={[
+                      styles.resultName,
+                      !pathValidation.valid && styles.validationError,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {pathValidation.valid ? pathValidation.label : pathValidation.error}
+                  </Text>
+                  <Text style={styles.resultPath} numberOfLines={1}>{search.trim()}</Text>
+                </View>
+                {pathValidation.valid && (() => {
+                  const action = actionForPath(search.trim());
+                  const isSelected = selectedByAction.has(actionKey(action));
+                  return (
+                    <TouchableOpacity
+                      style={[styles.resultButton, isSelected && styles.removeButton]}
+                      onPress={handleTogglePath}
+                      activeOpacity={0.78}
+                    >
+                      <Text style={styles.resultButtonText}>{isSelected ? 'Remove' : 'Add'}</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
+              </View>
+            ) : !validatingPath && search.trim() ? (
+              <Text style={styles.noResults}>No executable checked yet.</Text>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            {search.trim().length > 0 && (
+              <View style={styles.appSection}>
+                <View style={styles.appSectionHeader}>
+                  <Text style={styles.appSectionTitle}>Discovered on this PC</Text>
+                  {searchingDesktop ? <ActivityIndicator size="small" color="#6B6B8A" /> : null}
+                </View>
+                {desktopResults.length > 0 ? (
+                  desktopResults.map((item, index) => {
+                    const tile = tileForDesktopResult(item);
+                    const isSelected = selectedByAction.has(actionKey(tile.action));
+                    return (
+                      <View
+                        key={`${item.source}-${item.exePath}-${index}`}
+                        style={[styles.resultRow, isSelected && styles.resultRowSelected]}
+                      >
+                        <View style={[styles.resultIcon, { backgroundColor: SOURCE_COLOR[item.source] }]}>
+                          {item.iconBase64 ? (
+                            <Image
+                              source={{ uri: `data:image/png;base64,${item.iconBase64}` }}
+                              style={styles.iconImage}
+                            />
+                          ) : (
+                            <Text style={styles.iconLetter}>{item.name.charAt(0).toUpperCase()}</Text>
+                          )}
+                        </View>
+                        <View style={styles.resultText}>
+                          <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+                          <View style={[styles.sourceBadge, { backgroundColor: SOURCE_COLOR[item.source] }]}>
+                            <Text style={styles.sourceBadgeText}>{SOURCE_LABEL[item.source]}</Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.resultButton, isSelected && styles.removeButton]}
+                          onPress={() => handleToggleDesktopResult(item)}
+                          activeOpacity={0.78}
+                        >
+                          <Text style={styles.resultButtonText}>{isSelected ? 'Remove' : 'Add'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                ) : !searchingDesktop && searchedDesktop ? (
+                  <Text style={styles.noResults}>No desktop matches found.</Text>
+                ) : null}
+              </View>
+            )}
+
+            <View style={styles.appSection}>
+              <Text style={styles.appSectionTitle}>Presaved on Mobile</Text>
+              {filtered.length > 0 ? (
+                <View style={styles.appTileGrid}>
+                  {filtered.map((item) => {
+                    const appId = item.action.kind === 'APP_LAUNCH' ? item.action.appId : '';
+                    return (
+                      <View key={item.iconId} style={styles.appTileCell}>
+                        <AppTile
+                          tile={{ ...item, id: item.iconId }}
+                          isSelected={selectedByAppId.has(appId)}
+                          onTap={() => handleToggleCurated(item)}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.noResults}>No presaved apps match "{search}".</Text>
+              )}
+            </View>
+          </>
+        )}
+        {!pathMode && (
       <View style={styles.urlRow}>
         <TextInput
-          style={[styles.input, { flex: 1 }]}
+          style={styles.inlineInput}
           placeholder="https://custom-url.com"
           placeholderTextColor="#6B6B8A"
           value={customUrl}
@@ -271,11 +558,14 @@ function AppsTab({ currentTiles, onAdd, onRemove }: Pick<Props, 'currentTiles' |
           style={[styles.addBtn, !customUrl.startsWith('http') && styles.addBtnDisabled]}
           onPress={handleAddUrl}
           disabled={!customUrl.startsWith('http')}
+          activeOpacity={0.78}
         >
           <Text style={styles.addBtnText}>Add</Text>
         </TouchableOpacity>
       </View>
-    </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -948,6 +1238,119 @@ const styles = StyleSheet.create({
 
   // Shared inputs
   searchRow: { paddingHorizontal: 12, paddingBottom: 8 },
+  appsContainer: { flex: 1 },
+  appSearchShell: {
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#1A1A2E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingRight: 5,
+  },
+  appSearchShellPath: {
+    borderColor: '#5B4FE8',
+    backgroundColor: '#17172A',
+  },
+  appSearchInput: {
+    flex: 1,
+    minHeight: 44,
+    color: '#FFFFFF',
+    fontSize: 14,
+    paddingVertical: 9,
+    paddingRight: 8,
+  },
+  searchSpinner: { marginHorizontal: 6 },
+  searchModeButton: {
+    height: 34,
+    minWidth: 44,
+    borderRadius: 8,
+    backgroundColor: '#252548',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 9,
+  },
+  searchModeButtonActive: { backgroundColor: '#5B4FE8' },
+  searchModeButtonText: { color: '#B9B5FF', fontSize: 11, fontWeight: '900' },
+  searchModeButtonTextActive: { color: '#FFFFFF' },
+  appsScrollContent: { paddingHorizontal: 12, paddingBottom: 28 },
+  appSection: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  appSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  appSectionTitle: {
+    color: '#AAAACC',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  appTileGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5 },
+  appTileCell: { width: '33.333%', aspectRatio: 1 },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 58,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#11111A',
+    marginBottom: 7,
+  },
+  resultRowSelected: { borderColor: '#5B4FE8', backgroundColor: '#191936' },
+  resultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2D5A27',
+    overflow: 'hidden',
+  },
+  iconImage: { width: 31, height: 31, resizeMode: 'contain' },
+  iconLetter: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  resultText: { flex: 1, minWidth: 0, gap: 4 },
+  resultName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  resultPath: { color: '#6B6B8A', fontSize: 11 },
+  sourceBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sourceBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  resultButton: {
+    backgroundColor: '#5B4FE8',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  removeButton: { backgroundColor: '#5A2731' },
+  resultButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
+  validationError: { color: '#FF6B6B' },
+  inlineInput: {
+    flex: 1,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
   input: {
     backgroundColor: '#1A1A2E',
     borderRadius: 10,
@@ -960,12 +1363,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     marginBottom: 8,
   },
-  grid: { paddingHorizontal: 8, paddingBottom: 8 },
   noResults: { color: '#6B6B8A', textAlign: 'center', marginTop: 32, fontSize: 14 },
   urlRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',

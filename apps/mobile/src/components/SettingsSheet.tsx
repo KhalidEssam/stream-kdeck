@@ -8,6 +8,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TILE_LAYOUT_PRESETS } from './tileLayout';
+import type { TileLayoutPresetId } from './tileLayout';
 
 interface SettingsSheetProps {
   visible: boolean;
@@ -20,6 +22,8 @@ interface SettingsSheetProps {
   onRevalidateLicense: () => void;
   onOpenActivationDialog: () => void;
   onNavigateToShortcuts: () => void;
+  tileLayoutPresetId: TileLayoutPresetId;
+  onTileLayoutChange: (presetId: TileLayoutPresetId) => void;
 }
 
 export function SettingsSheet({
@@ -33,6 +37,8 @@ export function SettingsSheet({
   onRevalidateLicense,
   onOpenActivationDialog,
   onNavigateToShortcuts,
+  tileLayoutPresetId,
+  onTileLayoutChange,
 }: SettingsSheetProps) {
   const [revalidating, setRevalidating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -162,6 +168,37 @@ export function SettingsSheet({
           </TouchableOpacity>
         </View>
 
+        {/* Deck layout section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>DECK LAYOUT</Text>
+          <View style={styles.layoutGrid}>
+            {TILE_LAYOUT_PRESETS.map((preset) => {
+              const active = tileLayoutPresetId === preset.id;
+              return (
+                <TouchableOpacity
+                  key={preset.id}
+                  style={[styles.layoutOption, active && styles.layoutOptionActive]}
+                  onPress={() => onTileLayoutChange(preset.id)}
+                  activeOpacity={0.78}
+                >
+                  <View style={[
+                    styles.layoutPreview,
+                    { aspectRatio: preset.aspectRatio },
+                    active && styles.layoutPreviewActive,
+                  ]}>
+                    <View style={styles.previewGlyph} />
+                    <View style={[styles.previewLine, preset.density === 'dense' && styles.previewLineDense]} />
+                  </View>
+                  <View style={styles.layoutOptionText}>
+                    <Text style={[styles.layoutLabel, active && styles.layoutLabelActive]}>{preset.label}</Text>
+                    <Text style={styles.layoutSummary}>{preset.summary}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Shortcuts section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SHORTCUTS</Text>
@@ -275,6 +312,66 @@ const styles = StyleSheet.create({
   },
   buttonTextSecondary: {
     color: '#A0A0C0',
+  },
+  layoutGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  layoutOption: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minHeight: 78,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#151525',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  layoutOptionActive: {
+    borderColor: '#6D5DFC',
+    backgroundColor: '#211F3E',
+  },
+  layoutPreview: {
+    width: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#343456',
+    backgroundColor: '#0F0F14',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    padding: 5,
+  },
+  layoutPreviewActive: { borderColor: '#8A80FF' },
+  previewGlyph: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: '#6D5DFC',
+  },
+  previewLine: {
+    width: '78%',
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#4F4F75',
+  },
+  previewLineDense: { width: '58%' },
+  layoutOptionText: { flex: 1, minWidth: 0 },
+  layoutLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  layoutLabelActive: { color: '#FFFFFF' },
+  layoutSummary: {
+    color: '#7E7E9E',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
   },
   navRow: {
     flexDirection: 'row',

@@ -8,20 +8,17 @@
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockAddVolumeListener = jest.fn();
-const mockRemoveListener = jest.fn();
-const mockShowNativeVolumeUI = jest.fn();
-const mockSetVolume = jest.fn();
-const mockVolumeManager = {
-  addVolumeListener: mockAddVolumeListener,
-  showNativeVolumeUI: mockShowNativeVolumeUI,
-  setVolume: mockSetVolume,
-};
-
+// Factory must use jest.fn() directly — NOT module-level variables.
+// Babel hoists import statements above const declarations, so any module-level
+// variable referenced in a factory would be in the TDZ when the factory runs
+// (the hook's module-level require() fires during the hoisted import).
 jest.mock('react-native-volume-manager', () => ({
   __esModule: true,
-  VolumeManager: mockVolumeManager,
-  default: mockVolumeManager,
+  VolumeManager: {
+    addVolumeListener: jest.fn(),
+    showNativeVolumeUI: jest.fn(),
+    setVolume: jest.fn(),
+  },
 }));
 
 // Capture the effect callback so we can invoke it directly in each test.
@@ -45,6 +42,15 @@ jest.mock('react', () => {
 // ─── Import under test (after mocks are registered) ───────────────────────────
 
 import { useVolumeButtons } from './useVolumeButtons';
+
+// ─── References to the mock fns (obtained after the factory has already run) ──
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _mockVM = (jest.requireMock('react-native-volume-manager') as any).VolumeManager;
+const mockAddVolumeListener: jest.Mock = _mockVM.addVolumeListener;
+const mockShowNativeVolumeUI: jest.Mock = _mockVM.showNativeVolumeUI;
+const mockSetVolume: jest.Mock = _mockVM.setVolume;
+const mockRemoveListener = jest.fn();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
