@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
+  Animated,
+  BackHandler,
   View,
   Text,
   TextInput,
@@ -155,6 +157,19 @@ function getManualInputFromAgentUrl(url: string): string {
   }
 }
 
+function mergeReorderedTiles(
+  allTiles: TileConfig[],
+  reorderedVisible: TileConfig[],
+  visibleIds: Set<string>,
+): TileConfig[] {
+  const result: TileConfig[] = [];
+  let vi = 0;
+  for (const tile of allTiles) {
+    result.push(visibleIds.has(tile.id) ? reorderedVisible[vi++] : tile);
+  }
+  return result;
+}
+
 export function DeckScreen() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [licensed, setLicensed] = useState<boolean | null>(null);
@@ -196,6 +211,9 @@ export function DeckScreen() {
   const [installedPluginIds, setInstalledPluginIds] = useState<string[]>([]);
   const [integrationStates, setIntegrationStates] = useState<Map<string, IntegrationStateMessage['states']>>(new Map());
   const [tileLayoutPresetId, setTileLayoutPresetId] = useState<TileLayoutPresetId>('standard');
+  const [rearrangeMode, setRearrangeMode] = useState(false);
+  const [pendingVisibleOrder, setPendingVisibleOrder] = useState<TileConfig[]>([]);
+  const doneBarAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -220,6 +238,23 @@ export function DeckScreen() {
       .then((savedPreset) => setTileLayoutPresetId(normalizeTileLayoutPresetId(savedPreset)))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    Animated.timing(doneBarAnim, {
+      toValue: rearrangeMode ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [rearrangeMode, doneBarAnim]);
+
+  useEffect(() => {
+    if (!rearrangeMode) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleCancelRearrange();
+      return true;
+    });
+    return () => sub.remove();
+  });
 
   const handleTileLayoutChange = (nextPresetId: TileLayoutPresetId) => {
     setTileLayoutPresetId(nextPresetId);
@@ -458,6 +493,53 @@ export function DeckScreen() {
     setIconEditingTile(null);
   };
 
+  const handleEnterRearrange = () => {
+    setPendingVisibleOrder([...visibleTiles]);
+    setRearrangeMode(true);
+    setShowSettings(false);
+  };
+
+  const handlePendingReorder = (newOrder: TileConfig[]) => {
+    setPendingVisibleOrder(newOrder);
+  };
+
+  const isDirty =
+    pendingVisibleOrder.map((t) => t.id).join(',') !==
+    visibleTiles.map((t) => t.id).join(',');
+
+  const handleDoneRearrange = () => {
+    if (!wsRef.current?.isConnected()) {
+      Alert.alert('Not Connected', 'Connect to the agent before saving tile order.');
+      return;
+    }
+    const visibleIds = new Set(visibleTiles.map((t) => t.id));
+    const merged = mergeReorderedTiles(tiles ?? [], pendingVisibleOrder, visibleIds);
+    wsRef.current.reorderTiles(merged.map((t) => t.id));
+    setRearrangeMode(false);
+  };
+
+  const handleCancelRearrange = () => {
+    if (isDirty) {
+      Alert.alert(
+        'Discard changes?',
+        '',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              setPendingVisibleOrder([]);
+              setRearrangeMode(false);
+            },
+          },
+        ],
+      );
+    } else {
+      setRearrangeMode(false);
+    }
+  };
+
   const handleContextShortcutTap = (shortcut: ContextShortcut) => {
     wsRef.current?.tap(`ctx-${shortcut.id}`, { kind: 'KEYSTROKE', keys: shortcut.keys });
   };
@@ -668,7 +750,7 @@ export function DeckScreen() {
             <Text style={{ fontSize: 20 }}>🖱</Text>
           </TouchableOpacity>
         )}
-        {wsService && (
+        {wsService && !rearrangeMode && (
           <TouchableOpacity onPress={() => setShowSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
             <Text style={{ color: '#6B6B8A', fontSize: 18 }}>⚙</Text>
           </TouchableOpacity>
@@ -753,11 +835,11 @@ export function DeckScreen() {
       ) : (
         <View style={styles.tileGridContainer}>
           <TileGrid
-            tiles={visibleTiles}
-            loadingId={loadingId}
+            tiles={rearrangeMode ? pendingVisibleOrder : visibleTiles}
+            loadingId={rearrangeMode ? null : loadingId}
             creditsRemaining={creditsRemaining}
-            onTap={handleTap}
-            onLongPress={handleRequestTileActions}
+            onTap={rearrangeMode ? () => {} : handleTap}
+            onLongPress={rearrangeMode ? () => {} : handleRequestTileActions}
             onAddTile={() => handleOpenAddTile()}
             emptyTitle={emptyCopy.title}
             emptyHint={emptyCopy.hint}
@@ -765,9 +847,38 @@ export function DeckScreen() {
             stateActive={tileRuntimeState.active}
             displayLabels={tileRuntimeState.labels}
             layoutPresetId={tileLayoutPresetId}
+            rearrangeMode={rearrangeMode}
+            onReorder={handlePendingReorder}
           />
         </View>
       )}
+
+      {/* Done bar — slides up when rearrangeMode is active */}
+      <Animated.View
+        style={[
+          styles.doneBar,
+          {
+            transform: [
+              {
+                translateY: doneBarAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [80, 0],
+                }),
+              },
+            ],
+            opacity: doneBarAnim,
+          },
+        ]}
+        pointerEvents={rearrangeMode ? 'auto' : 'none'}
+      >
+        <TouchableOpacity onPress={handleCancelRearrange} style={styles.doneBarCancel} activeOpacity={0.7}>
+          <Text style={styles.doneBarCancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <Text style={styles.doneBarLabel}>Rearrange</Text>
+        <TouchableOpacity onPress={handleDoneRearrange} style={styles.doneBarDone} activeOpacity={0.8}>
+          <Text style={styles.doneBarDoneText}>Done</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* FAB — add tile */}
       <PeekFab
@@ -972,6 +1083,7 @@ export function DeckScreen() {
         }}
         tileLayoutPresetId={tileLayoutPresetId}
         onTileLayoutChange={handleTileLayoutChange}
+        onEnterRearrange={handleEnterRearrange}
       />
 
       <Modal
@@ -1228,4 +1340,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
   },
+  doneBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    backgroundColor: '#12121C',
+    borderTopWidth: 1,
+    borderTopColor: '#1E1E2E',
+  },
+  doneBarCancel: { paddingVertical: 8, paddingHorizontal: 4 },
+  doneBarCancelText: { color: '#8888AA', fontSize: 16 },
+  doneBarLabel: { color: '#4A4A6A', fontSize: 14, fontWeight: '600' },
+  doneBarDone: {
+    backgroundColor: '#5B4FE8',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+  },
+  doneBarDoneText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });
