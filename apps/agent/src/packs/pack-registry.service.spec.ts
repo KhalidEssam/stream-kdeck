@@ -74,4 +74,18 @@ describe('PackRegistryService', () => {
   it('returns empty packs before load', () => {
     expect(service.getPacks()).toEqual([]);
   });
+
+  it('getById returns a command tool after load', async () => {
+    mockLte.mockResolvedValue({
+      data: [{ ...PACK_ROW, pack_tools: [COMMAND_RAW_TOOL] }],
+      error: null,
+    });
+    await service.load();
+    const tool = service.getById('tool-2');
+    expect(tool).toBeDefined();
+    expect(tool?.kind).toBe('command');
+    if (tool?.kind === 'command') {
+      expect(tool.command).toBe('git status');
+    }
+  });
 });

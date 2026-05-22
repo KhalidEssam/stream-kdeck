@@ -119,7 +119,9 @@ export class CommandService {
             }
             return { success: true };
           } catch (shellErr: unknown) {
-            return { success: false, error: shellErr instanceof Error ? shellErr.message : String(shellErr) };
+            const err = shellErr as { message?: string; stderr?: string };
+            const detail = err.stderr?.trim() || err.message || String(shellErr);
+            return { success: false, error: detail };
           }
         }
 
