@@ -106,6 +106,7 @@ interface Props {
   displayLabel?: string | null;
   creditsRemaining?: number;
   density?: TileDensity;
+  isRearranging?: boolean;
   onTap: (tile: TileConfig) => void;
   onLongPress?: (tile: TileConfig) => void;
 }
@@ -119,13 +120,38 @@ export function AppTile({
   displayLabel,
   creditsRemaining,
   density = 'regular',
+  isRearranging = false,
   onTap,
   onLongPress,
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
+  const wobble = useRef(new Animated.Value(0)).current;
+  const wobbleLoop = useRef<Animated.CompositeAnimation | null>(null);
   const didLongPress = useRef(false);
   const [logoError, setLogoError] = useState(false);
   const [customImageError, setCustomImageError] = useState(false);
+
+  useEffect(() => {
+    if (isRearranging) {
+      wobbleLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(wobble, { toValue: 1, duration: 90, useNativeDriver: true }),
+          Animated.timing(wobble, { toValue: -1, duration: 90, useNativeDriver: true }),
+          Animated.timing(wobble, { toValue: 0, duration: 90, useNativeDriver: true }),
+        ]),
+      );
+      wobbleLoop.current.start();
+    } else {
+      wobbleLoop.current?.stop();
+      wobble.setValue(0);
+    }
+    return () => { wobbleLoop.current?.stop(); };
+  }, [isRearranging, wobble]);
+
+  const wobbleRotate = wobble.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-1.5deg', '1.5deg'],
+  });
 
   const handlePressIn = () => {
     didLongPress.current = false;
@@ -196,7 +222,7 @@ export function AppTile({
       styles.wrapper,
       isCompact && styles.wrapperCompact,
       isDense && styles.wrapperDense,
-      { transform: [{ scale }] },
+      { transform: [{ scale }, { rotate: wobbleRotate }] },
     ]}>
       <Pressable
         style={[
