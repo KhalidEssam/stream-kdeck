@@ -8,15 +8,17 @@ export const AGENT_CAPABILITY = 1;
 interface RawTool {
   id: string;
   pack_id: string;
+  kind: string;         // 'ai' (default) | 'command'
   label: string;
   prompt: string;
-  output_mode: 'clipboard' | 'autopaste' | 'viewer';
+  output_mode: 'clipboard' | 'autopaste' | 'viewer' | 'silent';
   source: 'clipboard' | 'active_window' | 'shell';
   icon: string;
   color: string | null;
   order: number;
   phase: number;
   builtin_id: string | null;
+  command: string | null;   // populated only when kind='command'
 }
 
 interface RawPack {
@@ -62,20 +64,33 @@ export class PackRegistryService {
         const tools: PackTool[] = (raw.pack_tools ?? [])
           .filter((t) => t.phase <= AGENT_CAPABILITY)
           .sort((a, b) => a.order - b.order)
-          .map((t): PackTool => ({
-            kind: 'ai',
-            id: t.id,
-            packId: t.pack_id,
-            label: t.label,
-            prompt: t.prompt,
-            outputMode: t.output_mode,
-            source: t.source,
-            icon: t.icon,
-            color: t.color ?? undefined,
-            order: t.order,
-            phase: t.phase,
-            builtinId: t.builtin_id ?? undefined,
-          }));
+          .map((t): PackTool => {
+            const shared = {
+              id: t.id,
+              packId: t.pack_id,
+              label: t.label,
+              icon: t.icon,
+              color: t.color ?? undefined,
+              order: t.order,
+              phase: t.phase,
+              builtinId: t.builtin_id ?? undefined,
+            };
+            if (t.kind === 'command') {
+              return {
+                ...shared,
+                kind: 'command',
+                command: t.command ?? '',
+                outputMode: t.output_mode === 'silent' ? 'silent' : 'viewer',
+              };
+            }
+            return {
+              ...shared,
+              kind: 'ai',
+              prompt: t.prompt,
+              outputMode: t.output_mode as 'clipboard' | 'autopaste' | 'viewer',
+              source: t.source,
+            };
+          });
 
         tools.forEach((tool) => this.toolsById.set(tool.id, tool));
 
