@@ -11,6 +11,7 @@ import { TileConfig } from '../types/schema';
 import { AppTile } from './AppTile';
 import { getTileLayoutPreset } from './tileLayout';
 import type { TileLayoutPresetId } from './tileLayout';
+import { RearrangeGrid } from './RearrangeGrid';
 
 const DOT_ROW_HEIGHT = 28;
 
@@ -29,6 +30,8 @@ interface Props {
   stateActive?: Record<string, boolean | undefined>;
   displayLabels?: Record<string, string | null | undefined>;
   layoutPresetId?: TileLayoutPresetId;
+  rearrangeMode?: boolean;
+  onReorder?: (newOrder: TileConfig[]) => void;
 }
 
 export function TileGrid({
@@ -44,7 +47,25 @@ export function TileGrid({
   stateActive,
   displayLabels,
   layoutPresetId = 'standard',
+  rearrangeMode = false,
+  onReorder,
 }: Props) {
+  if (rearrangeMode && onReorder) {
+    return (
+      <RearrangeGrid
+        tiles={tiles}
+        onReorder={onReorder}
+        loadingId={loadingId}
+        creditsRemaining={creditsRemaining}
+        onTap={onTap}
+        stateBadges={stateBadges}
+        stateActive={stateActive}
+        displayLabels={displayLabels}
+        layoutPresetId={layoutPresetId}
+      />
+    );
+  }
+
   const { width: screenWidth } = useWindowDimensions();
   const [gridHeight, setGridHeight] = useState(0);
   const flatListRef = useRef<FlatList<PageItem[]>>(null);
