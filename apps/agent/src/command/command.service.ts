@@ -51,7 +51,7 @@ export class CommandService {
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
-            if (tool && tool.kind === 'ai') {
+            if (tool) {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
             }
