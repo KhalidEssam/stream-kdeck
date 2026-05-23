@@ -9,7 +9,7 @@ import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { IntegrationRouterService } from '../src/integrations/integration-router.service';
 import { PluginCatalogService } from '../src/integrations/plugin-catalog.service';
 import { ShellRunnerService } from '../src/command/shell-runner.service';
-import { ContextAssemblerService } from '../src/context/context-assembler.service';
+import { ContextAssemblerService, ContextAssemblyError } from '../src/context/context-assembler.service';
 import { RunHistoryService } from '../src/history/run-history.service';
 import { shell } from 'electron';
 
@@ -25,6 +25,7 @@ describe('CommandService', () => {
   let mockPackRegistry: { getById: jest.Mock };
   let mockIntegrationRouter: { dispatch: jest.Mock };
   let mockPluginCatalog: { getPlugins: jest.Mock };
+  let mockAssembler: { assemble: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -40,6 +41,7 @@ describe('CommandService', () => {
     mockPackRegistry = { getById: jest.fn().mockReturnValue(undefined) };
     mockIntegrationRouter = { dispatch: jest.fn().mockResolvedValue({ success: true }) };
     mockPluginCatalog = { getPlugins: jest.fn().mockReturnValue([]) };
+    mockAssembler = { assemble: jest.fn().mockResolvedValue('') };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -54,7 +56,7 @@ describe('CommandService', () => {
         { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
         { provide: PluginCatalogService, useValue: mockPluginCatalog },
         { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
-        { provide: ContextAssemblerService, useValue: { assemble: jest.fn().mockResolvedValue('') } },
+        { provide: ContextAssemblerService, useValue: mockAssembler },
       ],
     }).compile();
 
@@ -191,7 +193,7 @@ describe('CommandService', () => {
           { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
           { provide: PluginCatalogService, useValue: mockPluginCatalog },
           { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
-          { provide: ContextAssemblerService, useValue: { assemble: jest.fn().mockResolvedValue('') } },
+          { provide: ContextAssemblerService, useValue: mockAssembler },
         ],
       }).compile();
       clipboardService = moduleRef.get(ClipboardService);
@@ -245,5 +247,64 @@ describe('CommandService', () => {
       { sceneName: 'Gaming' },
       paramsSchema,
     );
+  });
+
+  describe('AI_CLIPBOARD assembler paths', () => {
+    it('returns { success: false, error } when ContextAssemblyError is thrown', async () => {
+      mockPackRegistry.getById.mockReturnValue({
+        kind: 'ai',
+        id: 'tool-1',
+        packId: 'pack-1',
+        label: 'Test Tool',
+        prompt: 'analyze this',
+        outputMode: 'clipboard',
+        icon: '',
+        order: 0,
+        phase: 0,
+        contextRequirements: [{ provider: 'git', required: true, reason: 'needs git' }],
+      });
+      mockAssembler.assemble.mockRejectedValue(new ContextAssemblyError('Git required but unavailable: not a git repo'));
+
+      const result = await commandService.execute(
+        { kind: 'AI_CLIPBOARD', prompt: '', outputMode: 'clipboard', toolId: 'tool-1' },
+        client,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Git required but unavailable: not a git repo');
+    });
+
+    it('calls assembler with contextRequirements and uses result as AI context', async () => {
+      mockPackRegistry.getById.mockReturnValue({
+        kind: 'ai',
+        id: 'tool-1',
+        packId: 'pack-1',
+        label: 'Repo Explainer',
+        prompt: 'what does this repo do?',
+        outputMode: 'viewer',
+        icon: '',
+        order: 0,
+        phase: 0,
+        contextRequirements: [{ provider: 'project_files', required: true, reason: 'needs files' }],
+      });
+      mockAssembler.assemble.mockResolvedValue('### Project Files\nREADME: hello world');
+
+      const result = await commandService.execute(
+        { kind: 'AI_CLIPBOARD', prompt: '', outputMode: 'viewer', toolId: 'tool-1' },
+        client,
+      );
+
+      expect(mockAssembler.assemble).toHaveBeenCalledWith(
+        [{ provider: 'project_files', required: true, reason: 'needs files' }],
+        client,
+        'pack-1',
+        'tool-1',
+      );
+      expect(mockAiRouter.call).toHaveBeenCalledWith(
+        'what does this repo do?',
+        '### Project Files\nREADME: hello world',
+      );
+      expect(result.success).toBe(true);
+    });
   });
 });

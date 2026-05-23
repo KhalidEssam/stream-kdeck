@@ -67,7 +67,7 @@ export class CommandService {
 
           let prompt = action.prompt;
           let outputMode = action.outputMode;
-          let context: string;
+          let context = '';
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
