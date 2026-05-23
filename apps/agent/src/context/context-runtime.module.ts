@@ -5,6 +5,9 @@ import { ActiveWindowProvider } from './providers/active-window.provider';
 import { ActiveTerminalCwdProvider } from './providers/active-terminal-cwd.provider';
 import { ProjectWorkspaceProvider } from './providers/project-workspace.provider';
 import { GitContextProvider } from './providers/git-context.provider';
+import { ConsentStoreService } from './consent-store.service';
+import { ConsentRequestService } from './consent-request.service';
+import { ContextAssemblerService } from './context-assembler.service';
 
 @Module({
   providers: [
@@ -14,8 +17,15 @@ import { GitContextProvider } from './providers/git-context.provider';
     ActiveTerminalCwdProvider,
     ProjectWorkspaceProvider,
     GitContextProvider,
+    ConsentStoreService,
+    ConsentRequestService,
+    ContextAssemblerService,
   ],
-  exports: [ContextRegistryService],
+  exports: [
+    ContextRegistryService,
+    ConsentRequestService,
+    ContextAssemblerService,
+  ],
 })
 export class ContextRuntimeModule implements OnModuleInit {
   constructor(

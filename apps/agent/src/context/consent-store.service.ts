@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,12 +11,14 @@ export interface ConsentGrant {
   grantedAt: number;
 }
 
+export const USER_DATA_DIR_TOKEN = 'USER_DATA_DIR';
+
 @Injectable()
 export class ConsentStoreService {
   private grants = new Map<string, ConsentGrant>();
   private readonly storePath: string;
 
-  constructor(userDataDir?: string) {
+  constructor(@Optional() @Inject(USER_DATA_DIR_TOKEN) userDataDir?: string) {
     if (userDataDir !== undefined) {
       this.storePath = path.join(userDataDir, 'context-consent.json');
     } else {
