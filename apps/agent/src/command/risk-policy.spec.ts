@@ -16,6 +16,7 @@ describe('classifyRisk', () => {
     ['echo hello > out.txt',          'file_write'],
     ['tee output.log',                'file_write'],
     ['git diff HEAD',                 'safe_read'],
+    ['git push-upstream',             'safe_read'],
   ];
 
   it.each(cases)('classifies "%s" as %s', (command, expected) => {

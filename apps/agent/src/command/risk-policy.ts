@@ -1,8 +1,7 @@
-export type RiskLevel = 'safe_read' | 'writes_clipboard' | 'external_side_effect' | 'file_write' | 'destructive';
+export type RiskLevel = 'safe_read' | 'external_side_effect' | 'file_write' | 'destructive';
 
 const DESTRUCTIVE: RegExp[] = [
-  /\bgit\s+push\b/,
-  /\bgit\s+push\s+--force\b/,
+  /\bgit\s+push(?:\s|$)/,
   /\brm\s+-[rRf]*f[rRf]*\b/,
   /\bdel\s+\/[sf]/i,
   /\bnpm\s+publish\b/,
@@ -17,7 +16,7 @@ const EXTERNAL: RegExp[] = [
   /\bwget\b[^|]*--post/i,
   /\bssh\b/,
   /\bscp\b/,
-  /\brsync\b[^|]*[^-]-[^-]*[^-]?[^-]?[^-]?e\b/,
+  /\brsync\b.*\s-[a-zA-Z]*e/,
 ];
 
 const FILE_WRITE: RegExp[] = [
