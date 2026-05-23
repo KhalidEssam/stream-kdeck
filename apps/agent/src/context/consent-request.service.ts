@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { WebSocket } from 'ws';
 import { ConsentScope, ContextPermissionRequestMessage } from '@control-surface/shared';
 
@@ -23,7 +24,7 @@ export class ConsentRequestService {
       reason: string;
     },
   ): Promise<{ granted: boolean; scope?: ConsentScope }> {
-    const requestId = Math.random().toString(36).slice(2);
+    const requestId = randomUUID();
     const msg: ContextPermissionRequestMessage = {
       type: 'CONTEXT_PERMISSION_REQUEST',
       requestId,
