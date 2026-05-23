@@ -14,6 +14,7 @@ import { MouseModule } from './mouse/mouse.module';
 import { MediaModule } from './media/media.module';
 import { PackRegistryService } from './packs/pack-registry.service';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ShellRunnerService } from './command/shell-runner.service';
 
 @Module({
   imports: [LicenseModule, NetworkModule, ContextModule, MouseModule, MediaModule, IntegrationsModule],
@@ -27,6 +28,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     KeystrokeService,
     AppSearchService,
     PackRegistryService,
+    ShellRunnerService,
   ],
 })
 export class AppModule {}

@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ButtonAction } from '@control-surface/shared';
 import { shell } from 'electron';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
 import { AppLaunchService } from '../app-launch/app-launch.service';
@@ -11,6 +9,7 @@ import { LicenseService } from '../license/license.service';
 import { PackRegistryService } from '../packs/pack-registry.service';
 import { IntegrationRouterService } from '../integrations/integration-router.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
+import { ShellRunnerService } from './shell-runner.service';
 
 export interface CommandResult {
   success: boolean;
@@ -18,8 +17,6 @@ export interface CommandResult {
   error?: string;
   quotaExceeded?: boolean;
 }
-
-const execAsync = promisify(exec);
 
 @Injectable()
 export class CommandService {
@@ -32,6 +29,7 @@ export class CommandService {
     private readonly packRegistry: PackRegistryService,
     private readonly integrationRouter: IntegrationRouterService,
     private readonly pluginCatalog: PluginCatalogService,
+    private readonly shellRunner: ShellRunnerService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -109,20 +107,17 @@ export class CommandService {
         }
 
         case 'SHELL_RUN': {
-          try {
-            const { stdout } = await execAsync(action.command, { timeout: 10000 });
-            if (action.outputMode === 'viewer') {
-              return { success: true, output: stdout.trim() };
-            }
-            if (action.outputMode === 'clipboard' || action.outputMode === 'autopaste') {
-              await this.clipboard.write(stdout.trim());
-            }
-            return { success: true };
-          } catch (shellErr: unknown) {
-            const err = shellErr as { message?: string; stderr?: string };
-            const detail = err.stderr?.trim() || err.message || String(shellErr);
-            return { success: false, error: detail };
+          const shellResult = await this.shellRunner.run({ command: action.command });
+          if (!shellResult.success) {
+            return { success: false, error: shellResult.stderr };
           }
+          if (action.outputMode === 'viewer') {
+            return { success: true, output: shellResult.stdout };
+          }
+          if (action.outputMode === 'clipboard' || action.outputMode === 'autopaste') {
+            await this.clipboard.write(shellResult.stdout);
+          }
+          return { success: true };
         }
 
         default: {
