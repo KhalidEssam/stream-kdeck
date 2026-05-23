@@ -14,7 +14,8 @@
     "dist:win:preview": "tsc --build && node scripts/build-release.js --win --channel preview",
     "dist:mac": "tsc --build && node scripts/build-release.js --mac",
     "dist:mac:preview": "tsc --build && node scripts/build-release.js --mac --channel preview",
-    "postinstall": "node scripts/rebuild-native.js"
+    "postinstall": "node scripts/rebuild-native.js",
+    "lint:packs": "ts-node -P tsconfig.test.json scripts/lint-packs.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
