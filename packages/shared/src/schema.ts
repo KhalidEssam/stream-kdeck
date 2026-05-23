@@ -64,8 +64,11 @@ export interface Pack {
   icon: string;
   color?: string;
   order: number;
+  category?: PackCategory;
   tools: PackTool[];
 }
+
+export type PackCategory = 'streamer' | 'media' | 'productivity' | 'developer' | 'writing' | 'learning' | 'other';
 
 export interface PackRegistryMessage {
   type: 'PACK_REGISTRY';

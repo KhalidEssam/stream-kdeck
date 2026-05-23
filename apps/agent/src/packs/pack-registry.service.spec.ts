@@ -25,7 +25,7 @@ const COMMAND_RAW_TOOL = {
 
 const PACK_ROW = {
   id: 'pack-1', slug: 'git', name: 'Git', description: null,
-  icon: '🔀', color: '#F05033', order: 1, pack_tools: [],
+  icon: '🔀', color: '#F05033', order: 1, category: 'developer', pack_tools: [],
 };
 
 describe('PackRegistryService', () => {
@@ -87,5 +87,25 @@ describe('PackRegistryService', () => {
     if (tool?.kind === 'command') {
       expect(tool.command).toBe('git status');
     }
+  });
+
+  it('maps category from raw pack row', async () => {
+    mockLte.mockResolvedValue({
+      data: [{ ...PACK_ROW, pack_tools: [] }],
+      error: null,
+    });
+    await service.load();
+    const [pack] = service.getPacks();
+    expect(pack.category).toBe('developer');
+  });
+
+  it('category is undefined when null in row', async () => {
+    mockLte.mockResolvedValue({
+      data: [{ ...PACK_ROW, category: null, pack_tools: [] }],
+      error: null,
+    });
+    await service.load();
+    const [pack] = service.getPacks();
+    expect(pack.category).toBeUndefined();
   });
 });

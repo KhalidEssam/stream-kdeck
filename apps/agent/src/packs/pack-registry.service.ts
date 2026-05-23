@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Pack, PackTool } from '@control-surface/shared';
+import { Pack, PackTool, PackCategory } from '@control-surface/shared';
 import ws from 'ws';
 
 export const AGENT_CAPABILITY = 1;
@@ -29,6 +29,7 @@ interface RawPack {
   icon: string;
   color: string | null;
   order: number;
+  category: string | null;
   pack_tools: RawTool[];
 }
 
@@ -102,6 +103,7 @@ export class PackRegistryService {
           icon: raw.icon,
           color: raw.color ?? undefined,
           order: raw.order,
+          category: (raw.category as PackCategory) ?? undefined,
           tools,
         };
       });
