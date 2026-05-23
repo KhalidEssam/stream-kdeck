@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Pack, PackTool, PackCategory } from '@control-surface/shared';
+import { Pack, PackTool, PackCategory, ToolContextRequirement } from '@control-surface/shared';
 import ws from 'ws';
 
 export const AGENT_CAPABILITY = 1;
@@ -19,6 +19,7 @@ interface RawTool {
   phase: number;
   builtin_id: string | null;
   command: string | null;   // populated only when kind='command'
+  context_requirements: ToolContextRequirement[] | null;
 }
 
 interface RawPack {
@@ -82,6 +83,7 @@ export class PackRegistryService {
                 kind: 'command',
                 command: t.command ?? '',
                 outputMode: t.output_mode === 'silent' ? 'silent' : 'viewer',
+                contextRequirements: t.context_requirements ?? undefined,
               };
             }
             return {
@@ -90,6 +92,7 @@ export class PackRegistryService {
               prompt: t.prompt,
               outputMode: t.output_mode as 'clipboard' | 'autopaste' | 'viewer',
               source: t.source,
+              contextRequirements: t.context_requirements ?? undefined,
             };
           });
 

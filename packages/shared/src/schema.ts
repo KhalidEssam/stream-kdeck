@@ -27,6 +27,23 @@ export interface WorkflowStep {
 }
 
 // Pack catalog types (Agent → Mobile via PACK_REGISTRY)
+
+export type ContextProviderId =
+  | 'clipboard'
+  | 'active_window'
+  | 'active_terminal'
+  | 'project_files'
+  | 'git'
+  | 'media'
+  | 'obs';
+
+export interface ToolContextRequirement {
+  provider: ContextProviderId;
+  required: boolean;
+  reason: string;
+  maxBytes?: number;
+}
+
 export type PackTool =
   | {
       kind: 'ai';
@@ -41,6 +58,7 @@ export type PackTool =
       order: number;
       phase: number;
       builtinId?: string;
+      contextRequirements?: ToolContextRequirement[];
     }
   | {
       kind: 'command';
@@ -54,6 +72,7 @@ export type PackTool =
       order: number;
       phase: number;
       builtinId?: string;
+      contextRequirements?: ToolContextRequirement[];
     };
 
 export interface Pack {
