@@ -29,6 +29,9 @@ import {
   PluginConnectionStatusMessage,
   ButtonAction,
   ReorderTilesMessage,
+  ConsentScope,
+  ContextPermissionResponseMessage,
+  ContextPermissionRequestMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -63,6 +66,7 @@ export class WsGateway implements OnGatewayConnection {
   server!: Server;
 
   private readonly pluginsReady: Promise<void>;
+  private readonly pendingConsentRequests = new Map<string, (granted: boolean, scope?: ConsentScope) => void>();
 
   constructor(
     private readonly commandService: CommandService,
@@ -507,6 +511,16 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'CONTEXT_PERMISSION_RESPONSE') {
+        const d = data as ContextPermissionResponseMessage;
+        const resolve = this.pendingConsentRequests.get(d.requestId);
+        if (resolve) {
+          this.pendingConsentRequests.delete(d.requestId);
+          resolve(d.granted, d.scope);
+        }
+        return;
+      }
+
       if (data.type !== 'BUTTON_TAP') return;
 
       console.log(`[Agent] BUTTON_TAP ${data.buttonId} (${data.action.kind})`);
@@ -539,6 +553,38 @@ export class WsGateway implements OnGatewayConnection {
       if (data.action.kind === 'AI_CLIPBOARD') {
         this.sendLicenseStatus(client);
       }
+    });
+  }
+
+  async requestConsent(
+    client: WebSocket,
+    packId: string,
+    providerId: string,
+    providerLabel: string,
+    reason: string,
+  ): Promise<{ granted: boolean; scope?: ConsentScope }> {
+    const requestId = Math.random().toString(36).slice(2);
+    const msg: ContextPermissionRequestMessage = {
+      type: 'CONTEXT_PERMISSION_REQUEST',
+      requestId,
+      packId,
+      providerId,
+      providerLabel,
+      reason,
+      scopeOptions: ['once', 'session', 'permanent'],
+    };
+    client.send(JSON.stringify(msg));
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingConsentRequests.delete(requestId);
+        resolve({ granted: false });
+      }, 60_000);
+
+      this.pendingConsentRequests.set(requestId, (granted, scope) => {
+        clearTimeout(timer);
+        resolve({ granted, scope });
+      });
     });
   }
 

@@ -419,9 +419,33 @@ export interface MediaSetVolumeMessage {
   volume: number; // 0–1
 }
 
+// --- Context permission messages ---
+
+export type ConsentScope = 'once' | 'session' | 'permanent';
+
+// Agent → Mobile: request consent for a provider
+export interface ContextPermissionRequestMessage {
+  type: 'CONTEXT_PERMISSION_REQUEST';
+  requestId: string;
+  packId: string;
+  providerId: string;
+  providerLabel: string;
+  reason: string;
+  scopeOptions: ConsentScope[];
+}
+
+// Mobile → Agent: user's decision
+export interface ContextPermissionResponseMessage {
+  type: 'CONTEXT_PERMISSION_RESPONSE';
+  requestId: string;
+  granted: boolean;
+  scope?: ConsentScope;
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
+  | ContextPermissionRequestMessage
   | DeckConfigMessage
   | SearchAppsResultMessage
   | ValidatePathResultMessage
@@ -465,4 +489,5 @@ export type MobileMessage =
   | InstallPluginMessage
   | UninstallPluginMessage
   | SetPluginConnectionMessage
-  | TestPluginConnectionMessage;
+  | TestPluginConnectionMessage
+  | ContextPermissionResponseMessage;
