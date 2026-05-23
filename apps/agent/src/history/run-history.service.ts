@@ -1,15 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ButtonAction } from '@control-surface/shared';
+import { RunRecord } from '@control-surface/shared';
 
-export interface RunRecord {
-  id: string;
-  timestamp: string;   // ISO 8601
-  action: ButtonAction;
-  success: boolean;
-  output?: string;
-  error?: string;
-  durationMs: number;
-}
+export { RunRecord };
 
 const MAX_HISTORY = 500;
 
