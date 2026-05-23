@@ -12,13 +12,13 @@ import { PackRegistryService } from './pack-registry.service';
 const AI_RAW_TOOL = {
   id: 'tool-1', pack_id: 'pack-1', kind: 'ai', label: 'Write Commit Message',
   prompt: 'Write a commit message for the following diff:', output_mode: 'clipboard',
-  source: 'active_window', icon: 'git', color: null, order: 1, phase: 1,
+  icon: 'git', color: null, order: 1, phase: 1,
   builtin_id: null, command: null, context_requirements: null,
 };
 
 const COMMAND_RAW_TOOL = {
   id: 'tool-2', pack_id: 'pack-1', kind: 'command', label: 'Git Status',
-  prompt: '', output_mode: 'viewer', source: 'clipboard',
+  prompt: '', output_mode: 'viewer',
   icon: 'terminal', color: null, order: 15, phase: 1,
   builtin_id: null, command: 'git status', context_requirements: null,
 };

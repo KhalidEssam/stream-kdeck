@@ -35,7 +35,6 @@ export type PackTool =
       label: string;
       prompt: string;
       outputMode: 'clipboard' | 'autopaste' | 'viewer';
-      source: 'clipboard' | 'active_window' | 'shell';
       icon: string;
       color?: string;
       order: number;
