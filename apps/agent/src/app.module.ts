@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { WsGateway } from './websocket/ws.gateway';
-import { ClipboardService } from './clipboard/clipboard.service';
 import { AiRouterService } from './ai/ai-router.service';
 import { CommandService } from './command/command.service';
 import { AppLaunchService } from './app-launch/app-launch.service';
@@ -14,13 +13,13 @@ import { MouseModule } from './mouse/mouse.module';
 import { MediaModule } from './media/media.module';
 import { PackRegistryService } from './packs/pack-registry.service';
 import { IntegrationsModule } from './integrations/integrations.module';
-import { ShellRunnerService } from './command/shell-runner.service';
 import { ContextRuntimeModule } from './context/context-runtime.module';
-import { ActiveWindowService } from './active-window/active-window.service';
 import { RunHistoryService } from './history/run-history.service';
+import { CoreServicesModule } from './core-services.module';
 
 @Module({
   imports: [
+    CoreServicesModule,
     LicenseModule,
     NetworkModule,
     ContextModule,
@@ -31,7 +30,6 @@ import { RunHistoryService } from './history/run-history.service';
   ],
   providers: [
     WsGateway,
-    ClipboardService,
     AiRouterService,
     CommandService,
     AppLaunchService,
@@ -39,8 +37,6 @@ import { RunHistoryService } from './history/run-history.service';
     KeystrokeService,
     AppSearchService,
     PackRegistryService,
-    ShellRunnerService,
-    ActiveWindowService,
     RunHistoryService,
   ],
 })

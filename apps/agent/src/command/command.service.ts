@@ -73,15 +73,20 @@ export class CommandService {
             if (tool && tool.kind === 'ai') {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
-              contextSource = tool.source;
+              contextSource = tool.source ?? 'clipboard';
             }
           }
+
+          // 'shell' source maps to the active_terminal context provider
+          if (contextSource === 'shell') contextSource = 'active_terminal';
 
           const contextPayload = await this.contextRegistry.read(contextSource, {
             toolId: action.toolId ?? '',
             packId: '',
           });
-          const context = contextPayload.content || await this.clipboard.read();
+          const context = contextSource === 'clipboard'
+            ? (contextPayload.content || await this.clipboard.read())
+            : contextPayload.content;
 
           const result = await this.aiRouter.call(prompt, context);
           this.licenseService.decrementCredit();
