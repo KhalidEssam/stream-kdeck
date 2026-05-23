@@ -41,7 +41,7 @@ const mockLicenseService = {
   creditsRemaining:       () => 50,
   getClaims:              () => ({ licensed: true, ai_pro: false, credits_remaining: 50, credit_quota: 100 }),
   hasRefreshToken:        () => true,
-  getUserId:              () => null,
+  getUserId:              jest.fn(() => 'user-abc'),
   getAccessToken:         jest.fn().mockResolvedValue(null),
   onApplicationBootstrap: async () => {},
   refreshSession:         jest.fn().mockResolvedValue(undefined),
@@ -132,6 +132,8 @@ describe('WsGateway', () => {
         try {
           const connected = latestMessage<ConnectedMessage>(messages, 'CONNECTED');
           expect(connected?.type).toBe('CONNECTED');
+          expect(connected?.userId).toBe('user-abc');
+          expect(mockLicenseService.getUserId).toHaveBeenCalled();
 
           const deckConfig = latestMessage<DeckConfigMessage>(messages, 'DECK_CONFIG');
           expect(deckConfig?.type).toBe('DECK_CONFIG');

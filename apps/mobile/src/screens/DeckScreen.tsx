@@ -190,6 +190,8 @@ export function DeckScreen() {
   const peekFabRef = useRef<PeekFabHandle>(null);
   const retryCancelRef = useRef<(() => void) | null>(null);
   const rejectedUrls = useRef<Set<string>>(new Set());
+  // Manual IP entry is an intentional one-attempt bypass for account validation.
+  const manualAgentUrls = useRef<Set<string>>(new Set());
   const [agentUrl, setAgentUrl]             = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<ConnectionErrorInfo | null>(null);
@@ -277,7 +279,10 @@ export function DeckScreen() {
       const cancel = discoverAgent(
         (url) => {
           retryCancelRef.current = null;
-          if (!cancelled) setAgentUrl(url);
+          if (!cancelled) {
+            manualAgentUrls.current.delete(url);
+            setAgentUrl(url);
+          }
         },
         (msg) => {
           retryCancelRef.current = null;
@@ -305,6 +310,11 @@ export function DeckScreen() {
 
         const normalizedUrl = normalizeAgentWsUrl(savedUrl ?? undefined);
         if (normalizedUrl) {
+          if (rejectedUrls.current.has(normalizedUrl)) {
+            void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY).finally(startDiscovery);
+            return;
+          }
+          manualAgentUrls.current.delete(normalizedUrl);
           setManualIpInput(getManualInputFromAgentUrl(normalizedUrl));
           setAgentUrl(normalizedUrl);
           return;
@@ -328,20 +338,36 @@ export function DeckScreen() {
 
     setConnectionError(null);
     const ws = new WebSocketService(agentUrl);
+    let connectionActive = true;
     wsRef.current = ws;
     setWsService(ws);
     ws.onConnected(async (agentUserId) => {
-      if (agentUserId !== null) {
-        const { data } = await supabase.auth.getSession();
-        const myId = data.session?.user.id;
+      const shouldValidateAccount = !manualAgentUrls.current.has(agentUrl);
+
+      if (shouldValidateAccount && agentUserId !== null) {
+        let myId: string | undefined;
+        try {
+          const { data } = await supabase.auth.getSession();
+          myId = data.session?.user.id;
+        } catch {
+          myId = undefined;
+        }
+
+        if (!connectionActive) return;
         if (myId && agentUserId !== myId) {
           ws.disconnect();
           rejectedUrls.current.add(agentUrl);
+          manualAgentUrls.current.delete(agentUrl);
+          await AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY).catch(() => undefined);
+          if (!connectionActive) return;
+          setStatus('connecting');
+          setConnectionError(null);
           setAgentUrl(null);
           setDiscoveryAttempt((n) => n + 1);
           return;
         }
       }
+      if (!connectionActive) return;
       ws.acceptConnection();
     });
     ws.onStatusChange((nextStatus) => {
@@ -349,6 +375,7 @@ export function DeckScreen() {
       if (nextStatus === 'connected') {
         setConnectionError(null);
         setManualIpInput(getManualInputFromAgentUrl(agentUrl));
+        manualAgentUrls.current.delete(agentUrl);
         void AsyncStorage.setItem(AGENT_URL_STORAGE_KEY, agentUrl);
         ws.requestLicenseStatus();
       }
@@ -403,6 +430,7 @@ export function DeckScreen() {
       setAiPro(false);
       setInstalledPluginIds([]);
       setIntegrationStates(new Map());
+      connectionActive = false;
       ws.disconnect();
       wsRef.current = null;
       setWsService(null);
@@ -418,6 +446,7 @@ export function DeckScreen() {
     setStatus('connecting');
     setDiscoveryError(null);
     setConnectionError(null);
+    manualAgentUrls.current.clear();
     wsRef.current?.disconnect();
     setAgentUrl(null);
     setDiscoveryAttempt((attempt) => attempt + 1);
@@ -434,6 +463,7 @@ export function DeckScreen() {
     setStatus('connecting');
     setDiscoveryError(null);
     setConnectionError(null);
+    manualAgentUrls.current.clear();
     wsRef.current?.disconnect();
     setAgentUrl(null);
     void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY).finally(() => {
@@ -443,6 +473,7 @@ export function DeckScreen() {
 
   const handleSwitchAccount = () => {
     rejectedUrls.current.clear();
+    manualAgentUrls.current.clear();
     void supabase.auth.signOut();
     void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY);
   };
@@ -458,6 +489,7 @@ export function DeckScreen() {
     setDiscoveryError(null);
     setConnectionError(null);
     setStatus('connecting');
+    manualAgentUrls.current.add(url);
     setAgentUrl(url);
   };
 

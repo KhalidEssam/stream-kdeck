@@ -145,7 +145,7 @@ export class LicenseService implements OnApplicationBootstrap {
   isAiPro(): boolean             { return this.claims.ai_pro; }
   creditsRemaining(): number     { return this.claims.credits_remaining; }
   getClaims(): LicenseClaims     { return { ...this.claims }; }
-  getUserId(): string | null     { return this.claims?.sub ?? null; }
+  getUserId(): string | null     { return this.claims.sub.trim() || null; }
 
   private loadCachedClaims(): void {
     const cached = this.storage.get(CACHED_CLAIMS_KEY);

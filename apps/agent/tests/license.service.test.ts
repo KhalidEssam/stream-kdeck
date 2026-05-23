@@ -81,6 +81,7 @@ describe('LicenseService', () => {
     await licenseService.onApplicationBootstrap();
     expect(licenseService.isLicensed()).toBe(false);
     expect(licenseService.creditsRemaining()).toBe(0);
+    expect(licenseService.getUserId()).toBeNull();
   });
 
   it('creates Supabase client with ws transport for Node 20 realtime support', () => {
@@ -111,7 +112,13 @@ describe('LicenseService', () => {
   });
 
   it('refreshSession updates claims from JWT when refresh token exists', async () => {
-    const accessToken = fakeJwt({ licensed: true, ai_pro: true, credits_remaining: 480, credit_quota: 500 });
+    const accessToken = fakeJwt({
+      sub: 'user-abc',
+      licensed: true,
+      ai_pro: true,
+      credits_remaining: 480,
+      credit_quota: 500,
+    });
 
     mockStorage.get.mockImplementation((key: string) =>
       key === 'refresh_token' ? 'fake-refresh-token' : null,
@@ -131,6 +138,7 @@ describe('LicenseService', () => {
     expect(licenseService.isAiPro()).toBe(true);
     expect(licenseService.creditsRemaining()).toBe(480);
     expect(licenseService.getClaims().credit_quota).toBe(500);
+    expect(licenseService.getUserId()).toBe('user-abc');
     expect(mockStorage.set).toHaveBeenCalledWith('refresh_token', 'new-refresh-token');
   });
 
