@@ -1,17 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
   FlatList,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { TileConfig } from '../types/schema';
 import { AppTile } from './AppTile';
@@ -50,11 +45,12 @@ export function RearrangeGrid({
   const [currentPage, setCurrentPage] = useState(0);
   const [localTiles, setLocalTiles] = useState<TileConfig[]>(tiles);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const flatListRef = useRef<FlatList<TileConfig[]>>(null);
   const containerRef = useRef<View>(null);
 
-  // JS-thread refs accessed from runOnJS callbacks
+  // JS-thread refs accessed from gesture callbacks
   const localTilesRef = useRef<TileConfig[]>(tiles);
   const currentPageRef = useRef(0);
   const gridPageXRef = useRef(0);
@@ -65,14 +61,10 @@ export function RearrangeGrid({
   const edgeFlipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleEdgeFlipRef = useRef<(direction: 'left' | 'right') => void>(() => {});
 
-  // Shared values for UI-thread animation
-  const dragX = useSharedValue(0);
-  const dragY = useSharedValue(0);
-  const isDragging = useSharedValue(false);
-  const tileSizeW = useSharedValue(0);
-  const tileSizeH = useSharedValue(0);
-  const containerPageX = useSharedValue(0);
-  const containerPageY = useSharedValue(0);
+  // Animated values for the floating tile — setValue() bypasses React re-renders during drag
+  const floatX = useRef(new Animated.Value(0)).current;
+  const floatY = useRef(new Animated.Value(0)).current;
+  const floatScale = useRef(new Animated.Value(1)).current;
 
   const layoutPreset = getTileLayoutPreset(layoutPresetId);
   const columns = Math.min(10, Math.max(2, Math.round(screenWidth / layoutPreset.idealTileWidth)));
@@ -81,20 +73,22 @@ export function RearrangeGrid({
   const rows = gridHeight > 0 ? Math.max(1, Math.floor(gridHeight / tileHeight)) : 0;
   const tilesPerPage = columns * rows;
 
-  // Keep shared values in sync with layout-derived sizes
+  // Keep tile dimensions accessible inside gesture callbacks without stale closures
+  const tileWidthRef = useRef(tileWidth);
+  const tileHeightRef = useRef(tileHeight);
   useEffect(() => {
-    tileSizeW.value = tileWidth;
-    tileSizeH.value = tileHeight;
-  }, [tileWidth, tileHeight, tileSizeW, tileSizeH]);
+    tileWidthRef.current = tileWidth;
+    tileHeightRef.current = tileHeight;
+  }, [tileWidth, tileHeight]);
 
   // Reset local tiles when prop tiles change (e.g. WS update while not dragging)
   useEffect(() => {
-    if (draggingId !== null) return; // don't clobber ongoing drag
+    if (draggingId !== null) return;
     localTilesRef.current = tiles;
     setLocalTiles(tiles);
   }, [tiles, draggingId]);
 
-  const pages = React.useMemo((): TileConfig[][] => {
+  const pages = useMemo((): TileConfig[][] => {
     if (tilesPerPage === 0) return [];
     const result: TileConfig[][] = [];
     for (let i = 0; i < localTiles.length; i += tilesPerPage) {
@@ -107,28 +101,33 @@ export function RearrangeGrid({
     containerRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
       gridPageXRef.current = pageX;
       gridPageYRef.current = pageY;
-      containerPageX.value = pageX;
-      containerPageY.value = pageY;
     });
-  }, [containerPageX, containerPageY]);
-
-  // ── JS-thread callbacks (called via runOnJS) ──────────────────────────────
+  }, []);
 
   const onDragStart = useCallback(
     (absX: number, absY: number) => {
       const relX = absX - gridPageXRef.current;
       const relY = absY - gridPageYRef.current;
-      const col = Math.min(columns - 1, Math.max(0, Math.floor(relX / tileWidth)));
-      const row = Math.min(rows - 1, Math.max(0, Math.floor(relY / tileHeight)));
+      const col = Math.min(columns - 1, Math.max(0, Math.floor(relX / tileWidthRef.current)));
+      const row = Math.min(rows - 1, Math.max(0, Math.floor(relY / tileHeightRef.current)));
       const slot = row * columns + col + currentPageRef.current * tilesPerPage;
       const tile = localTilesRef.current[slot];
       if (!tile) return;
       draggingIndexRef.current = slot;
       hoverSlotRef.current = slot;
+      floatX.setValue(absX - gridPageXRef.current - tileWidthRef.current / 2);
+      floatY.setValue(absY - gridPageYRef.current - tileHeightRef.current / 2);
+      floatScale.setValue(1);
       setDraggingId(tile.id);
-      isDragging.value = true;
+      setIsDragging(true);
+      Animated.spring(floatScale, {
+        toValue: 1.08,
+        damping: 15,
+        stiffness: 200,
+        useNativeDriver: false,
+      }).start();
     },
-    [columns, rows, tileWidth, tileHeight, tilesPerPage, isDragging],
+    [columns, rows, tilesPerPage, floatX, floatY, floatScale],
   );
 
   const scheduleEdgeFlip = useCallback(
@@ -157,10 +156,13 @@ export function RearrangeGrid({
 
   const onDragUpdate = useCallback(
     (absX: number, absY: number) => {
+      floatX.setValue(absX - gridPageXRef.current - tileWidthRef.current / 2);
+      floatY.setValue(absY - gridPageYRef.current - tileHeightRef.current / 2);
+
       const relX = absX - gridPageXRef.current;
       const relY = absY - gridPageYRef.current;
-      const col = Math.min(columns - 1, Math.max(0, Math.floor(relX / tileWidth)));
-      const row = Math.min(rows - 1, Math.max(0, Math.floor(relY / tileHeight)));
+      const col = Math.min(columns - 1, Math.max(0, Math.floor(relX / tileWidthRef.current)));
+      const row = Math.min(rows - 1, Math.max(0, Math.floor(relY / tileHeightRef.current)));
       const hover = row * columns + col + currentPageRef.current * tilesPerPage;
 
       if (
@@ -186,10 +188,10 @@ export function RearrangeGrid({
           clearTimeout(edgeFlipTimerRef.current);
           edgeFlipTimerRef.current = null;
         }
-        if (newZone) scheduleEdgeFlip(newZone);
+        if (newZone) scheduleEdgeFlipRef.current(newZone);
       }
     },
-    [columns, rows, tileWidth, tileHeight, tilesPerPage, scheduleEdgeFlip],
+    [columns, rows, tilesPerPage, floatX, floatY],
   );
 
   const onDragEnd = useCallback(() => {
@@ -198,61 +200,31 @@ export function RearrangeGrid({
       edgeFlipTimerRef.current = null;
     }
     inEdgeZoneRef.current = null;
-    isDragging.value = false;
+    floatScale.stopAnimation();
+    floatScale.setValue(1);
+    setIsDragging(false);
     setDraggingId(null);
     draggingIndexRef.current = -1;
     hoverSlotRef.current = -1;
     onReorder(localTilesRef.current);
-  }, [isDragging, onReorder]);
+  }, [floatScale, onReorder]);
 
-  // ── Gesture ────────────────────────────────────────────────────────────────
-
+  // All callbacks run on JS thread — no Reanimated worklets needed
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
         .activateAfterLongPress(LONG_PRESS_MS)
-        .onStart((e) => {
-          'worklet';
-          runOnJS(onDragStart)(e.absoluteX, e.absoluteY);
-        })
-        .onUpdate((e) => {
-          'worklet';
-          dragX.value = e.absoluteX;
-          dragY.value = e.absoluteY;
-          runOnJS(onDragUpdate)(e.absoluteX, e.absoluteY);
-        })
-        .onEnd(() => {
-          'worklet';
-          runOnJS(onDragEnd)();
-        })
-        .onFinalize(() => {
-          'worklet';
-          isDragging.value = false;
-        }),
-    [onDragStart, onDragUpdate, onDragEnd, dragX, dragY, isDragging],
+        .runOnJS(true)
+        .onStart((e) => { onDragStart(e.absoluteX, e.absoluteY); })
+        .onUpdate((e) => { onDragUpdate(e.absoluteX, e.absoluteY); })
+        .onEnd(() => { onDragEnd(); })
+        .onFinalize(() => { setIsDragging(false); }),
+    [onDragStart, onDragUpdate, onDragEnd],
   );
-
-  // ── Floating overlay style (UI thread) ────────────────────────────────────
-
-  const floatingStyle = useAnimatedStyle(() => ({
-    position: 'absolute',
-    left: dragX.value - containerPageX.value - tileSizeW.value / 2,
-    top: dragY.value - containerPageY.value - tileSizeH.value / 2,
-    width: tileSizeW.value,
-    height: tileSizeH.value,
-    zIndex: 1000,
-    elevation: 10,
-    opacity: isDragging.value ? 1 : 0,
-    transform: [
-      { scale: withSpring(isDragging.value ? 1.08 : 1, { damping: 15, stiffness: 200 }) },
-    ],
-  }));
 
   const draggingTile = draggingId
     ? localTilesRef.current.find((t) => t.id === draggingId) ?? null
     : null;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   const renderPage = useCallback(
     ({ item: page }: { item: TileConfig[] }) => (
@@ -326,8 +298,20 @@ export function RearrangeGrid({
         </View>
       </GestureDetector>
 
-      {draggingTile && (
-        <Animated.View style={floatingStyle} pointerEvents="none">
+      {isDragging && draggingTile && (
+        <Animated.View
+          style={[
+            styles.floatingTile,
+            {
+              left: floatX,
+              top: floatY,
+              width: tileWidth,
+              height: tileHeight,
+              transform: [{ scale: floatScale }],
+            },
+          ]}
+          pointerEvents="none"
+        >
           <AppTile
             tile={draggingTile}
             isLoading={false}
@@ -349,4 +333,9 @@ export function RearrangeGrid({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   gestureArea: { flex: 1 },
+  floatingTile: {
+    position: 'absolute',
+    zIndex: 1000,
+    elevation: 10,
+  },
 });
