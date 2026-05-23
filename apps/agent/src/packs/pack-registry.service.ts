@@ -12,7 +12,6 @@ interface RawTool {
   label: string;
   prompt: string;
   output_mode: 'clipboard' | 'autopaste' | 'viewer' | 'silent';
-  source: 'clipboard' | 'active_window' | 'shell';
   icon: string;
   color: string | null;
   order: number;
@@ -91,7 +90,6 @@ export class PackRegistryService {
               kind: 'ai',
               prompt: t.prompt,
               outputMode: t.output_mode as 'clipboard' | 'autopaste' | 'viewer',
-              source: t.source,
               contextRequirements: t.context_requirements ?? undefined,
             };
           });

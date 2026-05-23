@@ -51,7 +51,6 @@ describe('PackRegistryService', () => {
     expect(tool.kind).toBe('ai');
     if (tool.kind === 'ai') {
       expect(tool.prompt).toBe('Write a commit message for the following diff:');
-      expect(tool.source).toBe('active_window');
       expect(tool.outputMode).toBe('clipboard');
     }
   });
