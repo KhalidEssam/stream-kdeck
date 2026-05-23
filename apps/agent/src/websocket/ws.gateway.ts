@@ -531,7 +531,7 @@ export class WsGateway implements OnGatewayConnection {
       if (data.type !== 'BUTTON_TAP') return;
 
       console.log(`[Agent] BUTTON_TAP ${data.buttonId} (${data.action.kind})`);
-      const result = await this.commandService.execute(data.action);
+      const result = await this.commandService.execute(data.action, client);
 
       if (result.quotaExceeded) {
         const quotaMsg: AiQuotaExceededMessage = { type: 'AI_QUOTA_EXCEEDED', reason: 'credits_exhausted' };
