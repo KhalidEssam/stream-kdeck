@@ -77,6 +77,27 @@ describe('MediaService', () => {
     expect(state[0].processName).toBe('vlc.exe');
     expect(state[0].volume).toBe(0);
     expect(state[0].pinned).toBe(true);
+    expect(state[0].active).toBe(false);
+  });
+
+  it('pinned apps not currently playing keep their saved icon', () => {
+    (service as any).config.pinnedMediaApps = [
+      { processName: 'vlc.exe', label: 'VLC', iconBase64: 'icon123' },
+    ];
+    const state = (service as any).buildMediaState([]);
+    expect(state[0].iconBase64).toBe('icon123');
+  });
+
+  it('live pinned apps are marked active and can use the saved icon as fallback', () => {
+    (service as any).config.pinnedMediaApps = [
+      { processName: 'Spotify.exe', label: 'Spotify', iconBase64: 'icon123' },
+    ];
+    const state = (service as any).buildMediaState([
+      { pid: 1, name: 'Spotify.exe', volume: 0.7, muted: false },
+    ]);
+    expect(state[0].pinned).toBe(true);
+    expect(state[0].active).toBe(true);
+    expect(state[0].iconBase64).toBe('icon123');
   });
 
   it('hasChanged returns false for identical snapshots', () => {
@@ -105,6 +126,7 @@ describe('MediaService', () => {
       { pid: 99, name: 'system', volume: 0, muted: false },
     ]);
     expect(state[0].volume).toBe(0);
+    expect(state[0].active).toBe(true);
   });
 
   it('hasChanged returns true when session count changes', () => {

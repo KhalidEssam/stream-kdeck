@@ -56,21 +56,22 @@ const THUMB_RADIUS = 7;
 export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle }: Props) {
   const [sliderWidth, setSliderWidth] = useState(0);
   const sliderWidthRef = useRef(0);
+  const controlsDisabled = session?.pinned === true && session.active === false;
 
   const panResponder = useMemo(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
-        if (sliderWidthRef.current === 0) return;
+        if (controlsDisabled || sliderWidthRef.current === 0) return;
         onVolumeChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidthRef.current)));
       },
       onPanResponderMove: (e) => {
-        if (sliderWidthRef.current === 0) return;
+        if (controlsDisabled || sliderWidthRef.current === 0) return;
         onVolumeChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidthRef.current)));
       },
     }),
-  [onVolumeChange]);
+  [controlsDisabled, onVolumeChange]);
 
   if (!session) {
     return (
@@ -80,13 +81,14 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
     );
   }
 
-  const isMuted = session.muted;
+  const isPinnedOffline = session.pinned && session.active === false;
+  const isMuted = session.muted && !isPinnedOffline;
   const vol = session.volume;
   const fillPct = `${Math.round(vol * 100)}%` as `${number}%`;
   const thumbLeft = Math.max(0, vol * sliderWidth - THUMB_RADIUS);
 
   return (
-    <View style={[styles.card, isMuted && styles.cardMuted]}>
+    <View style={[styles.card, isMuted && styles.cardMuted, isPinnedOffline && styles.cardPinnedOffline]}>
       {/* Top row: icon + name + mute button */}
       <View style={styles.topRow}>
         <View style={[styles.iconWrap, isMuted && styles.iconWrapMuted]}>
@@ -97,15 +99,16 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
             {session.label}
           </Text>
           <Text style={[styles.status, isMuted && styles.statusMuted]}>
-            {isMuted ? 'muted · tap 🔇 to unmute' : 'tap card below to switch'}
+            {isPinnedOffline ? 'pinned idle - controls wake when audio starts' : isMuted ? 'muted - tap to unmute' : 'tap card below to switch'}
           </Text>
           {platform === 'darwin' && session.processName === 'system' && (
             <Text style={styles.macNote}>Per-app volume: Windows only</Text>
           )}
         </View>
         <TouchableOpacity
-          style={[styles.muteBtn, isMuted && styles.muteBtnActive]}
+          style={[styles.muteBtn, isMuted && styles.muteBtnActive, isPinnedOffline && styles.muteBtnDisabled]}
           onPress={onMuteToggle}
+          disabled={isPinnedOffline}
           activeOpacity={0.75}
         >
           <Text style={styles.muteIcon}>{isMuted ? '🔇' : '🔊'}</Text>
@@ -113,7 +116,7 @@ export function MediaHeroCard({ session, platform, onVolumeChange, onMuteToggle 
       </View>
 
       {/* Slider row */}
-      <View style={[styles.sliderRow, isMuted && styles.sliderRowMuted]}>
+      <View style={[styles.sliderRow, (isMuted || isPinnedOffline) && styles.sliderRowMuted]}>
         <Text style={styles.sliderEdge}>0</Text>
         <View
           style={styles.sliderHitArea}
@@ -160,6 +163,10 @@ const styles = StyleSheet.create({
     borderColor: '#441a1a',
     backgroundColor: '#160d0d',
   },
+  cardPinnedOffline: {
+    borderColor: '#2a2a44',
+    backgroundColor: '#12121f',
+  },
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -196,6 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a0d0d',
     borderColor: '#441a1a',
   },
+  muteBtnDisabled: { opacity: 0.45 },
   muteIcon: { fontSize: 15 },
   sliderRow: {
     flexDirection: 'row',

@@ -239,6 +239,7 @@ export interface ReorderTilesMessage {
 export interface AppSearchResult {
   name: string;
   exePath: string;
+  processName?: string;
   source: 'startmenu' | 'windows' | 'filesystem' | 'steam' | 'epic';
   iconBase64?: string;
 }
@@ -371,12 +372,17 @@ export interface MediaSession {
   volume: number;        // 0–1
   muted: boolean;
   pinned: boolean;
+  active: boolean;
 }
 
 export interface MediaStateMessage {
   type: 'MEDIA_STATE';
   sessions: MediaSession[];
   platform: 'win32' | 'darwin';
+}
+
+export interface GetMediaStateMessage {
+  type: 'GET_MEDIA_STATE';
 }
 
 export interface MediaVolumeDeltaMessage {
@@ -400,6 +406,7 @@ export interface MediaPinAppMessage {
   type: 'MEDIA_PIN_APP';
   processName: string;
   label: string;
+  iconBase64?: string;
   pinned: boolean;
 }
 
@@ -450,6 +457,7 @@ export type MobileMessage =
   | MediaBringToFrontMessage
   | MediaPinAppMessage
   | MediaSetVolumeMessage
+  | GetMediaStateMessage
   | GetPluginCatalogMessage
   | InstallPluginMessage
   | UninstallPluginMessage

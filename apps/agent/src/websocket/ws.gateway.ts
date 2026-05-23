@@ -314,13 +314,18 @@ export class WsGateway implements OnGatewayConnection {
 
       if (data.type === 'MEDIA_PIN_APP') {
         const d = data as MediaPinAppMessage;
-        this.mediaService.pinApp(d.processName, d.label, d.pinned);
+        this.mediaService.pinApp(d.processName, d.label, d.pinned, d.iconBase64);
         return;
       }
 
       if (data.type === 'MEDIA_SET_VOLUME') {
         const d = data as MediaSetVolumeMessage;
         this.mediaService.setVolume(d.processName, d.volume);
+        return;
+      }
+
+      if (data.type === 'GET_MEDIA_STATE') {
+        this.sendMediaState(client);
         return;
       }
 

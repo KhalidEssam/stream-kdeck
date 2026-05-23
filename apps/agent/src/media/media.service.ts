@@ -15,7 +15,7 @@ interface AudioSession {
 }
 
 interface MediaConfig {
-  pinnedMediaApps: Array<{ processName: string; label: string }>;
+  pinnedMediaApps: Array<{ processName: string; label: string; iconBase64?: string }>;
 }
 
 @Injectable()
@@ -60,9 +60,13 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     const maybe = value as Partial<MediaConfig> | null;
     const pinnedMediaApps = Array.isArray(maybe?.pinnedMediaApps)
       ? maybe.pinnedMediaApps.filter(
-        (app): app is { processName: string; label: string } =>
+        (app): app is { processName: string; label: string; iconBase64?: string } =>
           typeof app?.processName === 'string' && typeof app?.label === 'string',
-      )
+      ).map((app) => ({
+        processName: app.processName,
+        label: app.label,
+        iconBase64: typeof app.iconBase64 === 'string' ? app.iconBase64 : undefined,
+      }))
       : [];
 
     return { pinnedMediaApps };
@@ -143,20 +147,30 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
 
   buildMediaState(sessions: AudioSession[]): MediaSession[] {
     const pinnedMediaApps = this.config.pinnedMediaApps ?? [];
+    const pinnedByName = new Map(
+      pinnedMediaApps.map((p) => [p.processName.toLowerCase(), p]),
+    );
     const liveKeys = new Set(sessions.map(s => s.name.toLowerCase()));
     const result: MediaSession[] = sessions.map(s => ({
       processName: s.name,
       label: s.name.replace(/\.exe$/i, ''),
-      iconBase64: s.iconBase64,
+      iconBase64: s.iconBase64 ?? pinnedByName.get(s.name.toLowerCase())?.iconBase64,
       volume: s.volume,
       muted: s.muted,
-      pinned: pinnedMediaApps.some(
-        p => p.processName.toLowerCase() === s.name.toLowerCase(),
-      ),
+      pinned: pinnedByName.has(s.name.toLowerCase()),
+      active: true,
     }));
     for (const p of pinnedMediaApps) {
       if (!liveKeys.has(p.processName.toLowerCase())) {
-        result.push({ processName: p.processName, label: p.label, volume: 0, muted: false, pinned: true });
+        result.push({
+          processName: p.processName,
+          label: p.label,
+          iconBase64: p.iconBase64,
+          volume: 0,
+          muted: false,
+          pinned: true,
+          active: false,
+        });
       }
     }
     return result;
@@ -223,14 +237,21 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  pinApp(processName: string, label: string, pinned: boolean): void {
+  pinApp(processName: string, label: string, pinned: boolean, iconBase64?: string): void {
     if (pinned) {
-      if (!this.config.pinnedMediaApps.some(p => p.processName === processName)) {
-        this.config.pinnedMediaApps.push({ processName, label });
+      const existing = this.config.pinnedMediaApps.find(p => p.processName.toLowerCase() === processName.toLowerCase());
+      if (existing) {
+        existing.label = label;
+        existing.iconBase64 = iconBase64 ?? existing.iconBase64;
+      } else {
+        this.config.pinnedMediaApps.push({ processName, label, iconBase64 });
       }
     } else {
-      this.config.pinnedMediaApps = this.config.pinnedMediaApps.filter(p => p.processName !== processName);
+      this.config.pinnedMediaApps = this.config.pinnedMediaApps.filter(
+        p => p.processName.toLowerCase() !== processName.toLowerCase(),
+      );
     }
     this.persistConfig();
+    this.broadcastFn?.(this.buildMediaState(this.prevSnapshot), platform() as 'win32' | 'darwin');
   }
 }

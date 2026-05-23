@@ -8,6 +8,7 @@ import { AppSearchResult } from '@control-surface/shared';
 type PowerShellAppResult = {
   name?: string;
   exePath?: string;
+  processName?: string;
   source?: AppSearchResult['source'];
 };
 
@@ -88,8 +89,15 @@ foreach ($p in $paths) {
             $out += [PSCustomObject]@{ name = $_.BaseName; exePath = $urlLine.Substring(4); source = 'startmenu' }
           }
         } else {
+          $processName = $null
+          try {
+            $target = [string]$shell.CreateShortcut($_.FullName).TargetPath
+            if ($target -and [System.IO.Path]::GetExtension($target) -ieq '.exe') {
+              $processName = [System.IO.Path]::GetFileName($target)
+            }
+          } catch {}
           # Launch the shortcut itself so launcher-specific arguments are preserved.
-          $out += [PSCustomObject]@{ name = $_.BaseName; exePath = $_.FullName; source = 'startmenu' }
+          $out += [PSCustomObject]@{ name = $_.BaseName; exePath = $_.FullName; processName = $processName; source = 'startmenu' }
         }
       } catch {}
     }
@@ -144,7 +152,7 @@ foreach ($root in $roots) {
       $exe = Get-ExecutablePath ([string]$_.DisplayIcon)
       if (-not $exe) { $exe = Find-ExecutableInDir ([string]$_.InstallLocation) $name }
       if ($exe -and (Test-Path $exe)) {
-        $out += [PSCustomObject]@{ name = $name; exePath = $exe; source = 'windows' }
+        $out += [PSCustomObject]@{ name = $name; exePath = $exe; processName = [System.IO.Path]::GetFileName($exe); source = 'windows' }
       }
     } catch {}
   }
@@ -213,7 +221,7 @@ if ($out.Count -gt 0) { $out | ConvertTo-Json -Compress -Depth 3 } else { 'null'
           manifest.LaunchExecutable ?? '',
         );
         if (!fs.existsSync(exePath)) continue;
-        results.push({ name, exePath, source: 'epic' });
+        results.push({ name, exePath, processName: this.processNameForTarget(exePath), source: 'epic' });
       } catch { /* skip malformed .item */ }
     }
     return results;
@@ -300,10 +308,11 @@ $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
         return typeof item.name === 'string' && typeof item.exePath === 'string';
       })
       .map((item) => ({
-        name: item.name.trim(),
-        exePath: item.exePath.trim(),
-        source: this.toSource(item.source, fallbackSource),
-      }))
+          name: item.name.trim(),
+          exePath: item.exePath.trim(),
+          processName: this.processNameForTarget(item.processName) ?? this.processNameForTarget(item.exePath),
+          source: this.toSource(item.source, fallbackSource),
+        }))
       .filter((item) => item.name.length > 0 && item.exePath.length > 0);
   }
 
@@ -407,7 +416,7 @@ $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
 
         const label = this.labelForExe(fullPath);
         if (!this.matchesQuery(label, query, fullPath)) continue;
-        results.push({ name: label, exePath: fullPath, source: 'filesystem' });
+        results.push({ name: label, exePath: fullPath, processName: this.processNameForTarget(fullPath), source: 'filesystem' });
       }
     }
 
@@ -438,5 +447,12 @@ $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
 
   private formatError(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+  }
+
+  private processNameForTarget(target?: string): string | undefined {
+    const cleanTarget = target?.trim();
+    if (!cleanTarget || this.isProtocolTarget(cleanTarget)) return undefined;
+    const fileName = cleanTarget.split(/[\\/]+/).pop() ?? '';
+    return fileName.toLowerCase().endsWith('.exe') ? fileName : undefined;
   }
 }

@@ -41,7 +41,7 @@ function AppIcon({ session, size }: { session: MediaSession; size: number }) {
 }
 
 export function MediaAppCard({ session, isActive, onTap, onLongPress }: Props) {
-  const isPinnedOffline = session.pinned && session.volume === 0;
+  const isPinnedOffline = session.pinned && session.active === false;
 
   return (
     <TouchableOpacity

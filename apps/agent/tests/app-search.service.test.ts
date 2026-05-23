@@ -77,7 +77,7 @@ describe('AppSearchService', () => {
       mockedFs.existsSync.mockReturnValue(false);
       const results = await service.searchApps('slack');
       expect(results).toEqual([
-        { name: 'Slack', exePath: 'C:\\Apps\\Slack.exe', source: 'startmenu' },
+        { name: 'Slack', exePath: 'C:\\Apps\\Slack.exe', processName: 'Slack.exe', source: 'startmenu' },
       ]);
     });
 
@@ -114,7 +114,7 @@ describe('AppSearchService', () => {
       const results = await service.searchApps('battlefield');
 
       expect(results).toEqual([
-        { name: 'Battlefield™ 6', exePath: 'D:\\Battlefield 6\\bf6.exe', source: 'windows' },
+        { name: 'Battlefield™ 6', exePath: 'D:\\Battlefield 6\\bf6.exe', processName: 'bf6.exe', source: 'windows' },
       ]);
     });
 

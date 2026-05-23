@@ -41,6 +41,7 @@ import {
   PluginInstallStatusMessage,
   PluginConnectionStatusMessage,
   GetPluginCatalogMessage,
+  GetMediaStateMessage,
   InstallPluginMessage,
   UninstallPluginMessage,
   SetPluginConnectionMessage,
@@ -300,15 +301,21 @@ export class WebSocketService {
     this.ws.send(JSON.stringify(msg));
   }
 
-  sendMediaPinApp(processName: string, label: string, pinned: boolean): void {
+  sendMediaPinApp(processName: string, label: string, pinned: boolean, iconBase64?: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    const msg: MediaPinAppMessage = { type: 'MEDIA_PIN_APP', processName, label, pinned };
+    const msg: MediaPinAppMessage = { type: 'MEDIA_PIN_APP', processName, label, iconBase64, pinned };
     this.ws.send(JSON.stringify(msg));
   }
 
   sendSetVolume(processName: string, volume: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const msg: MediaSetVolumeMessage = { type: 'MEDIA_SET_VOLUME', processName, volume };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  requestMediaState(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const msg: GetMediaStateMessage = { type: 'GET_MEDIA_STATE' };
     this.ws.send(JSON.stringify(msg));
   }
 
