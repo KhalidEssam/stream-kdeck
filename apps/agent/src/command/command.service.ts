@@ -10,6 +10,7 @@ import { PackRegistryService } from '../packs/pack-registry.service';
 import { IntegrationRouterService } from '../integrations/integration-router.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { ShellRunnerService } from './shell-runner.service';
+import { ContextRegistryService } from '../context/context-registry.service';
 
 export interface CommandResult {
   success: boolean;
@@ -30,6 +31,7 @@ export class CommandService {
     private readonly integrationRouter: IntegrationRouterService,
     private readonly pluginCatalog: PluginCatalogService,
     private readonly shellRunner: ShellRunnerService,
+    private readonly contextRegistry: ContextRegistryService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
@@ -46,16 +48,23 @@ export class CommandService {
 
           let prompt = action.prompt;
           let outputMode = action.outputMode;
+          let contextSource: string = 'clipboard';
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
             if (tool && tool.kind === 'ai') {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
+              contextSource = tool.source;
             }
           }
 
-          const context = await this.clipboard.read();
+          const contextPayload = await this.contextRegistry.read(contextSource, {
+            toolId: action.toolId ?? '',
+            packId: '',
+          });
+          const context = contextPayload.content || await this.clipboard.read();
+
           const result = await this.aiRouter.call(prompt, context);
           this.licenseService.decrementCredit();
           if (outputMode === 'viewer') {
