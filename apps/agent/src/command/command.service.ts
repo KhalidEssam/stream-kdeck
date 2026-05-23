@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ButtonAction } from '@control-surface/shared';
+import { WebSocket } from 'ws';
 import { shell } from 'electron';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { AiRouterService, AiQuotaError } from '../ai/ai-router.service';
@@ -11,8 +12,8 @@ import { PackRegistryService } from '../packs/pack-registry.service';
 import { IntegrationRouterService } from '../integrations/integration-router.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { ShellRunnerService } from './shell-runner.service';
-import { ContextRegistryService } from '../context/context-registry.service';
 import { RunHistoryService } from '../history/run-history.service';
+import { ContextAssemblerService, ContextAssemblyError } from '../context/context-assembler.service';
 
 export interface CommandResult {
   success: boolean;
@@ -33,13 +34,13 @@ export class CommandService {
     private readonly integrationRouter: IntegrationRouterService,
     private readonly pluginCatalog: PluginCatalogService,
     private readonly shellRunner: ShellRunnerService,
-    private readonly contextRegistry: ContextRegistryService,
     private readonly runHistory: RunHistoryService,
+    private readonly assembler: ContextAssemblerService,
   ) {}
 
-  async execute(action: ButtonAction): Promise<CommandResult> {
+  async execute(action: ButtonAction, client: WebSocket): Promise<CommandResult> {
     const start = Date.now();
-    const result = await this.executeAction(action);
+    const result = await this.executeAction(action, client);
     this.runHistory.push({
       id: randomUUID(),
       timestamp: new Date().toISOString(),
@@ -52,7 +53,7 @@ export class CommandService {
     return result;
   }
 
-  private async executeAction(action: ButtonAction): Promise<CommandResult> {
+  private async executeAction(action: ButtonAction, client: WebSocket): Promise<CommandResult> {
     try {
       switch (action.kind) {
         case 'CLIPBOARD_WRITE':
@@ -66,27 +67,37 @@ export class CommandService {
 
           let prompt = action.prompt;
           let outputMode = action.outputMode;
-          let contextSource: string = 'clipboard';
+          let context: string;
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
             if (tool && tool.kind === 'ai') {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
-              contextSource = tool.source ?? 'clipboard';
+
+              if (tool.contextRequirements?.length) {
+                try {
+                  context = await this.assembler.assemble(
+                    tool.contextRequirements,
+                    client,
+                    tool.packId,
+                    tool.id,
+                  );
+                } catch (err) {
+                  if (err instanceof ContextAssemblyError) {
+                    return { success: false, error: err.message };
+                  }
+                  throw err;
+                }
+              } else {
+                context = await this.clipboard.read();
+              }
+            } else {
+              context = await this.clipboard.read();
             }
+          } else {
+            context = await this.clipboard.read();
           }
-
-          // 'shell' source maps to the active_terminal context provider
-          if (contextSource === 'shell') contextSource = 'active_terminal';
-
-          const contextPayload = await this.contextRegistry.read(contextSource, {
-            toolId: action.toolId ?? '',
-            packId: '',
-          });
-          const context = contextSource === 'clipboard'
-            ? (contextPayload.content || await this.clipboard.read())
-            : contextPayload.content;
 
           const result = await this.aiRouter.call(prompt, context);
           this.licenseService.decrementCredit();
@@ -120,7 +131,7 @@ export class CommandService {
             if (step.delayBefore > 0) {
               await new Promise<void>(resolve => setTimeout(resolve, step.delayBefore));
             }
-            const result = await this.execute(step.action);
+            const result = await this.execute(step.action, client);
             if (!result.success && action.stopOnError) {
               return { success: false, error: `Step "${step.label}" failed: ${result.error}` };
             }
@@ -163,4 +174,3 @@ export class CommandService {
     }
   }
 }
-

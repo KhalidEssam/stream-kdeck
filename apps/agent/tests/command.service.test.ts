@@ -9,9 +9,11 @@ import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { IntegrationRouterService } from '../src/integrations/integration-router.service';
 import { PluginCatalogService } from '../src/integrations/plugin-catalog.service';
 import { ShellRunnerService } from '../src/command/shell-runner.service';
-import { ContextRegistryService } from '../src/context/context-registry.service';
+import { ContextAssemblerService } from '../src/context/context-assembler.service';
 import { RunHistoryService } from '../src/history/run-history.service';
 import { shell } from 'electron';
+
+const client = {} as any;
 
 describe('CommandService', () => {
   let commandService: CommandService;
@@ -52,7 +54,7 @@ describe('CommandService', () => {
         { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
         { provide: PluginCatalogService, useValue: mockPluginCatalog },
         { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
-        { provide: ContextRegistryService, useValue: { read: jest.fn().mockResolvedValue({ content: '' }) } },
+        { provide: ContextAssemblerService, useValue: { assemble: jest.fn().mockResolvedValue('') } },
       ],
     }).compile();
 
@@ -64,7 +66,7 @@ describe('CommandService', () => {
     const result = await commandService.execute({
       kind: 'CLIPBOARD_WRITE',
       text: 'hello world',
-    });
+    }, client);
     expect(result.success).toBe(true);
     expect(await clipboardService.read()).toBe('hello world');
   });
@@ -75,7 +77,7 @@ describe('CommandService', () => {
       kind: 'AI_CLIPBOARD',
       prompt: 'Summarize this',
       outputMode: 'clipboard',
-    });
+    }, client);
     expect(result.success).toBe(true);
     expect(mockAiRouter.call).toHaveBeenCalledWith('Summarize this', 'original text');
     expect(await clipboardService.read()).toBe('AI result text');
@@ -87,7 +89,7 @@ describe('CommandService', () => {
       kind: 'AI_CLIPBOARD',
       prompt: 'Fix grammar',
       outputMode: 'autopaste',
-    });
+    }, client);
     expect(result.success).toBe(true);
     expect(await clipboardService.read()).toBe('AI result text');
   });
@@ -98,53 +100,53 @@ describe('CommandService', () => {
       kind: 'AI_CLIPBOARD',
       prompt: 'Explain this',
       outputMode: 'viewer',
-    });
+    }, client);
     expect(result.success).toBe(true);
     expect(result.output).toBe('AI result text');
     expect(await clipboardService.read()).toBe('my text');
   });
 
   it('executes KEYSTROKE — delegates to KeystrokeService', async () => {
-    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'c'] });
+    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'c'] }, client);
     expect(result.success).toBe(true);
     expect(mockKeystroke.execute).toHaveBeenCalledWith(['ctrl', 'c']);
   });
 
   it('returns error when KeystrokeService throws (unknown key)', async () => {
     mockKeystroke.execute.mockRejectedValueOnce(new Error('Unknown key: "xyz"'));
-    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'xyz'] });
+    const result = await commandService.execute({ kind: 'KEYSTROKE', keys: ['ctrl', 'xyz'] }, client);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Unknown key/);
   });
 
   it('executes APP_LAUNCH — calls appLaunch.launch with appId', async () => {
-    const result = await commandService.execute({ kind: 'APP_LAUNCH', appId: 'spotify' });
+    const result = await commandService.execute({ kind: 'APP_LAUNCH', appId: 'spotify' }, client);
     expect(result.success).toBe(true);
     expect(mockAppLaunch.launch).toHaveBeenCalledWith('spotify');
   });
 
   it('executes URL_OPEN — calls appLaunch.openUrl with url', async () => {
-    const result = await commandService.execute({ kind: 'URL_OPEN', url: 'https://example.com' });
+    const result = await commandService.execute({ kind: 'URL_OPEN', url: 'https://example.com' }, client);
     expect(result.success).toBe(true);
     expect(mockAppLaunch.openUrl).toHaveBeenCalledWith('https://example.com');
   });
 
   it('returns error when APP_LAUNCH throws', async () => {
     mockAppLaunch.launch.mockRejectedValueOnce(new Error('Unknown app: badapp'));
-    const result = await commandService.execute({ kind: 'APP_LAUNCH', appId: 'badapp' });
+    const result = await commandService.execute({ kind: 'APP_LAUNCH', appId: 'badapp' }, client);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Unknown app/);
   });
 
   it('executes EXEC action via shell.openPath', async () => {
-    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Games\\Game.exe' });
+    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Games\\Game.exe' }, client);
     expect(result.success).toBe(true);
     expect(shell.openPath).toHaveBeenCalledWith('C:\\Games\\Game.exe');
   });
 
   it('returns failure when shell.openPath returns error string for EXEC', async () => {
     (shell.openPath as jest.Mock).mockResolvedValue('No such file');
-    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Bad\\game.exe' });
+    const result = await commandService.execute({ kind: 'EXEC', exePath: 'C:\\Bad\\game.exe' }, client);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Failed to launch/);
   });
@@ -155,7 +157,7 @@ describe('CommandService', () => {
       kind: 'AI_CLIPBOARD',
       prompt: 'Summarize this',
       outputMode: 'clipboard',
-    });
+    }, client);
     expect(result.success).toBe(false);
     expect(result.quotaExceeded).toBe(true);
     expect(mockAiRouter.call).not.toHaveBeenCalled();
@@ -168,7 +170,7 @@ describe('CommandService', () => {
       kind: 'AI_CLIPBOARD',
       prompt: 'Fix grammar',
       outputMode: 'clipboard',
-    });
+    }, client);
     expect(result.success).toBe(true);
     expect(mockAiRouter.call).toHaveBeenCalled();
   });
@@ -189,7 +191,7 @@ describe('CommandService', () => {
           { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
           { provide: PluginCatalogService, useValue: mockPluginCatalog },
           { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
-          { provide: ContextRegistryService, useValue: { read: jest.fn().mockResolvedValue({ content: '' }) } },
+          { provide: ContextAssemblerService, useValue: { assemble: jest.fn().mockResolvedValue('') } },
         ],
       }).compile();
       clipboardService = moduleRef.get(ClipboardService);
@@ -205,7 +207,7 @@ describe('CommandService', () => {
         prompt: '',
         outputMode: 'clipboard',
         toolId: 'tool-uuid-1',
-      });
+      }, client);
       expect(result.success).toBe(true);
       expect(mockAiRouter.call).toHaveBeenCalledWith('Registry prompt', 'some text');
       expect(result.output).toBe('AI result text');
@@ -218,7 +220,7 @@ describe('CommandService', () => {
         kind: 'AI_CLIPBOARD',
         prompt: 'Inline prompt',
         outputMode: 'clipboard',
-      });
+      }, client);
       expect(mockAiRouter.call).toHaveBeenCalledWith('Inline prompt', 'some text');
     });
   });
@@ -235,7 +237,7 @@ describe('CommandService', () => {
       toolId: 'tool-scene',
       actionId: 'obs.scene.switch',
       params: { sceneName: 'Gaming' },
-    });
+    }, client);
 
     expect(result.success).toBe(true);
     expect(mockIntegrationRouter.dispatch).toHaveBeenCalledWith(
