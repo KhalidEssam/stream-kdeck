@@ -15,9 +15,19 @@ import { MediaModule } from './media/media.module';
 import { PackRegistryService } from './packs/pack-registry.service';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { ShellRunnerService } from './command/shell-runner.service';
+import { ContextRuntimeModule } from './context/context-runtime.module';
+import { ActiveWindowService } from './active-window/active-window.service';
 
 @Module({
-  imports: [LicenseModule, NetworkModule, ContextModule, MouseModule, MediaModule, IntegrationsModule],
+  imports: [
+    LicenseModule,
+    NetworkModule,
+    ContextModule,
+    MouseModule,
+    MediaModule,
+    IntegrationsModule,
+    ContextRuntimeModule,
+  ],
   providers: [
     WsGateway,
     ClipboardService,
@@ -29,6 +39,7 @@ import { ShellRunnerService } from './command/shell-runner.service';
     AppSearchService,
     PackRegistryService,
     ShellRunnerService,
+    ActiveWindowService,
   ],
 })
 export class AppModule {}
