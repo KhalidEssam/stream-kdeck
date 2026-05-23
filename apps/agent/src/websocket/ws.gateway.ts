@@ -32,6 +32,7 @@ import {
   ConsentScope,
   ContextPermissionResponseMessage,
   ContextPermissionRequestMessage,
+  RunHistoryMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -51,6 +52,7 @@ import { IntegrationStateService } from '../integrations/integration-state.servi
 import { ObsService } from '../integrations/obs/obs.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { PluginInstallService } from '../integrations/plugin-install.service';
+import { RunHistoryService } from '../history/run-history.service';
 
 function actionIncludesIntegration(action: ButtonAction): boolean {
   if (action.kind === 'INTEGRATION_ACTION') return true;
@@ -85,6 +87,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly integrationRouter: IntegrationRouterService,
     private readonly obsService: ObsService,
     private readonly connectorService: ConnectorService,
+    private readonly runHistoryService: RunHistoryService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
@@ -518,6 +521,15 @@ export class WsGateway implements OnGatewayConnection {
           this.pendingConsentRequests.delete(d.requestId);
           resolve(d.granted, d.scope);
         }
+        return;
+      }
+
+      if (data.type === 'GET_RUN_HISTORY') {
+        const msg: RunHistoryMessage = {
+          type: 'RUN_HISTORY',
+          records: this.runHistoryService.getAll(),
+        };
+        client.send(JSON.stringify(msg));
         return;
       }
 

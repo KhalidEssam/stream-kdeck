@@ -17,6 +17,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { ShellRunnerService } from './command/shell-runner.service';
 import { ContextRuntimeModule } from './context/context-runtime.module';
 import { ActiveWindowService } from './active-window/active-window.service';
+import { RunHistoryService } from './history/run-history.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ActiveWindowService } from './active-window/active-window.service';
     PackRegistryService,
     ShellRunnerService,
     ActiveWindowService,
+    RunHistoryService,
   ],
 })
 export class AppModule {}

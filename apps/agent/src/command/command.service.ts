@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ButtonAction } from '@control-surface/shared';
 import { shell } from 'electron';
 import { ClipboardService } from '../clipboard/clipboard.service';
@@ -11,6 +12,7 @@ import { IntegrationRouterService } from '../integrations/integration-router.ser
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { ShellRunnerService } from './shell-runner.service';
 import { ContextRegistryService } from '../context/context-registry.service';
+import { RunHistoryService } from '../history/run-history.service';
 
 export interface CommandResult {
   success: boolean;
@@ -32,9 +34,25 @@ export class CommandService {
     private readonly pluginCatalog: PluginCatalogService,
     private readonly shellRunner: ShellRunnerService,
     private readonly contextRegistry: ContextRegistryService,
+    private readonly runHistory: RunHistoryService,
   ) {}
 
   async execute(action: ButtonAction): Promise<CommandResult> {
+    const start = Date.now();
+    const result = await this.executeAction(action);
+    this.runHistory.push({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      action,
+      success: result.success,
+      output: result.output,
+      error: result.error,
+      durationMs: Date.now() - start,
+    });
+    return result;
+  }
+
+  private async executeAction(action: ButtonAction): Promise<CommandResult> {
     try {
       switch (action.kind) {
         case 'CLIPBOARD_WRITE':
@@ -140,3 +158,4 @@ export class CommandService {
     }
   }
 }
+

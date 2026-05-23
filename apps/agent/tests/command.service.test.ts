@@ -8,6 +8,9 @@ import { LicenseService } from '../src/license/license.service';
 import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { IntegrationRouterService } from '../src/integrations/integration-router.service';
 import { PluginCatalogService } from '../src/integrations/plugin-catalog.service';
+import { ShellRunnerService } from '../src/command/shell-runner.service';
+import { ContextRegistryService } from '../src/context/context-registry.service';
+import { RunHistoryService } from '../src/history/run-history.service';
 import { shell } from 'electron';
 
 describe('CommandService', () => {
@@ -40,6 +43,7 @@ describe('CommandService', () => {
       providers: [
         CommandService,
         ClipboardService,
+        RunHistoryService,
         { provide: AiRouterService,     useValue: mockAiRouter },
         { provide: AppLaunchService,    useValue: mockAppLaunch },
         { provide: KeystrokeService,    useValue: mockKeystroke },
@@ -47,6 +51,8 @@ describe('CommandService', () => {
         { provide: PackRegistryService, useValue: mockPackRegistry },
         { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
         { provide: PluginCatalogService, useValue: mockPluginCatalog },
+        { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
+        { provide: ContextRegistryService, useValue: { read: jest.fn().mockResolvedValue({ content: '' }) } },
       ],
     }).compile();
 
@@ -174,6 +180,7 @@ describe('CommandService', () => {
         providers: [
           CommandService,
           ClipboardService,
+          RunHistoryService,
           { provide: AiRouterService,     useValue: mockAiRouter },
           { provide: AppLaunchService,    useValue: mockAppLaunch },
           { provide: KeystrokeService,    useValue: mockKeystroke },
@@ -181,6 +188,8 @@ describe('CommandService', () => {
           { provide: PackRegistryService, useValue: mockPackRegistry },
           { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
           { provide: PluginCatalogService, useValue: mockPluginCatalog },
+          { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
+          { provide: ContextRegistryService, useValue: { read: jest.fn().mockResolvedValue({ content: '' }) } },
         ],
       }).compile();
       clipboardService = moduleRef.get(ClipboardService);

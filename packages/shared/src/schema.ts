@@ -304,6 +304,25 @@ export interface AiQuotaExceededMessage {
   reason: 'credits_exhausted';
 }
 
+export interface RunRecord {
+  id: string;
+  timestamp: string;
+  action: ButtonAction;
+  success: boolean;
+  output?: string;
+  error?: string;
+  durationMs: number;
+}
+
+export interface GetRunHistoryMessage {
+  type: 'GET_RUN_HISTORY';
+}
+
+export interface RunHistoryMessage {
+  type: 'RUN_HISTORY';
+  records: RunRecord[];
+}
+
 export interface OpenActivationDialogMessage {
   type: 'OPEN_ACTIVATION_DIALOG';
 }
@@ -478,7 +497,8 @@ export type AgentMessage =
   | InstalledPluginsMessage
   | PluginInstallStatusMessage
   | PluginConnectionStatusMessage
-  | IntegrationStateMessage;
+  | IntegrationStateMessage
+  | RunHistoryMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
@@ -509,4 +529,5 @@ export type MobileMessage =
   | UninstallPluginMessage
   | SetPluginConnectionMessage
   | TestPluginConnectionMessage
-  | ContextPermissionResponseMessage;
+  | ContextPermissionResponseMessage
+  | GetRunHistoryMessage;
