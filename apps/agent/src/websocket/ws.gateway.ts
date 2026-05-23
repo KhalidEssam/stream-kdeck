@@ -29,9 +29,7 @@ import {
   PluginConnectionStatusMessage,
   ButtonAction,
   ReorderTilesMessage,
-  ConsentScope,
   ContextPermissionResponseMessage,
-  ContextPermissionRequestMessage,
   RunHistoryMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
@@ -53,6 +51,7 @@ import { ObsService } from '../integrations/obs/obs.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { PluginInstallService } from '../integrations/plugin-install.service';
 import { RunHistoryService } from '../history/run-history.service';
+import { ConsentRequestService } from '../context/consent-request.service';
 
 function actionIncludesIntegration(action: ButtonAction): boolean {
   if (action.kind === 'INTEGRATION_ACTION') return true;
@@ -68,7 +67,6 @@ export class WsGateway implements OnGatewayConnection {
   server!: Server;
 
   private readonly pluginsReady: Promise<void>;
-  private readonly pendingConsentRequests = new Map<string, (granted: boolean, scope?: ConsentScope) => void>();
 
   constructor(
     private readonly commandService: CommandService,
@@ -88,6 +86,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly obsService: ObsService,
     private readonly connectorService: ConnectorService,
     private readonly runHistoryService: RunHistoryService,
+    private readonly consentRequestService: ConsentRequestService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
@@ -516,11 +515,7 @@ export class WsGateway implements OnGatewayConnection {
 
       if (data.type === 'CONTEXT_PERMISSION_RESPONSE') {
         const d = data as ContextPermissionResponseMessage;
-        const resolve = this.pendingConsentRequests.get(d.requestId);
-        if (resolve) {
-          this.pendingConsentRequests.delete(d.requestId);
-          resolve(d.granted, d.scope);
-        }
+        this.consentRequestService.handleResponse(d.requestId, d.granted, d.scope);
         return;
       }
 
@@ -565,38 +560,6 @@ export class WsGateway implements OnGatewayConnection {
       if (data.action.kind === 'AI_CLIPBOARD') {
         this.sendLicenseStatus(client);
       }
-    });
-  }
-
-  async requestConsent(
-    client: WebSocket,
-    packId: string,
-    providerId: string,
-    providerLabel: string,
-    reason: string,
-  ): Promise<{ granted: boolean; scope?: ConsentScope }> {
-    const requestId = Math.random().toString(36).slice(2);
-    const msg: ContextPermissionRequestMessage = {
-      type: 'CONTEXT_PERMISSION_REQUEST',
-      requestId,
-      packId,
-      providerId,
-      providerLabel,
-      reason,
-      scopeOptions: ['once', 'session', 'permanent'],
-    };
-    client.send(JSON.stringify(msg));
-
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.pendingConsentRequests.delete(requestId);
-        resolve({ granted: false });
-      }, 60_000);
-
-      this.pendingConsentRequests.set(requestId, (granted, scope) => {
-        clearTimeout(timer);
-        resolve({ granted, scope });
-      });
     });
   }
 
