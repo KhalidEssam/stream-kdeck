@@ -4,6 +4,7 @@ import { ClipboardProvider } from './providers/clipboard.provider';
 import { ActiveWindowProvider } from './providers/active-window.provider';
 import { ActiveTerminalCwdProvider } from './providers/active-terminal-cwd.provider';
 import { ProjectWorkspaceProvider } from './providers/project-workspace.provider';
+import { GitContextProvider } from './providers/git-context.provider';
 
 @Module({
   providers: [
@@ -12,6 +13,7 @@ import { ProjectWorkspaceProvider } from './providers/project-workspace.provider
     ActiveWindowProvider,
     ActiveTerminalCwdProvider,
     ProjectWorkspaceProvider,
+    GitContextProvider,
   ],
   exports: [ContextRegistryService],
 })
@@ -22,6 +24,7 @@ export class ContextRuntimeModule implements OnModuleInit {
     private readonly activeWindowProvider: ActiveWindowProvider,
     private readonly activeTerminalCwdProvider: ActiveTerminalCwdProvider,
     private readonly projectWorkspaceProvider: ProjectWorkspaceProvider,
+    private readonly gitContextProvider: GitContextProvider,
   ) {}
 
   onModuleInit(): void {
@@ -29,5 +32,6 @@ export class ContextRuntimeModule implements OnModuleInit {
     this.registry.register(this.activeWindowProvider);
     this.registry.register(this.activeTerminalCwdProvider);
     this.registry.register(this.projectWorkspaceProvider);
+    this.registry.register(this.gitContextProvider);
   }
 }
