@@ -1,5 +1,4 @@
 import * as os from 'os';
-import * as path from 'path';
 import { ShellRunnerService } from './shell-runner.service';
 
 describe('ShellRunnerService', () => {
@@ -38,6 +37,8 @@ describe('ShellRunnerService', () => {
     });
     expect(result.success).toBe(true);
     expect(result.cwd).toBe(tmpDir);
+    // Verify exec actually ran in the given cwd, not just that we echoed the field back
+    expect(result.stdout.trim().toLowerCase()).toContain(tmpDir.toLowerCase());
   });
 
   it('includes durationMs in result', async () => {
