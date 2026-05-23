@@ -57,7 +57,17 @@ export class ContextAssemblerService {
         if (result.scope) this.consentStore.grant(packId, req.provider, result.scope);
       }
 
-      const payload = await this.contextRegistry.read(req.provider, { toolId, packId });
+      let payload: Awaited<ReturnType<ContextRegistryService['read']>>;
+      try {
+        payload = await this.contextRegistry.read(req.provider, { toolId, packId });
+      } catch (err) {
+        if (req.required) {
+          throw new ContextAssemblyError(
+            `${label} required but unavailable: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        continue;
+      }
 
       if (!payload.content) {
         if (req.required) {
@@ -68,7 +78,11 @@ export class ContextAssemblerService {
 
       let content = payload.content;
       if (req.maxBytes && Buffer.byteLength(content, 'utf8') > req.maxBytes) {
-        content = content.slice(0, req.maxBytes) + '\n[truncated]';
+        const buf = Buffer.from(content, 'utf8');
+        let end = req.maxBytes;
+        // Walk back to a valid UTF-8 character boundary
+        while (end > 0 && (buf[end] & 0xc0) === 0x80) end--;
+        content = buf.slice(0, end).toString('utf8') + '\n[truncated]';
       }
 
       sections.push(`### ${label}\n${content}`);

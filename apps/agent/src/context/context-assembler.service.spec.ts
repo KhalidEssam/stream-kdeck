@@ -129,4 +129,33 @@ describe('ContextAssemblerService', () => {
     const content = result.replace('### Clipboard\n', '').replace('\n[truncated]', '');
     expect(Buffer.byteLength(content, 'utf8')).toBeLessThanOrEqual(50);
   });
+
+  it('truncates multibyte content to maxBytes by bytes not chars', async () => {
+    // Each Japanese char = 3 bytes in UTF-8
+    const japanese = '日'.repeat(30); // 90 bytes
+    registry.read.mockResolvedValue(makePayload('clipboard', japanese));
+    const result = await service.assemble(
+      [makeReq({ provider: 'clipboard', maxBytes: 20 })],
+      client, 'p', 't',
+    );
+    expect(result).toContain('[truncated]');
+    const raw = result.replace('### Clipboard\n', '').replace('\n[truncated]', '');
+    expect(Buffer.byteLength(raw, 'utf8')).toBeLessThanOrEqual(20);
+  });
+
+  it('throws ContextAssemblyError when required provider throws', async () => {
+    registry.read.mockRejectedValue(new Error('git not found'));
+    await expect(
+      service.assemble([makeReq({ provider: 'git', required: true })], client, 'p', 't'),
+    ).rejects.toThrow(ContextAssemblyError);
+  });
+
+  it('skips optional provider when it throws', async () => {
+    registry.read.mockRejectedValue(new Error('fs error'));
+    const result = await service.assemble(
+      [makeReq({ provider: 'git', required: false })],
+      client, 'p', 't',
+    );
+    expect(result).toBe('');
+  });
 });
