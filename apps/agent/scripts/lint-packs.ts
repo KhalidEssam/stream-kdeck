@@ -18,7 +18,6 @@ export interface RawPackTool {
   label: string;
   prompt: string;
   output_mode: string;
-  source: string;
   icon: string;
   color: string | null;
   order: number;
