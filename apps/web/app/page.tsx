@@ -3,13 +3,14 @@ import { NavbarWrapper } from './components/navbar-wrapper';
 import { Footer } from './components/footer';
 import { LandingClient } from './landing-client';
 import { NoLicenseBanner } from './components/no-license-banner';
+import { getCurrentSession } from '@/lib/auth/session';
 import { getEnv } from '@/lib/env';
 import { getPlanConfigs, PlanConfig } from '@/lib/plans';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const plans    = await getPlanConfigs();
+  const [plans, session] = await Promise.all([getPlanConfigs(), getCurrentSession()]);
   const currency = getEnv('PAYMOB_CURRENCY', 'USD');
   const desktop  = plans.find((p) => p.id === 'desktop_license') ?? plans[0];
   const aiPro    = plans.find((p) => p.id === 'ai_pro_monthly')  ?? desktop;
@@ -26,6 +27,7 @@ export default async function HomePage() {
           currency={currency}
           desktop={desktop}
           aiPro={aiPro}
+          currentUserEmail={session?.user.email ?? null}
         />
         <Footer />
       </div>

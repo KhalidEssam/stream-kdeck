@@ -62,27 +62,21 @@ export function ResendKeyButton() {
 
 export function StartCheckoutButton({
   plan,
-  email,
   label,
 }: {
   plan: 'ai_pro_monthly' | 'ai_pro_yearly';
-  email: string | null;
   label: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function startCheckout() {
-    if (!email) {
-      setError('Your account email is missing.');
-      return;
-    }
     setLoading(true);
     setError(null);
     const response = await fetch('/api/paymob/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email }),
+      body: JSON.stringify({ plan }),
     });
     const data = (await response.json()) as { checkoutUrl?: string; error?: string };
     if (!response.ok || !data.checkoutUrl) {

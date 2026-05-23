@@ -13,24 +13,36 @@ interface ProvisionInput {
   paymobSubscriptionId?: string | null;
 }
 
+interface UserLicenseSummary {
+  paymobOrderId: string | null;
+  planId: PlanId;
+}
+
 export async function getUserLicenseByEmail(
   email: string,
-): Promise<{ paymobOrderId: string; planId: PlanId } | null> {
+): Promise<UserLicenseSummary | null> {
   const user = await findAuthUserByEmail(email);
   if (!user) return null;
 
+  return getUserLicenseByUserId(user.id);
+}
+
+export async function getUserLicenseByUserId(
+  userId: string,
+): Promise<UserLicenseSummary | null> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from('licenses')
     .select('paymob_order_id, plan_id')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
+    .neq('status', 'revoked')
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (!data || typeof data.paymob_order_id !== 'string') return null;
+  if (!data) return null;
   return {
-    paymobOrderId: data.paymob_order_id,
+    paymobOrderId: typeof data.paymob_order_id === 'string' ? data.paymob_order_id : null,
     planId: (data.plan_id ?? 'desktop_license') as PlanId,
   };
 }
@@ -78,6 +90,7 @@ export async function provisionPaidOrder(input: ProvisionInput): Promise<{ statu
     .from('licenses')
     .select('paymob_order_id, plan_id')
     .eq('user_id', userId)
+    .neq('status', 'revoked')
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();

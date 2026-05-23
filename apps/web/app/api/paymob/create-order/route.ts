@@ -1,22 +1,24 @@
 import { NextRequest } from 'next/server';
+import { ApiAuthError, apiAuthErrorResponse, requireApiSession } from '@/lib/auth/guards';
 import { createPaymobCheckoutSession } from '@/lib/paymob';
 import { isPlanId, getPlanConfig } from '@/lib/plans';
 import { checkExistingSubscriptionForCheckout } from '@/lib/subscriptions';
-import { getUserLicenseByEmail } from '@/lib/licenses';
+import { getUserLicenseByUserId } from '@/lib/licenses';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { plan?: unknown; email?: unknown };
+    const session = await requireApiSession();
+    const body = (await request.json()) as { plan?: unknown };
     if (!isPlanId(body.plan)) {
       return Response.json({ error: 'INVALID_PLAN' }, { status: 400 });
     }
 
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const email = session.user.email?.trim().toLowerCase() ?? '';
     if (!isValidEmail(email)) {
-      return Response.json({ error: 'INVALID_EMAIL' }, { status: 400 });
+      return Response.json({ error: 'ACCOUNT_EMAIL_REQUIRED' }, { status: 400 });
     }
 
     const existingSubscription = await checkExistingSubscriptionForCheckout({
@@ -36,15 +38,26 @@ export async function POST(request: NextRequest) {
     }
 
     const planConfig = await getPlanConfig(body.plan);
+    const existingLicense = await getUserLicenseByUserId(session.user.sub);
+    if (!planConfig.includesAiPro && existingLicense) {
+      return Response.json(
+        { error: 'This account already has a desktop license.' },
+        { status: 409 },
+      );
+    }
+
     let bundleDesktopLicense = true;
     if (planConfig.includesAiPro) {
-      const existingLicense = await getUserLicenseByEmail(email);
       bundleDesktopLicense = existingLicense === null;
     }
 
-    const session = await createPaymobCheckoutSession({ plan: body.plan, email, bundleDesktopLicense });
-    return Response.json(session);
+    const checkoutSession = await createPaymobCheckoutSession({ plan: body.plan, email, bundleDesktopLicense });
+    return Response.json(checkoutSession);
   } catch (err) {
+    if (err instanceof ApiAuthError) {
+      return apiAuthErrorResponse(err);
+    }
+
     console.error('[web] Paymob create-order failed', err);
     return Response.json(
       { error: err instanceof Error ? err.message : 'CREATE_ORDER_FAILED' },

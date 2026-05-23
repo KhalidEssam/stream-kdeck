@@ -467,6 +467,38 @@ a {
   margin-top: 0;
 }
 
+.cv2-auth-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.cv2-auth-copy {
+  margin-top: 0;
+}
+
+.cv2-account-note {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #0f101a;
+}
+
+.cv2-account-note span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cv2-account-note strong {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
 .field {
   display: grid;
   gap: 8px;

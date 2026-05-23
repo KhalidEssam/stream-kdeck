@@ -20,7 +20,6 @@ export default async function UpgradePage() {
           <p className="fine-print">{plan.monthlyAiCredits} AI credits every month.</p>
           <StartCheckoutButton
             plan={plan.id as 'ai_pro_monthly' | 'ai_pro_yearly'}
-            email={session.user.email}
             label="Upgrade with Paymob"
           />
         </article>

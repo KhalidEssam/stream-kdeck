@@ -9,6 +9,7 @@ interface LandingClientProps {
   currency: string;
   desktop:  PlanConfig;
   aiPro:    PlanConfig;
+  currentUserEmail?: string | null;
 }
 
 const FEATURES = [
@@ -85,7 +86,7 @@ const STEPS = [
   { num: '03', title: 'Connect & go',     body: 'Open the mobile app, pair with your desktop, and start building your deck.' },
 ];
 
-export function LandingClient({ plans, desktop, aiPro }: LandingClientProps) {
+export function LandingClient({ plans, desktop, aiPro, currentUserEmail }: LandingClientProps) {
   const shouldReduceMotion = useReducedMotion();
 
   const fadeUp = (delay = 0) => ({
@@ -158,7 +159,7 @@ export function LandingClient({ plans, desktop, aiPro }: LandingClientProps) {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const, delay: 0.1 }}
             >
-              <PurchasePanel plans={plans} />
+              <PurchasePanel plans={plans} currentUserEmail={currentUserEmail} />
             </motion.div>
           </div>
         </div>
@@ -228,7 +229,7 @@ export function LandingClient({ plans, desktop, aiPro }: LandingClientProps) {
           </motion.div>
 
           <motion.div className="landing-pricing-wrap" {...fadeUp(0.1)}>
-            <PurchasePanel plans={plans} />
+            <PurchasePanel plans={plans} currentUserEmail={currentUserEmail} />
           </motion.div>
         </div>
       </section>
