@@ -104,6 +104,14 @@ describe('ContextAssemblerService', () => {
     expect(consentStore.grant).toHaveBeenCalledWith('pack-1', 'clipboard', 'session');
   });
 
+  it('does not call grant when consent approved without scope', async () => {
+    consentStore.isGranted.mockReturnValue(false);
+    consentRequest.request.mockResolvedValue({ granted: true });
+    registry.read.mockResolvedValue(makePayload('clipboard', 'hello'));
+    await service.assemble([makeReq({ provider: 'clipboard' })], client, 'pack-1', 't');
+    expect(consentStore.grant).not.toHaveBeenCalled();
+  });
+
   it('does not call consentRequest when already granted', async () => {
     consentStore.isGranted.mockReturnValue(true);
     registry.read.mockResolvedValue(makePayload('clipboard', 'hello'));
