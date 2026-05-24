@@ -18,10 +18,11 @@ export interface PeekFabHandle {
 interface Props {
   onPress: () => void;
   showBadge: boolean;
+  tourRef?: React.RefObject<View>;
 }
 
 export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
-  { onPress, showBadge },
+  { onPress, showBadge, tourRef },
   ref,
 ) {
   const rightOffset = useRef(new Animated.Value(REST_RIGHT)).current;
@@ -122,6 +123,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
 
   return (
     <Animated.View
+      ref={tourRef as any}
       style={[
         styles.fab,
         { right: rightOffset, transform: [{ rotate: rotation }] },
