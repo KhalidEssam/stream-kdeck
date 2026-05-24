@@ -62,7 +62,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const fingerCountRef = useRef(0);
   // tracks whether a two-finger scroll actually fired, to suppress right-click on lift
   const twoFingerScrolledRef = useRef(false);
-  // double-tap-drag state
+  // double-tap-drag refs
   const lastTapTimeRef = useRef<number | null>(null);
   const isDoubleTapHeldRef = useRef(false);
   const isDoubleClickDraggingRef = useRef(false);
