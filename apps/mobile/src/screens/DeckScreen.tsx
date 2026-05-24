@@ -30,6 +30,7 @@ import {
   Pack,
   PackRegistryMessage,
   MediaSession,
+  ConsentScope,
 } from '../types/schema';
 import { supabase } from '../lib/supabase';
 import { ContextStrip } from '../components/ContextStrip';
@@ -50,6 +51,7 @@ import { PluginConnectionScreen } from './PluginConnectionScreen';
 import { normalizeTileLayoutPresetId } from '../components/tileLayout';
 import type { TileLayoutPresetId } from '../components/tileLayout';
 import { TileIconPickerSheet } from '../components/TileIconPickerSheet';
+import { GuidedTour, GuidedTourRefs } from '../components/GuidedTour';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -217,6 +219,14 @@ export function DeckScreen() {
   const [rearrangeMode, setRearrangeMode] = useState(false);
   const [pendingVisibleOrder, setPendingVisibleOrder] = useState<TileConfig[]>([]);
   const doneBarAnim = useRef(new Animated.Value(0)).current;
+
+  const tileGridRef = useRef<View>(null);
+  const tabBarRef = useRef<View>(null);
+  const fabRef = useRef<View>(null);
+  const settingsRef = useRef<View>(null);
+  const pluginsRef = useRef<View>(null);
+  const contextStripRef = useRef<View>(null);
+  const [showTour, setShowTour] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -407,6 +417,9 @@ export function DeckScreen() {
       AsyncStorage.getItem('onboarded').then((val) => {
         if (!val && msg.packs.length > 0) setShowOnboarding(true);
       });
+      AsyncStorage.getItem('kdeck.tourSeen').then((val) => {
+        if (!val) setShowTour(true);
+      });
     });
     const unsubscribeMedia = ws.onMediaState((msg) => {
       setMediaSessions(msg.sessions);
@@ -415,6 +428,29 @@ export function DeckScreen() {
     const unsubscribeInstalledPlugins = ws.onInstalledPlugins((ids) => setInstalledPluginIds(ids));
     const unsubscribeIntegrationState = ws.onIntegrationState((msg) => {
       setIntegrationStates((prev) => new Map(prev).set(msg.pluginId, msg.states));
+    });
+    const unsubscribeConsent = ws.onConsentRequest((msg) => {
+      Alert.alert(
+        `${msg.providerLabel} Access`,
+        msg.reason,
+        [
+          {
+            text: 'Deny',
+            style: 'destructive',
+            onPress: () => ws.sendConsentResponse(msg.requestId, false),
+          },
+          {
+            text: 'Allow Once',
+            onPress: () => ws.sendConsentResponse(msg.requestId, true, 'once' as ConsentScope),
+          },
+          {
+            text: 'Always Allow',
+            style: 'default',
+            onPress: () => ws.sendConsentResponse(msg.requestId, true, 'permanent' as ConsentScope),
+          },
+        ],
+        { cancelable: false },
+      );
     });
 
     return () => {
@@ -426,6 +462,7 @@ export function DeckScreen() {
       unsubscribeMedia();
       unsubscribeInstalledPlugins();
       unsubscribeIntegrationState();
+      unsubscribeConsent();
       setContextMsg(null);
       setAiPro(false);
       setInstalledPluginIds([]);
@@ -631,6 +668,11 @@ export function DeckScreen() {
     setShowOnboarding(false);
   };
 
+  const handleTourDismiss = () => {
+    void AsyncStorage.setItem('kdeck.tourSeen', 'true');
+    setShowTour(false);
+  };
+
   const statusColor =
     status === 'connected' ? '#44FF88' : status === 'connecting' ? '#FFB800' : '#FF4444';
   const statusLabel = { connecting: 'Connecting…', connected: 'Connected', disconnected: 'Disconnected' }[status];
@@ -801,7 +843,7 @@ export function DeckScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>KDeck</Text>
         {status === 'connected' && (
-          <TouchableOpacity onPress={() => setShowPluginLibrary(true)} style={styles.pluginsBtn} activeOpacity={0.75}>
+          <TouchableOpacity ref={pluginsRef} onPress={() => setShowPluginLibrary(true)} style={styles.pluginsBtn} activeOpacity={0.75}>
             <Text style={styles.pluginsBtnText}>Plugins</Text>
           </TouchableOpacity>
         )}
@@ -811,7 +853,7 @@ export function DeckScreen() {
           </TouchableOpacity>
         )}
         {wsService && !rearrangeMode && (
-          <TouchableOpacity onPress={() => setShowSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
+          <TouchableOpacity ref={settingsRef} onPress={() => setShowSettings(true)} style={{ paddingHorizontal: 8 }} activeOpacity={0.7}>
             <Text style={{ color: '#6B6B8A', fontSize: 18 }}>⚙</Text>
           </TouchableOpacity>
         )}
@@ -847,7 +889,7 @@ export function DeckScreen() {
         </View>
       )}
 
-      <View style={styles.tabBar}>
+      <View ref={tabBarRef} style={styles.tabBar}>
         {DECK_TABS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -894,7 +936,7 @@ export function DeckScreen() {
           ))}
         </View>
       ) : (
-        <View style={styles.tileGridContainer}>
+        <View ref={tileGridRef} style={styles.tileGridContainer}>
           <TileGrid
             tiles={rearrangeMode ? pendingVisibleOrder : visibleTiles}
             loadingId={rearrangeMode ? null : loadingId}
@@ -945,6 +987,7 @@ export function DeckScreen() {
       {!rearrangeMode && (
         <PeekFab
           ref={peekFabRef}
+          tourRef={fabRef}
           onPress={() => handleOpenAddTile()}
           showBadge={!!packRegistry?.length}
         />
@@ -1174,13 +1217,28 @@ export function DeckScreen() {
         )}
       </Modal>
 
-      <ContextStrip
-        msg={contextMsg}
-        globalTiles={globalShortcutTiles}
-        onTapShortcut={handleContextShortcutTap}
-        onTapGlobalTile={handleTap}
-        onAddShortcut={handleAddContextShortcut}
-        onAddGlobal={() => handleOpenAddTile()}
+      <View ref={contextStripRef} pointerEvents="box-none">
+        <ContextStrip
+          msg={contextMsg}
+          globalTiles={globalShortcutTiles}
+          onTapShortcut={handleContextShortcutTap}
+          onTapGlobalTile={handleTap}
+          onAddShortcut={handleAddContextShortcut}
+          onAddGlobal={() => handleOpenAddTile()}
+        />
+      </View>
+
+      <GuidedTour
+        visible={showTour}
+        onDismiss={handleTourDismiss}
+        refs={{
+          tileGrid: tileGridRef,
+          tabBar: tabBarRef,
+          fab: fabRef,
+          settings: settingsRef,
+          plugins: pluginsRef,
+          contextStrip: contextStripRef,
+        }}
       />
 
       <Modal visible={showOnboarding} animationType="slide">

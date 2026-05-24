@@ -18,12 +18,12 @@ import {
 } from './GuidedTour.helpers';
 
 export interface GuidedTourRefs {
-  tileGrid: React.RefObject<View>;
-  tabBar: React.RefObject<View>;
-  fab: React.RefObject<View>;
-  settings: React.RefObject<View>;
-  plugins: React.RefObject<View>;
-  contextStrip: React.RefObject<View>;
+  tileGrid: React.RefObject<View | null>;
+  tabBar: React.RefObject<View | null>;
+  fab: React.RefObject<View | null>;
+  settings: React.RefObject<View | null>;
+  plugins: React.RefObject<View | null>;
+  contextStrip: React.RefObject<View | null>;
 }
 
 interface GuidedTourProps {

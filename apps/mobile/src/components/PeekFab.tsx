@@ -18,7 +18,7 @@ export interface PeekFabHandle {
 interface Props {
   onPress: () => void;
   showBadge: boolean;
-  tourRef?: React.RefObject<View>;
+  tourRef?: React.RefObject<View | null>;
 }
 
 export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
