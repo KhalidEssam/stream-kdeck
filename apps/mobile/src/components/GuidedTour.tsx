@@ -184,15 +184,14 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
                 Step {currentStep + 1} of {TOUR_STEPS.length}
               </Text>
               <View style={styles.navButtons}>
-                {currentStep > 0 && (
-                  <TouchableOpacity
-                    style={styles.backBtn}
-                    onPress={handleBack}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={styles.backBtnText}>← Back</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={[styles.backBtn, currentStep === 0 && styles.backBtnDisabled]}
+                  onPress={handleBack}
+                  activeOpacity={0.75}
+                  disabled={currentStep === 0}
+                >
+                  <Text style={styles.backBtnText}>← Back</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.nextBtn}
                   onPress={handleNext}
@@ -264,6 +263,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  backBtnDisabled: {
+    opacity: 0.3,
   },
   backBtnText: {
     color: '#9898B0',
