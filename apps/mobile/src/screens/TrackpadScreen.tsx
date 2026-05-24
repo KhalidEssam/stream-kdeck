@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   PanResponder,
+  Animated,
   TouchableOpacity,
   TextInput,
   StatusBar,
@@ -25,6 +26,7 @@ const SENSITIVITY_DEFAULT = 2.0;
 const THROTTLE_MS = 16;
 const TAP_MOVEMENT_THRESHOLD = 5;
 const LONG_PRESS_DELAY_MS = 500;
+const DOUBLE_TAP_WINDOW_MS = 300;
 
 interface Props {
   ws: WebSocketService;
@@ -38,6 +40,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   wsRef.current = ws;
 
   const [sensitivity, setSensitivity] = useState(SENSITIVITY_DEFAULT);
+  const [isDraggingSelection, setIsDraggingSelection] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
   // Fix 3: controlled input value
   const [keyboardText, setKeyboardText] = useState(KEYBOARD_SENTINEL);
@@ -59,6 +62,11 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   const fingerCountRef = useRef(0);
   // tracks whether a two-finger scroll actually fired, to suppress right-click on lift
   const twoFingerScrolledRef = useRef(false);
+  // double-tap-drag state
+  const lastTapTimeRef = useRef<number | null>(null);
+  const isDoubleTapHeldRef = useRef(false);
+  const isDoubleClickDraggingRef = useRef(false);
+  const selectionOverlayAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     AsyncStorage.getItem(SENSITIVITY_KEY)
