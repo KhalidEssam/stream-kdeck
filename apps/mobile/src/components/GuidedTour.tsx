@@ -97,18 +97,20 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
     setMeasureFailed(false);
     const targetRef = refs[TOUR_STEPS[currentStep].targetKey];
     let attempts = 0;
+    let isCancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const tryMeasure = () => {
       attempts += 1;
       if (!targetRef.current) {
         if (attempts < 4) {
           timer = setTimeout(tryMeasure, 100);
-        } else {
+        } else if (!isCancelled) {
           setMeasureFailed(true);
         }
         return;
       }
       targetRef.current.measure((_x, _y, width, height, pageX, pageY) => {
+        if (isCancelled) return;
         if (width === 0 && height === 0) {
           if (attempts < 4) {
             timer = setTimeout(tryMeasure, 100);
@@ -121,7 +123,7 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
       });
     };
     timer = setTimeout(tryMeasure, 50);
-    return () => clearTimeout(timer);
+    return () => { isCancelled = true; clearTimeout(timer); };
   }, [visible, currentStep, refs]);
 
   // Fade in when spotlight rect is ready or measurement failed (fallback tooltip)
@@ -145,7 +147,6 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const handleNext = () => {
     if (currentStep < TOUR_STEPS.length - 1) {
       fadeAnim.setValue(0);
-      setMeasureFailed(false);
       setCurrentStep((s) => s + 1);
     } else {
       onDismiss();
@@ -155,7 +156,6 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const handleBack = () => {
     if (currentStep > 0) {
       fadeAnim.setValue(0);
-      setMeasureFailed(false);
       setCurrentStep((s) => s - 1);
     }
   };
