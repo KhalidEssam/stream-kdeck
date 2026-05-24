@@ -237,11 +237,37 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           return;
         }
 
+        // Active double-click-drag released → send mouse up, clear overlay
+        if (isDoubleClickDraggingRef.current) {
+          wsRef.current.clickMouse('left', 'up');
+          isDoubleClickDraggingRef.current = false;
+          setIsDraggingSelection(false);
+          Animated.timing(selectionOverlayAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }).start();
+          lastPosRef.current = null;
+          totalMovementRef.current = 0;
+          return;
+        }
+
+        // Second tap held but finger lifted without dragging → completes double-click
+        if (isDoubleTapHeldRef.current) {
+          isDoubleTapHeldRef.current = false;
+          wsRef.current.clickMouse('left', 'click');
+          lastTapTimeRef.current = Date.now();
+          lastPosRef.current = null;
+          totalMovementRef.current = 0;
+          return;
+        }
+
         if (isDraggingRef.current) {
           wsRef.current.clickMouse('left', 'up');
           isDraggingRef.current = false;
         } else if (totalMovementRef.current < TAP_MOVEMENT_THRESHOLD && changed.length === 1) {
           wsRef.current.clickMouse('left', 'click');
+          lastTapTimeRef.current = Date.now();
         }
 
         lastPosRef.current = null;
