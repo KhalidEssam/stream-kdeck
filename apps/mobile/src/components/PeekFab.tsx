@@ -123,7 +123,7 @@ export const PeekFab = forwardRef<PeekFabHandle, Props>(function PeekFab(
 
   return (
     <Animated.View
-      ref={tourRef as any}
+      ref={tourRef as any} // Animated.View ref type diverges from View; cast is safe for .measure()
       style={[
         styles.fab,
         { right: rightOffset, transform: [{ rotate: rotation }] },
