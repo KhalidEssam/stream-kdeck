@@ -40,7 +40,6 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
   wsRef.current = ws;
 
   const [sensitivity, setSensitivity] = useState(SENSITIVITY_DEFAULT);
-  const [isDraggingSelection, setIsDraggingSelection] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
   // Fix 3: controlled input value
   const [keyboardText, setKeyboardText] = useState(KEYBOARD_SENTINEL);
@@ -194,7 +193,6 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
               isDoubleTapHeldRef.current = false;
               isDoubleClickDraggingRef.current = true;
               wsRef.current.clickMouse('left', 'down');
-              setIsDraggingSelection(true);
               Animated.timing(selectionOverlayAnim, {
                 toValue: 1,
                 duration: 150,
@@ -242,7 +240,6 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           wsRef.current.clickMouse('left', 'up');
           isDoubleClickDraggingRef.current = false;
           isDraggingRef.current = false;
-          setIsDraggingSelection(false);
           Animated.timing(selectionOverlayAnim, {
             toValue: 0,
             duration: 150,
@@ -285,7 +282,6 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           wsRef.current.clickMouse('left', 'up');
           isDoubleClickDraggingRef.current = false;
           isDraggingRef.current = false;
-          setIsDraggingSelection(false);
           Animated.timing(selectionOverlayAnim, {
             toValue: 0,
             duration: 150,
