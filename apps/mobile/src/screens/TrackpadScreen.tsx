@@ -241,6 +241,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         if (isDoubleClickDraggingRef.current) {
           wsRef.current.clickMouse('left', 'up');
           isDoubleClickDraggingRef.current = false;
+          isDraggingRef.current = false;
           setIsDraggingSelection(false);
           Animated.timing(selectionOverlayAnim, {
             toValue: 0,
@@ -270,6 +271,7 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
           lastTapTimeRef.current = Date.now();
         }
 
+        isDoubleTapHeldRef.current = false;
         lastPosRef.current = null;
         totalMovementRef.current = 0;
       },
