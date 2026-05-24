@@ -190,6 +190,17 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
 
           if (totalMovementRef.current > TAP_MOVEMENT_THRESHOLD) {
             cancelLongPressRef.current();
+            if (isDoubleTapHeldRef.current) {
+              isDoubleTapHeldRef.current = false;
+              isDoubleClickDraggingRef.current = true;
+              wsRef.current.clickMouse('left', 'down');
+              setIsDraggingSelection(true);
+              Animated.timing(selectionOverlayAnim, {
+                toValue: 1,
+                duration: 150,
+                useNativeDriver: true,
+              }).start();
+            }
           }
 
           if (now - lastSentRef.current >= THROTTLE_MS) {
