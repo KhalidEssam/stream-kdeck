@@ -83,28 +83,50 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
+  const [measureFailed, setMeasureFailed] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const step = TOUR_STEPS[currentStep];
 
-  // Measure the target element whenever the step changes or the tour becomes visible
+  // Measure the target element whenever the step changes or the tour becomes visible.
+  // Retries up to 4 times (100 ms apart) to handle conditionally-rendered elements;
+  // falls back to a measureFailed state so the tooltip still renders.
   useEffect(() => {
     if (!visible) return;
     setSpotlightRect(null);
+    setMeasureFailed(false);
     const targetRef = refs[TOUR_STEPS[currentStep].targetKey];
-    // Small delay lets layout settle before measuring
-    const timer = setTimeout(() => {
-      targetRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        if (width === 0 && height === 0) return; // layout not ready yet
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryMeasure = () => {
+      attempts += 1;
+      if (!targetRef.current) {
+        if (attempts < 4) {
+          timer = setTimeout(tryMeasure, 100);
+        } else {
+          setMeasureFailed(true);
+        }
+        return;
+      }
+      targetRef.current.measure((_x, _y, width, height, pageX, pageY) => {
+        if (width === 0 && height === 0) {
+          if (attempts < 4) {
+            timer = setTimeout(tryMeasure, 100);
+          } else {
+            setMeasureFailed(true);
+          }
+          return;
+        }
         setSpotlightRect({ x: pageX, y: pageY, width, height });
       });
-    }, 50);
+    };
+    timer = setTimeout(tryMeasure, 50);
     return () => clearTimeout(timer);
   }, [visible, currentStep, refs]);
 
-  // Fade in when spotlight rect is ready
+  // Fade in when spotlight rect is ready or measurement failed (fallback tooltip)
   useEffect(() => {
-    if (spotlightRect) {
+    if (spotlightRect || measureFailed) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 150,
@@ -113,7 +135,7 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
     } else {
       fadeAnim.setValue(0);
     }
-  }, [spotlightRect, fadeAnim]);
+  }, [spotlightRect, measureFailed, fadeAnim]);
 
   // Reset to step 0 when tour re-opens
   useEffect(() => {
@@ -123,6 +145,7 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const handleNext = () => {
     if (currentStep < TOUR_STEPS.length - 1) {
       fadeAnim.setValue(0);
+      setMeasureFailed(false);
       setCurrentStep((s) => s + 1);
     } else {
       onDismiss();
@@ -132,6 +155,7 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const handleBack = () => {
     if (currentStep > 0) {
       fadeAnim.setValue(0);
+      setMeasureFailed(false);
       setCurrentStep((s) => s - 1);
     }
   };
@@ -146,6 +170,11 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
       screenHeight,
     );
   }
+
+  // When measurement fails fall back to a fixed centered position so the user
+  // can still read the step and navigate with Back / Next.
+  const effectiveTooltipStyle: TooltipStyle | null =
+    tooltipStyle ?? (measureFailed ? { top: 300, left: 16, right: 16 } : null);
 
   const isLastStep = currentStep === TOUR_STEPS.length - 1;
 
@@ -170,10 +199,10 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
           <Text style={styles.skipBtnText}>Skip tour</Text>
         </TouchableOpacity>
 
-        {/* Tooltip card — fades in after measurement */}
-        {tooltipStyle && (
+        {/* Tooltip card — fades in after measurement (or fallback on failure) */}
+        {effectiveTooltipStyle && (
           <Animated.View
-            style={[styles.tooltip, tooltipStyle, { opacity: fadeAnim }]}
+            style={[styles.tooltip, effectiveTooltipStyle, { opacity: fadeAnim }]}
             pointerEvents="box-none"
           >
             <Text style={styles.tooltipTitle}>{step.title}</Text>

@@ -227,6 +227,14 @@ export function DeckScreen() {
   const pluginsRef = useRef<View>(null);
   const contextStripRef = useRef<View>(null);
   const [showTour, setShowTour] = useState(false);
+  const guidedTourRefs = useMemo(() => ({
+    tileGrid: tileGridRef,
+    tabBar: tabBarRef,
+    fab: fabRef,
+    settings: settingsRef,
+    plugins: pluginsRef,
+    contextStrip: contextStripRef,
+  }), []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1231,14 +1239,7 @@ export function DeckScreen() {
       <GuidedTour
         visible={showTour}
         onDismiss={handleTourDismiss}
-        refs={{
-          tileGrid: tileGridRef,
-          tabBar: tabBarRef,
-          fab: fabRef,
-          settings: settingsRef,
-          plugins: pluginsRef,
-          contextStrip: contextStripRef,
-        }}
+        refs={guidedTourRefs}
       />
 
       <Modal visible={showOnboarding} animationType="slide">
