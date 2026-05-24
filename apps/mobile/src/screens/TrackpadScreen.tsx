@@ -137,13 +137,19 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         if (touches.length === 1) {
           lastPosRef.current = { x: touches[0].pageX, y: touches[0].pageY };
 
-          longPressTimerRef.current = setTimeout(() => {
-            if (totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
-              isDraggingRef.current = true;
-              wsRef.current.clickMouse('left', 'down');
-            }
-            longPressTimerRef.current = null;
-          }, LONG_PRESS_DELAY_MS);
+          const now = Date.now();
+          if (lastTapTimeRef.current !== null && now - lastTapTimeRef.current <= DOUBLE_TAP_WINDOW_MS) {
+            // Second tap within double-tap window — enter held state, skip long-press timer
+            isDoubleTapHeldRef.current = true;
+          } else {
+            longPressTimerRef.current = setTimeout(() => {
+              if (totalMovementRef.current < TAP_MOVEMENT_THRESHOLD) {
+                isDraggingRef.current = true;
+                wsRef.current.clickMouse('left', 'down');
+              }
+              longPressTimerRef.current = null;
+            }, LONG_PRESS_DELAY_MS);
+          }
         }
       },
 
