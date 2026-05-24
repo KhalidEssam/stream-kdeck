@@ -38,9 +38,12 @@ export function buildSpotlightPath(
   return `${outer} ${hole}`;
 }
 
-export type TooltipStyle =
-  | { top: number; left: number; right: number }
-  | { bottom: number; left: number; right: number };
+export interface TooltipStyle {
+  top?: number;
+  bottom?: number;
+  left: number;
+  right: number;
+}
 
 /**
  * Returns absolute positioning style for the tooltip card.
