@@ -450,6 +450,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F0F18',
     margin: 12,
     borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#1E1E2E',
   },
