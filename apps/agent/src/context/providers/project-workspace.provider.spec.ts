@@ -7,6 +7,8 @@ function makeShellRunner(cwd: string) {
   return { getActiveCwd: jest.fn().mockReturnValue(cwd) };
 }
 
+const NULL_ACTIVE_WINDOW = { current: null, currentTitle: null } as never;
+
 function makeTempProject(files: Record<string, string>): string {
   const root = path.join(os.tmpdir(), `kdeck-ws-test-${Date.now()}`);
   fs.mkdirSync(root, { recursive: true });
@@ -22,12 +24,12 @@ const STUB_REQUEST = { providerId: 'project_files', toolId: 't1', packId: 'p1' }
 
 describe('ProjectWorkspaceProvider', () => {
   it('id is "project_files"', () => {
-    const p = new ProjectWorkspaceProvider(makeShellRunner('/') as never);
+    const p = new ProjectWorkspaceProvider(makeShellRunner('/') as never, NULL_ACTIVE_WINDOW);
     expect(p.id).toBe('project_files');
   });
 
   it('probe shape is always a boolean', async () => {
-    const p = new ProjectWorkspaceProvider(makeShellRunner(os.tmpdir()) as never);
+    const p = new ProjectWorkspaceProvider(makeShellRunner(os.tmpdir()) as never, NULL_ACTIVE_WINDOW);
     const probe = await p.probe(STUB_REQUEST);
     expect(typeof probe.available).toBe('boolean');
   });
@@ -40,7 +42,7 @@ describe('ProjectWorkspaceProvider', () => {
     });
     const sub = path.join(root, 'src');
     fs.mkdirSync(sub);
-    const p = new ProjectWorkspaceProvider(makeShellRunner(sub) as never);
+    const p = new ProjectWorkspaceProvider(makeShellRunner(sub) as never, NULL_ACTIVE_WINDOW);
     const payload = await p.read(STUB_REQUEST);
     expect(payload.content).toContain('My Project');
     expect(payload.content).toContain('my-project');
@@ -53,7 +55,7 @@ describe('ProjectWorkspaceProvider', () => {
       '.git/HEAD': '',
       'package.json': JSON.stringify({ name: 'headless-project' }),
     });
-    const p = new ProjectWorkspaceProvider(makeShellRunner(root) as never);
+    const p = new ProjectWorkspaceProvider(makeShellRunner(root) as never, NULL_ACTIVE_WINDOW);
     const payload = await p.read(STUB_REQUEST);
     expect(payload.content).toContain('headless-project');
     fs.rmSync(root, { recursive: true });

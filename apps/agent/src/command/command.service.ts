@@ -71,7 +71,10 @@ export class CommandService {
 
           if (action.toolId) {
             const tool = this.packRegistry.getById(action.toolId);
-            if (tool && tool.kind === 'ai') {
+            if (!tool) {
+              return { success: false, error: 'Pack tool not found — re-add the tile from the AI Tools tab' };
+            }
+            if (tool.kind === 'ai') {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
 
@@ -99,6 +102,8 @@ export class CommandService {
             context = await this.clipboard.read();
           }
 
+          console.log('[CommandService] AI_CLIPBOARD prompt:\n', prompt);
+          console.log('[CommandService] AI_CLIPBOARD context:\n', context);
           const result = await this.aiRouter.call(prompt, context);
           this.licenseService.decrementCredit();
           if (outputMode === 'viewer') {

@@ -1,5 +1,6 @@
 -- supabase/seed/git-pack.sql
--- Requires migration 20260523000016_pack_tools_context_requirements.sql.
+-- Requires migrations 20260523000016 and 20260524000017.
+-- Uses ON CONFLICT (builtin_id) upserts — safe to re-run without regenerating UUIDs.
 -- Run against your Supabase project after migrations:
 -- supabase db seed --file supabase/seed/git-pack.sql
 
@@ -20,12 +21,6 @@ SET name = EXCLUDED.name,
     icon = EXCLUDED.icon,
     color = EXCLUDED.color,
     "order" = EXCLUDED."order";
-
-WITH pack AS (
-  SELECT id FROM public.packs WHERE slug = 'git'
-)
-DELETE FROM public.pack_tools
-WHERE pack_id = (SELECT id FROM pack);
 
 WITH pack AS (
   SELECT id FROM public.packs WHERE slug = 'git'
@@ -150,7 +145,7 @@ INSERT INTO public.pack_tools (
     'Summarize what this branch changed compared with main. Group related commits and mention likely review focus areas.',
     NULL,
     'viewer',
-    '[{"provider":"active_terminal","required":true,"reason":"Git log output to summarize branch history"},{"provider":"git","required":false,"reason":"Git branch and commit metadata"}]',
+    '[{"provider":"git","required":true,"reason":"Git branch and commit history"}]',
     'git-branch',
     '#F05033',
     8,
@@ -164,7 +159,7 @@ INSERT INTO public.pack_tools (
     'Explain the recent git commit history in plain English. Identify themes, notable changes, and anything that looks risky or unusual.',
     NULL,
     'viewer',
-    '[{"provider":"active_terminal","required":true,"reason":"Git log output to explain recent history"}]',
+    '[{"provider":"git","required":true,"reason":"Git commit history to explain"}]',
     'git-log',
     '#F05033',
     9,
@@ -325,6 +320,17 @@ INSERT INTO public.pack_tools (
     20,
     1,
     'git-log'
-  );
+  )
+ON CONFLICT (builtin_id) WHERE builtin_id IS NOT NULL DO UPDATE SET
+  pack_id             = EXCLUDED.pack_id,
+  label               = EXCLUDED.label,
+  prompt              = EXCLUDED.prompt,
+  command             = EXCLUDED.command,
+  output_mode         = EXCLUDED.output_mode,
+  context_requirements = EXCLUDED.context_requirements,
+  icon                = EXCLUDED.icon,
+  color               = EXCLUDED.color,
+  "order"             = EXCLUDED."order",
+  phase               = EXCLUDED.phase;
 
 COMMIT;

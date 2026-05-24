@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ShellRunnerService } from '../../command/shell-runner.service';
-import { findProjectRoot } from '../project-root-resolver';
+import { ActiveWindowService } from '../../active-window/active-window.service';
+import { resolveActiveProjectRoot } from '../project-root-resolver';
 import {
   ContextProvider,
   ContextRequest,
@@ -20,10 +21,13 @@ const MAX_MANIFEST_BYTES = 4_000;
 export class ProjectWorkspaceProvider implements ContextProvider {
   readonly id = 'project_files';
 
-  constructor(private readonly shellRunner: ShellRunnerService) {}
+  constructor(
+    private readonly shellRunner: ShellRunnerService,
+    private readonly activeWindow: ActiveWindowService,
+  ) {}
 
   async probe(_request: ContextRequest): Promise<ContextProbe> {
-    const root = await findProjectRoot(this.shellRunner.getActiveCwd());
+    const root = await this.resolveRoot();
     return {
       available: root !== null,
       unavailableReason: root === null ? 'no project root detected in current working directory' : undefined,
@@ -31,7 +35,7 @@ export class ProjectWorkspaceProvider implements ContextProvider {
   }
 
   async preview(_request: ContextRequest): Promise<ContextPreview> {
-    const root = await findProjectRoot(this.shellRunner.getActiveCwd());
+    const root = await this.resolveRoot();
     if (!root) {
       return { label: 'No project detected', byteSize: 0, truncated: false };
     }
@@ -45,7 +49,7 @@ export class ProjectWorkspaceProvider implements ContextProvider {
   }
 
   async read(_request: ContextRequest): Promise<ContextPayload> {
-    const root = await findProjectRoot(this.shellRunner.getActiveCwd());
+    const root = await this.resolveRoot();
     if (!root) {
       return { providerId: this.id, content: '', byteSize: 0, provenance: 'no project root found' };
     }
@@ -83,5 +87,13 @@ export class ProjectWorkspaceProvider implements ContextProvider {
     } catch {
       return null;
     }
+  }
+
+  private resolveRoot(): Promise<string | null> {
+    return resolveActiveProjectRoot({
+      activeCwd: this.shellRunner.getActiveCwd(),
+      activeApp: this.activeWindow.current,
+      activeWindowTitle: this.activeWindow.currentTitle,
+    });
   }
 }
