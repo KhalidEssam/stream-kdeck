@@ -8,6 +8,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import {
   SpotlightRect,
@@ -79,6 +80,7 @@ const TOUR_STEPS: TourStep[] = [
 
 export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -89,15 +91,16 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
   useEffect(() => {
     if (!visible) return;
     setSpotlightRect(null);
-    const targetRef = refs[step.targetKey];
+    const targetRef = refs[TOUR_STEPS[currentStep].targetKey];
     // Small delay lets layout settle before measuring
     const timer = setTimeout(() => {
       targetRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+        if (width === 0 && height === 0) return; // layout not ready yet
         setSpotlightRect({ x: pageX, y: pageY, width, height });
       });
     }, 50);
     return () => clearTimeout(timer);
-  }, [visible, currentStep, refs, step.targetKey]);
+  }, [visible, currentStep, refs]);
 
   // Fade in when spotlight rect is ready
   useEffect(() => {
@@ -163,7 +166,7 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
         </Svg>
 
         {/* Skip button — top-right corner, always accessible */}
-        <TouchableOpacity style={styles.skipBtn} onPress={onDismiss} activeOpacity={0.75}>
+        <TouchableOpacity style={[styles.skipBtn, { top: insets.top + 8 }]} onPress={onDismiss} activeOpacity={0.75}>
           <Text style={styles.skipBtnText}>Skip tour</Text>
         </TouchableOpacity>
 
@@ -211,7 +214,6 @@ export function GuidedTour({ visible, onDismiss, refs }: GuidedTourProps) {
 const styles = StyleSheet.create({
   skipBtn: {
     position: 'absolute',
-    top: 52,
     right: 16,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 6,
