@@ -358,6 +358,12 @@ export function TrackpadScreen({ ws, onDismiss }: Props) {
         <Text style={styles.hint}>
           {orientation === 'portrait' ? 'Portrait' : orientation === 'landscape' ? 'Landscape ↺' : 'Landscape ↻'}{'  ·  '}Drag to move  ·  Tap to click
         </Text>
+        <Animated.View
+          style={[styles.selectionOverlay, { opacity: selectionOverlayAnim }]}
+          pointerEvents="none"
+        >
+          <Text style={styles.selectionLabel}>Selecting...</Text>
+        </Animated.View>
       </View>
 
       {/* Sensitivity control */}
@@ -455,6 +461,22 @@ const styles = StyleSheet.create({
     color: '#3A3A5C',
     fontSize: 13,
     textAlign: 'center',
+  },
+  selectionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 16,
+  },
+  selectionLabel: {
+    color: 'rgba(59, 130, 246, 0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   sensitivityRow: {
     flexDirection: 'row',
