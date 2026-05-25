@@ -15,6 +15,7 @@ import { CloudIntegrationClientService } from '../integrations/cloud-integration
 import { ShellRunnerService } from './shell-runner.service';
 import { RunHistoryService } from '../history/run-history.service';
 import { ContextAssemblerService, ContextAssemblyError } from '../context/context-assembler.service';
+import { UserContextCanceledError, UserContextRequestService } from '../context/user-context-request.service';
 
 export interface CommandResult {
   success: boolean;
@@ -38,6 +39,7 @@ export class CommandService {
     private readonly shellRunner: ShellRunnerService,
     private readonly runHistory: RunHistoryService,
     private readonly assembler: ContextAssemblerService,
+    private readonly userContextRequest: UserContextRequestService,
   ) {}
 
   async execute(action: ButtonAction, client: WebSocket): Promise<CommandResult> {
@@ -80,18 +82,42 @@ export class CommandService {
               prompt = tool.prompt;
               outputMode = tool.outputMode;
 
-              if (tool.contextRequirements?.length) {
+              let userIntent: string | undefined;
+              const userInputReq = tool.contextRequirements?.find((req) => (
+                req.provider === 'user_input' && req.required
+              ));
+              if (userInputReq) {
+                try {
+                  const captured = await this.userContextRequest.capture(client, {
+                    toolId: tool.id,
+                    packId: tool.packId,
+                    title: tool.label,
+                    prompt: userInputReq.reason,
+                    required: true,
+                    captureMode: userInputReq.captureMode ?? 'speech_or_text',
+                  });
+                  userIntent = captured.text;
+                } catch (err) {
+                  if (err instanceof UserContextCanceledError) return { success: false, error: 'Canceled' };
+                  throw err;
+                }
+              }
+
+              const inferredRequirements = tool.contextRequirements?.filter((req) => req.provider !== 'user_input') ?? [];
+              const packSlug = this.packRegistry.getPacks().find((pack) => pack.id === tool.packId)?.slug;
+
+              if (inferredRequirements.length || userIntent) {
                 try {
                   context = await this.assembler.assemble(
-                    tool.contextRequirements,
+                    inferredRequirements,
                     client,
                     tool.packId,
                     tool.id,
+                    userIntent,
+                    packSlug,
                   );
                 } catch (err) {
-                  if (err instanceof ContextAssemblyError) {
-                    return { success: false, error: err.message };
-                  }
+                  if (err instanceof ContextAssemblyError) return { success: false, error: err.message };
                   throw err;
                 }
               } else {

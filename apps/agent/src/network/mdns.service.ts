@@ -1,27 +1,16 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { Bonjour } from 'bonjour-service';
 import type { Service } from 'bonjour-service';
-import { AGENT_PORT } from '../constants';
-import { networkInterfaces } from 'os';
-
-function getLanIps(): string[] {
-  const ips: string[] = [];
-  for (const addresses of Object.values(networkInterfaces())) {
-    for (const addr of addresses ?? []) {
-      if (addr.family === 'IPv4' && !addr.internal) {
-        ips.push(addr.address);
-      }
-    }
-  }
-  return ips;
-}
+import { getLanIps } from './agent-addresses';
 
 @Injectable()
-export class MdnsService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class MdnsService implements OnApplicationShutdown {
   private readonly logger = new Logger(MdnsService.name);
   private instances: Array<{ bonjour: Bonjour; service: Service }> = [];
 
-  onApplicationBootstrap(): void {
+  startAdvertising(port: number): void {
+    this.stopAdvertising();
+
     const ips = getLanIps();
     // Bind to each LAN interface explicitly so multicast goes out on the right one.
     // On Windows with multiple adapters the OS default (0.0.0.0) often picks the
@@ -34,17 +23,21 @@ export class MdnsService implements OnApplicationBootstrap, OnApplicationShutdow
       const service = bonjour.publish({
         name: 'KDeck Agent',
         type: 'controlsurface',
-        port: AGENT_PORT,
+        port,
       });
       this.instances.push({ bonjour, service });
     }
 
     this.logger.log(
-      `advertising _controlsurface._tcp on port ${AGENT_PORT} (interfaces: ${ips.join(', ') || 'default'})`,
+      `advertising _controlsurface._tcp on port ${port} (interfaces: ${ips.join(', ') || 'default'})`,
     );
   }
 
   onApplicationShutdown(): void {
+    this.stopAdvertising();
+  }
+
+  private stopAdvertising(): void {
     for (const { service, bonjour } of this.instances) {
       service?.stop?.();
       bonjour.destroy();

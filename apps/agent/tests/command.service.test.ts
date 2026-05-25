@@ -12,6 +12,7 @@ import { CloudIntegrationClientService } from '../src/integrations/cloud-integra
 import { ShellRunnerService } from '../src/command/shell-runner.service';
 import { ContextAssemblerService, ContextAssemblyError } from '../src/context/context-assembler.service';
 import { RunHistoryService } from '../src/history/run-history.service';
+import { UserContextRequestService } from '../src/context/user-context-request.service';
 import { shell } from 'electron';
 
 const client = {} as any;
@@ -23,11 +24,12 @@ describe('CommandService', () => {
   let mockAppLaunch: { launch: jest.Mock; openUrl: jest.Mock };
   let mockKeystroke: { execute: jest.Mock };
   let mockLicenseService: { creditsRemaining: jest.Mock; decrementCredit: jest.Mock };
-  let mockPackRegistry: { getById: jest.Mock };
+  let mockPackRegistry: { getById: jest.Mock; getPacks: jest.Mock };
   let mockIntegrationRouter: { dispatch: jest.Mock };
   let mockPluginCatalog: { getPlugins: jest.Mock };
   let mockCloudClient: { execute: jest.Mock };
   let mockAssembler: { assemble: jest.Mock };
+  let mockUserContextRequest: { capture: jest.Mock };
 
   beforeEach(async () => {
     mockAiRouter = { call: jest.fn().mockResolvedValue('AI result text') };
@@ -40,11 +42,15 @@ describe('CommandService', () => {
       creditsRemaining: jest.fn().mockReturnValue(10),
       decrementCredit: jest.fn(),
     };
-    mockPackRegistry = { getById: jest.fn().mockReturnValue(undefined) };
+    mockPackRegistry = {
+      getById: jest.fn().mockReturnValue(undefined),
+      getPacks: jest.fn().mockReturnValue([]),
+    };
     mockIntegrationRouter = { dispatch: jest.fn().mockResolvedValue({ success: true }) };
     mockPluginCatalog = { getPlugins: jest.fn().mockReturnValue([]) };
     mockCloudClient = { execute: jest.fn().mockResolvedValue({ success: true }) };
     mockAssembler = { assemble: jest.fn().mockResolvedValue('') };
+    mockUserContextRequest = { capture: jest.fn().mockResolvedValue({ text: 'intent', modality: 'text' }) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -61,6 +67,7 @@ describe('CommandService', () => {
         { provide: CloudIntegrationClientService, useValue: mockCloudClient },
         { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
         { provide: ContextAssemblerService, useValue: mockAssembler },
+        { provide: UserContextRequestService, useValue: mockUserContextRequest },
       ],
     }).compile();
 
@@ -183,7 +190,10 @@ describe('CommandService', () => {
 
   describe('toolId resolution', () => {
     async function buildWithRegistry(tool: object | undefined) {
-      mockPackRegistry = { getById: jest.fn().mockReturnValue(tool) };
+      mockPackRegistry = {
+        getById: jest.fn().mockReturnValue(tool),
+        getPacks: jest.fn().mockReturnValue([]),
+      };
       const moduleRef = await Test.createTestingModule({
         providers: [
           CommandService,
@@ -199,6 +209,7 @@ describe('CommandService', () => {
           { provide: CloudIntegrationClientService, useValue: mockCloudClient },
           { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
           { provide: ContextAssemblerService, useValue: mockAssembler },
+          { provide: UserContextRequestService, useValue: mockUserContextRequest },
         ],
       }).compile();
       clipboardService = moduleRef.get(ClipboardService);
@@ -328,6 +339,8 @@ describe('CommandService', () => {
         client,
         'pack-1',
         'tool-1',
+        undefined,
+        undefined,
       );
       expect(mockAiRouter.call).toHaveBeenCalledWith(
         'what does this repo do?',

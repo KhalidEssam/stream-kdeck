@@ -78,7 +78,8 @@ describe('LicenseService', () => {
   });
 
   it('starts unlicensed with no stored token', async () => {
-    await licenseService.onApplicationBootstrap();
+    licenseService.onApplicationBootstrap();
+    await licenseService.waitForInitialRefresh();
     expect(licenseService.isLicensed()).toBe(false);
     expect(licenseService.creditsRemaining()).toBe(0);
     expect(licenseService.getUserId()).toBeNull();
@@ -105,7 +106,8 @@ describe('LicenseService', () => {
       return null;
     });
 
-    await licenseService.onApplicationBootstrap();
+    licenseService.onApplicationBootstrap();
+    await licenseService.waitForInitialRefresh();
     expect(licenseService.isLicensed()).toBe(true);
     expect(licenseService.creditsRemaining()).toBe(42);
     expect(licenseService.getClaims().credit_quota).toBe(0);
@@ -133,7 +135,8 @@ describe('LicenseService', () => {
       error: null,
     });
 
-    await licenseService.onApplicationBootstrap();
+    licenseService.onApplicationBootstrap();
+    await licenseService.waitForInitialRefresh();
     expect(licenseService.isLicensed()).toBe(true);
     expect(licenseService.isAiPro()).toBe(true);
     expect(licenseService.creditsRemaining()).toBe(480);
@@ -155,7 +158,8 @@ describe('LicenseService', () => {
       error: { message: 'Token expired' },
     });
 
-    await licenseService.onApplicationBootstrap();
+    licenseService.onApplicationBootstrap();
+    await licenseService.waitForInitialRefresh();
 
     expect(licenseService.isLicensed()).toBe(true);
     expect(licenseService.creditsRemaining()).toBe(12);
@@ -189,7 +193,8 @@ describe('LicenseService', () => {
       error: null,
     });
 
-    await licenseService.onApplicationBootstrap();
+    licenseService.onApplicationBootstrap();
+    await licenseService.waitForInitialRefresh();
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://example.supabase.co/functions/v1/licenses-activate',

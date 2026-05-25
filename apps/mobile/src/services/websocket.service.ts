@@ -51,6 +51,12 @@ import {
   DisconnectPluginMessage,
   PluginOAuthStartMessage,
   ReorderTilesMessage,
+  ContextPermissionRequestMessage,
+  ContextPermissionResponseMessage,
+  ConsentScope,
+  UserContextCancelMessage,
+  UserContextRequestMessage,
+  UserContextResponseMessage,
 } from '../types/schema';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
@@ -80,6 +86,9 @@ type IntegrationStateCallback = (msg: IntegrationStateMessage) => void;
 type PluginConnectionStatusCallback = (msg: PluginConnectionStatusMessage) => void;
 type PluginOAuthStartCallback = (msg: PluginOAuthStartMessage) => void;
 type ConnectedCallback = (userId: string | null) => void;
+type ConsentRequestCallback = (msg: ContextPermissionRequestMessage) => void;
+type UserContextRequestCallback = (msg: UserContextRequestMessage) => void;
+type UserContextCancelCallback = (requestId: string) => void;
 
 export class WebSocketService {
   private ws: WebSocket | null = null;
@@ -105,6 +114,9 @@ export class WebSocketService {
   private pluginConnStatusListeners: PluginConnectionStatusCallback[] = [];
   private pluginOAuthStartListeners: PluginOAuthStartCallback[] = [];
   private connectedCallbacks: ConnectedCallback[] = [];
+  private consentRequestCallbacks: ConsentRequestCallback[] = [];
+  private userContextRequestCallbacks: UserContextRequestCallback[] = [];
+  private userContextCancelCallbacks: UserContextCancelCallback[] = [];
 
   constructor(private readonly url: string) {
     this.connect();
@@ -157,6 +169,12 @@ export class WebSocketService {
         this.pluginConnStatusListeners.forEach((cb) => cb(msg));
       } else if (msg.type === 'PLUGIN_OAUTH_START') {
         this.pluginOAuthStartListeners.forEach((cb) => cb(msg));
+      } else if (msg.type === 'CONTEXT_PERMISSION_REQUEST') {
+        this.consentRequestCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'USER_CONTEXT_REQUEST') {
+        this.userContextRequestCallbacks.forEach((cb) => cb(msg));
+      } else if (msg.type === 'USER_CONTEXT_CANCEL') {
+        this.userContextCancelCallbacks.forEach((cb) => cb((msg as UserContextCancelMessage).requestId));
       }
     };
 
@@ -484,6 +502,58 @@ export class WebSocketService {
     return () => {
       this.pluginOAuthStartListeners = this.pluginOAuthStartListeners.filter((c) => c !== cb);
     };
+  }
+
+  onConsentRequest(cb: ConsentRequestCallback): () => void {
+    this.consentRequestCallbacks.push(cb);
+    return () => {
+      this.consentRequestCallbacks = this.consentRequestCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onUserContextRequest(cb: UserContextRequestCallback): () => void {
+    this.userContextRequestCallbacks.push(cb);
+    return () => {
+      this.userContextRequestCallbacks = this.userContextRequestCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  onUserContextCancel(cb: UserContextCancelCallback): () => void {
+    this.userContextCancelCallbacks.push(cb);
+    return () => {
+      this.userContextCancelCallbacks = this.userContextCancelCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  sendConsentResponse(requestId: string, granted: boolean, scope?: ConsentScope): void {
+    const msg: ContextPermissionResponseMessage = {
+      type: 'CONTEXT_PERMISSION_RESPONSE',
+      requestId,
+      granted,
+      scope,
+    };
+    this.send(msg);
+  }
+
+  sendUserContextResponse(
+    requestId: string,
+    canceled: boolean,
+    text?: string,
+    modality: 'text' | 'speech' = 'text',
+  ): void {
+    const msg: UserContextResponseMessage = {
+      type: 'USER_CONTEXT_RESPONSE',
+      requestId,
+      canceled,
+      text,
+      modality,
+      capturedAt: new Date().toISOString(),
+    };
+    this.send(msg);
+  }
+
+  sendUserContextCancel(requestId: string): void {
+    this.sendUserContextResponse(requestId, true);
   }
 
   getIntegrationStates(pluginId: string): IntegrationStateMessage['states'] {

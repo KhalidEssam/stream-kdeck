@@ -203,7 +203,7 @@ export class AppRegistryService extends EventEmitter implements OnModuleInit {
 
   onModuleInit(): void {
     // Defer icon enrichment so it doesn't delay startup
-    setTimeout(() => void this.enrichIcons(), 500);
+    setTimeout(() => void this.enrichIcons(), 10_000);
   }
 
   private async enrichIcons(): Promise<void> {

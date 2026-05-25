@@ -406,45 +406,12 @@ function StepPickerSheet({
   }, [ws]);
 
   useEffect(() => {
-    const query = appSearch.trim();
-
-    if (pathMode) {
-      setDesktopResults([]);
-      setSearchedDesktop(false);
-      setSearchingDesktop(false);
-      if (!query) {
-        setPathValidation(null);
-        setValidatingPath(false);
-        return;
-      }
-      if (!canUseAgent) {
-        setPathValidation(null);
-        setValidatingPath(false);
-        return;
-      }
-
-      setPathValidation(null);
-      setValidatingPath(true);
-      const timeout = setTimeout(() => ws?.validatePath(query), 650);
-      return () => clearTimeout(timeout);
-    }
-
+    setDesktopResults([]);
+    setSearchedDesktop(false);
+    setSearchingDesktop(false);
     setPathValidation(null);
     setValidatingPath(false);
-    if (!query || query.length < 2 || !canUseAgent) {
-      setDesktopResults([]);
-      setSearchedDesktop(false);
-      setSearchingDesktop(false);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      setSearchingDesktop(true);
-      setSearchedDesktop(false);
-      ws?.searchApps(query);
-    }, 450);
-    return () => clearTimeout(timeout);
-  }, [appSearch, canUseAgent, pathMode, ws]);
+  }, [appSearch, pathMode]);
 
   const filteredPickerApps = useMemo(() => {
     const query = appSearch.toLowerCase().trim();
@@ -479,6 +446,7 @@ function StepPickerSheet({
       ws?.validatePath(query);
       return;
     }
+    if (query.length < 2) return;
     setSearchingDesktop(true);
     setSearchedDesktop(false);
     ws?.searchApps(query);

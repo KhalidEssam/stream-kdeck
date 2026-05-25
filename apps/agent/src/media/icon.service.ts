@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { platform } from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as path from 'path';
 
 const execFileAsync = promisify(execFile);
 
@@ -11,6 +12,14 @@ const BLOCKED_PROCESS_NAMES = [
   'svchost',
   'rundll32',
   'conhost',
+  'dllhost',
+  'runtimebroker',
+  'applicationframehost',
+  'shellexperiencehost',
+  'startmenuexperiencehost',
+  'searchhost',
+  'textinputhost',
+  'systemsettings',
   'qemu-system',
   'vmware-vmx',
   'vboxheadless',
@@ -24,10 +33,14 @@ export class IconService {
 
   async shouldInclude(pid: number, processName: string): Promise<boolean> {
     if (platform() !== 'win32') return true;
-    const base = processName.replace(/\.exe$/i, '').toLowerCase();
+    const normalizedName = path.win32.basename(processName.trim()).replace(/^"+|"+$/g, '').trim();
+    if (!normalizedName || !/[a-z0-9]/i.test(normalizedName)) return false;
+
+    const base = normalizedName.replace(/\.exe$/i, '').toLowerCase();
     if (BLOCKED_PROCESS_NAMES.some(b => base.startsWith(b))) return false;
-    const exePath = await this.resolveExePath(pid, processName);
-    if (!exePath) return false;
+
+    const exePath = await this.resolveExePath(pid, normalizedName);
+    if (!exePath) return normalizedName.toLowerCase().endsWith('.exe');
     if (exePath.toLowerCase().includes('\\windows\\')) return false;
     return true;
   }
@@ -63,9 +76,10 @@ export class IconService {
       );
       const result = stdout.trim();
       const exePath = result.length > 0 ? result : undefined;
-      if (exePath) this.exePathCache.set(processName, exePath);
+      this.exePathCache.set(processName, exePath);
       return exePath;
     } catch {
+      this.exePathCache.set(processName, undefined);
       return undefined;
     }
   }

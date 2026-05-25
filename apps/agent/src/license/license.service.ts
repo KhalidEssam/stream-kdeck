@@ -44,6 +44,8 @@ export class LicenseActivationError extends Error {
 export class LicenseService implements OnApplicationBootstrap {
   private claims: LicenseClaims = { ...DEFAULT_CLAIMS };
   private readonly supabase: SupabaseClient;
+  private readonly claimsChangedCallbacks: Array<() => void> = [];
+  private initialRefresh: Promise<void> | null = null;
 
   constructor(
     private readonly storage: SecureStorageService,
@@ -60,10 +62,24 @@ export class LicenseService implements OnApplicationBootstrap {
     );
   }
 
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     this.loadCachedClaims();
-    await this.refreshSession();
-    console.log('[License] Boot claims:', this.getClaims());
+    console.log('[License] Boot cached claims:', this.getClaims());
+    this.initialRefresh = this.refreshSession()
+      .then(() => {
+        console.log('[License] Refreshed claims:', this.getClaims());
+      })
+      .catch((error) => {
+        console.warn('[License] Background refresh failed:', error instanceof Error ? error.message : String(error));
+      });
+  }
+
+  onClaimsChanged(cb: () => void): void {
+    this.claimsChangedCallbacks.push(cb);
+  }
+
+  async waitForInitialRefresh(): Promise<void> {
+    await this.initialRefresh;
   }
 
   async refreshSession(): Promise<void> {
@@ -86,6 +102,7 @@ export class LicenseService implements OnApplicationBootstrap {
       this.storage.set(REFRESH_TOKEN_KEY, data.session.refresh_token);
       this.updateClaimsFromJwt(data.session.access_token);
       this.storage.set(CACHED_CLAIMS_KEY, JSON.stringify(this.claims));
+      this.notifyClaimsChanged();
     } catch {
       // Keep cached claims when the license server is temporarily unavailable.
     }
@@ -110,6 +127,7 @@ export class LicenseService implements OnApplicationBootstrap {
     }
     this.updateClaimsFromJwt(data.session.access_token);
     this.storage.set(CACHED_CLAIMS_KEY, JSON.stringify(this.claims));
+    this.notifyClaimsChanged();
   }
 
   decrementCredit(): void {
@@ -118,6 +136,7 @@ export class LicenseService implements OnApplicationBootstrap {
     // real-time feedback without waiting for a token refresh.
     if (this.claims.credits_remaining > 0) {
       this.claims.credits_remaining = Math.max(0, this.claims.credits_remaining - 1);
+      this.notifyClaimsChanged();
     }
   }
 
@@ -126,6 +145,7 @@ export class LicenseService implements OnApplicationBootstrap {
     this.storage.delete(CACHED_CLAIMS_KEY);
     this.storage.delete(LICENSE_KEY_KEY);
     this.claims = { ...DEFAULT_CLAIMS };
+    this.notifyClaimsChanged();
   }
 
   hasRefreshToken(): boolean {
@@ -201,6 +221,10 @@ export class LicenseService implements OnApplicationBootstrap {
 
   private isTerminalActivationError(error: LicenseActivationError): boolean {
     return ['INVALID_KEY', 'REVOKED', 'DEVICE_MISMATCH', 'USER_NOT_FOUND'].includes(error.code);
+  }
+
+  private notifyClaimsChanged(): void {
+    for (const cb of this.claimsChangedCallbacks) cb();
   }
 
   private async requestActivationToken(licenseKey: string): Promise<string> {

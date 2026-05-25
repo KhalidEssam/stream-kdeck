@@ -27,6 +27,30 @@ export interface WorkflowStep {
 }
 
 // Pack catalog types (Agent → Mobile via PACK_REGISTRY)
+export type ContextProviderId =
+  | 'user_input'
+  | 'clipboard'
+  | 'active_window'
+  | 'active_terminal'
+  | 'project_files'
+  | 'git'
+  | 'media'
+  | 'obs';
+
+export type ContextRole = 'intent' | 'artifact' | 'environment' | 'supporting';
+export type UserInputMode = 'text' | 'speech' | 'speech_or_text';
+
+export interface ToolContextRequirement {
+  provider: ContextProviderId;
+  required: boolean;
+  reason: string;
+  maxBytes?: number;
+  role?: ContextRole;
+  priority?: number;
+  captureMode?: UserInputMode;
+  minConfidence?: number;
+}
+
 export type PackTool =
   | {
       kind: 'ai';
@@ -40,6 +64,7 @@ export type PackTool =
       order: number;
       phase: number;
       builtinId?: string;
+      contextRequirements?: ToolContextRequirement[];
     }
   | {
       kind: 'command';
@@ -53,6 +78,7 @@ export type PackTool =
       order: number;
       phase: number;
       builtinId?: string;
+      contextRequirements?: ToolContextRequirement[];
     };
 
 export interface Pack {
@@ -385,9 +411,58 @@ export interface ContextProfilesMessage {
   profiles: ContextProfileSummary[];
 }
 
+export type ConsentScope = 'once' | 'session' | 'permanent';
+
+export interface ContextPermissionRequestMessage {
+  type: 'CONTEXT_PERMISSION_REQUEST';
+  requestId: string;
+  packId: string;
+  providerId: string;
+  providerLabel: string;
+  reason: string;
+  scopeOptions: ConsentScope[];
+}
+
+export interface ContextPermissionResponseMessage {
+  type: 'CONTEXT_PERMISSION_RESPONSE';
+  requestId: string;
+  granted: boolean;
+  scope?: ConsentScope;
+}
+
+export interface UserContextRequestMessage {
+  type: 'USER_CONTEXT_REQUEST';
+  requestId: string;
+  packId: string;
+  toolId: string;
+  title: string;
+  prompt: string;
+  required: boolean;
+  captureMode: UserInputMode;
+  timeoutMs?: number;
+  languageHint?: string;
+}
+
+export interface UserContextResponseMessage {
+  type: 'USER_CONTEXT_RESPONSE';
+  requestId: string;
+  canceled: boolean;
+  text?: string;
+  modality?: 'text' | 'speech';
+  language?: string;
+  confidence?: number;
+  capturedAt: string;
+}
+
+export interface UserContextCancelMessage {
+  type: 'USER_CONTEXT_CANCEL';
+  requestId: string;
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
+  | ContextPermissionRequestMessage
   | DeckConfigMessage
   | SearchAppsResultMessage
   | ValidatePathResultMessage
@@ -402,7 +477,9 @@ export type AgentMessage =
   | PluginInstallStatusMessage
   | PluginConnectionStatusMessage
   | PluginOAuthStartMessage
-  | IntegrationStateMessage;
+  | IntegrationStateMessage
+  | UserContextRequestMessage
+  | UserContextCancelMessage;
 
 // --- Media / Audio Session messages ---
 
@@ -488,4 +565,6 @@ export type MobileMessage =
   | TestPluginConnectionMessage
   | StartPluginOAuthMessage
   | GetPluginConnectionStatusMessage
-  | DisconnectPluginMessage;
+  | DisconnectPluginMessage
+  | ContextPermissionResponseMessage
+  | UserContextResponseMessage;

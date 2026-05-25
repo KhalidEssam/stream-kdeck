@@ -10,20 +10,11 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from './app.module';
 import { INestApplication } from '@nestjs/common';
 import { AGENT_PORT } from './constants';
-import { networkInterfaces, platform } from 'os';
+import { platform } from 'os';
 import { exec } from 'child_process';
-
-function getLanWebSocketUrls(): string[] {
-  const urls = new Set<string>();
-  for (const addresses of Object.values(networkInterfaces())) {
-    for (const address of addresses ?? []) {
-      if (address.family === 'IPv4' && !address.internal) {
-        urls.add(`ws://${address.address}:${AGENT_PORT}`);
-      }
-    }
-  }
-  return [...urls];
-}
+import { getLanWebSocketUrls } from './network/agent-addresses';
+import { getListeningPort, resolveAgentListenPort } from './network/agent-port';
+import { MdnsService } from './network/mdns.service';
 
 // Attempt to add a Windows Firewall inbound rule so the phone can reach the agent.
 // Runs silently — fails gracefully if the process lacks admin rights or the rule exists.
@@ -49,17 +40,44 @@ function ensureWindowsFirewallRule(ruleName: string, protocol: 'TCP' | 'UDP', po
   });
 }
 
-export async function bootstrapNestJS(): Promise<{ nestApp: INestApplication }> {
+export async function bootstrapNestJS(): Promise<{ nestApp: INestApplication; port: number }> {
   const nestApp = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
   nestApp.useWebSocketAdapter(new WsAdapter(nestApp));
-  await nestApp.listen(AGENT_PORT, '0.0.0.0');
-  ensureWindowsFirewallRule(`KDeck Agent port ${AGENT_PORT}`, 'TCP', AGENT_PORT);
+  const listenPort = await resolveAgentListenPort(AGENT_PORT);
+  if (listenPort.usingFallback) {
+    console.warn(
+      `[Agent] Port ${listenPort.preferredPort} is busy; using an available fallback port instead.`,
+    );
+  }
+
+  try {
+    await nestApp.listen(listenPort.port, '0.0.0.0');
+  } catch (error) {
+    if (listenPort.port === 0 || !isPortUnavailableError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      `[Agent] Port ${listenPort.preferredPort} became unavailable during startup; retrying on a fallback port.`,
+    );
+    await nestApp.listen(0, '0.0.0.0');
+  }
+
+  const port = getListeningPort(nestApp.getHttpServer()) ?? listenPort.port;
+  nestApp.get(MdnsService).startAdvertising(port);
+
+  ensureWindowsFirewallRule(`KDeck Agent port ${port}`, 'TCP', port);
   ensureWindowsFirewallRule('KDeck Agent mDNS', 'UDP', 5353);
-  console.log(`[Agent] WebSocket server ready on ws://localhost:${AGENT_PORT}`);
-  for (const url of getLanWebSocketUrls()) {
+  console.log(`[Agent] WebSocket server ready on ws://localhost:${port}`);
+  for (const url of getLanWebSocketUrls(port)) {
     console.log(`[Agent] Phone connection URL: ${url}`);
   }
-  return { nestApp };
+  return { nestApp, port };
+}
+
+function isPortUnavailableError(error: unknown): boolean {
+  const code = (error as { code?: unknown })?.code;
+  return code === 'EADDRINUSE' || code === 'EACCES';
 }

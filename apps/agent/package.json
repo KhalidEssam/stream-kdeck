@@ -1,6 +1,6 @@
 {
   "name": "@control-surface/agent",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "private": true,
   "description": "KDeck Agent – tray app bridging KDeck to NestJS backend",
   "author": "KDeck",
@@ -20,6 +20,7 @@
   "dependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.4.22",
     "@nestjs/platform-ws": "^10.0.0",
     "@nestjs/websockets": "^10.0.0",
     "@nut-tree-fork/nut-js": "^4.2.6",
@@ -37,8 +38,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
-    "@nestjs/platform-express": "^11.1.21",
-    "@nestjs/testing": "^11.1.21",
+    "@nestjs/testing": "^10.4.22",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.0",
@@ -73,7 +73,14 @@
       "package.json",
       "node_modules/**/*"
     ],
-    "asar": false,
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/@nut-tree-fork/**",
+      "node_modules/node-audio-volume-mixer/**",
+      "node_modules/ffi-napi/**",
+      "node_modules/ref-napi/**"
+    ],
     "win": {
       "target": [
         {
@@ -86,10 +93,13 @@
       "icon": "assets/icon-256.png"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "createDesktopShortcut": false,
-      "createStartMenuShortcut": true
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "KDeck Agent"
     },
     "mac": {
       "category": "public.app-category.utilities",

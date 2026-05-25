@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { platform } from 'os';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
@@ -18,13 +18,24 @@ interface MediaConfig {
   pinnedMediaApps: Array<{ processName: string; label: string; iconBase64?: string }>;
 }
 
+const MEDIA_POLL_MS = 1000;
+const MEDIA_FIRST_POLL_DELAY_MS = 1500;
+const GENERIC_AUDIO_SESSION_NAMES = new Set([
+  'system',
+  'system sounds',
+  'unknown',
+  'name not available',
+]);
+
 @Injectable()
-export class MediaService implements OnModuleInit, OnModuleDestroy {
+export class MediaService implements OnModuleDestroy {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private firstPollTimer: ReturnType<typeof setTimeout> | null = null;
   private prevSnapshot: AudioSession[] = [];
   private config: MediaConfig = { pinnedMediaApps: [] };
   private readonly configPath: string;
   private broadcastFn: ((sessions: MediaSession[], plt: 'win32' | 'darwin') => void) | null = null;
+  private readonly diagnosticsTimestamps = new Map<string, number>();
 
   constructor(private readonly iconService: IconService) {
     this.configPath = path.join(
@@ -38,12 +49,20 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     this.broadcastFn = fn;
   }
 
-  onModuleInit(): void {
-    this.pollInterval = setInterval(() => void this.tick(), 300);
+  startPolling(): void {
+    if (this.pollInterval || this.firstPollTimer) return;
+    this.firstPollTimer = setTimeout(() => {
+      this.firstPollTimer = null;
+      void this.tick();
+      this.pollInterval = setInterval(() => void this.tick(), MEDIA_POLL_MS);
+    }, MEDIA_FIRST_POLL_DELAY_MS);
   }
 
   onModuleDestroy(): void {
+    if (this.firstPollTimer) clearTimeout(this.firstPollTimer);
     if (this.pollInterval) clearInterval(this.pollInterval);
+    this.firstPollTimer = null;
+    this.pollInterval = null;
   }
 
   private loadConfig(): void {
@@ -59,14 +78,9 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   private normalizeConfig(value: unknown): MediaConfig {
     const maybe = value as Partial<MediaConfig> | null;
     const pinnedMediaApps = Array.isArray(maybe?.pinnedMediaApps)
-      ? maybe.pinnedMediaApps.filter(
-        (app): app is { processName: string; label: string; iconBase64?: string } =>
-          typeof app?.processName === 'string' && typeof app?.label === 'string',
-      ).map((app) => ({
-        processName: app.processName,
-        label: app.label,
-        iconBase64: typeof app.iconBase64 === 'string' ? app.iconBase64 : undefined,
-      }))
+      ? maybe.pinnedMediaApps
+        .map(normalizePinnedMediaApp)
+        .filter((app): app is MediaConfig['pinnedMediaApps'][number] => app !== null)
       : [];
 
     return { pinnedMediaApps };
@@ -107,12 +121,9 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
           isAudioSessionMuted: (pid: number) => boolean;
         };
       };
-      const raw = mixer.getAudioSessionProcesses().map(p => ({
-        pid: p.pid,
-        name: p.name,
-        volume: mixer.getAudioSessionVolumeLevelScalar(p.pid),
-        muted: mixer.isAudioSessionMuted(p.pid),
-      }));
+      const raw = mixer.getAudioSessionProcesses()
+        .map((p) => this.readWindowsAudioSession(p, mixer))
+        .filter((s): s is AudioSession => s !== null);
       const settled = await Promise.all(
         raw.map(async s => {
           if (!await this.iconService.shouldInclude(s.pid, s.name)) return null;
@@ -120,10 +131,93 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
           return { ...s, iconBase64 } as AudioSession;
         }),
       );
-      return settled.filter((s): s is AudioSession => s !== null);
+      const sessions = this.dedupeSessionsByProcess(
+        settled.filter((s): s is AudioSession => s !== null),
+      );
+      this.logWindowsSessionDiagnostics(raw, sessions);
+      return sessions;
     }
     const vol = this.getMacSystemVolume();
     return [{ pid: 0, name: 'system', volume: vol, muted: false }];
+  }
+
+  private readWindowsAudioSession(
+    process: { pid: number; name: string },
+    mixer: {
+      getAudioSessionVolumeLevelScalar: (pid: number) => number;
+      isAudioSessionMuted: (pid: number) => boolean;
+    },
+  ): AudioSession | null {
+    const normalized = this.normalizeWindowsAudioProcess(process);
+    if (!normalized) return null;
+
+    try {
+      return {
+        pid: normalized.pid,
+        name: normalized.name,
+        volume: mixer.getAudioSessionVolumeLevelScalar(normalized.pid),
+        muted: mixer.isAudioSessionMuted(normalized.pid),
+      };
+    } catch (error) {
+      this.logThrottledDiagnostics(
+        `read-failed:${normalized.pid}:${normalized.name}`,
+        `[MediaService] Could not read Windows audio session ${normalized.name} (${normalized.pid}): ${formatError(error)}`,
+      );
+      return null;
+    }
+  }
+
+  private normalizeWindowsAudioProcess(process: { pid: number; name: string }): { pid: number; name: string } | null {
+    const pid = Number(process.pid);
+    if (!Number.isFinite(pid) || pid <= 0) return null;
+
+    const name = normalizeProcessName(process.name);
+    if (!name) return null;
+
+    const base = processBaseName(name);
+    if (!base || GENERIC_AUDIO_SESSION_NAMES.has(base)) return null;
+
+    return { pid, name };
+  }
+
+  private dedupeSessionsByProcess(sessions: AudioSession[]): AudioSession[] {
+    const byName = new Map<string, AudioSession>();
+
+    for (const session of sessions) {
+      const key = session.name.toLowerCase();
+      const existing = byName.get(key);
+      if (!existing || isBetterAudioSession(session, existing)) {
+        byName.set(key, session);
+      }
+    }
+
+    return Array.from(byName.values());
+  }
+
+  private logWindowsSessionDiagnostics(raw: AudioSession[], sessions: AudioSession[]): void {
+    if (raw.length === 0) {
+      this.logThrottledDiagnostics(
+        'empty-raw',
+        '[MediaService] Windows audio mixer returned 0 sessions. If audio is playing, check Windows Volume Mixer and app output device.',
+      );
+      return;
+    }
+
+    if (sessions.length === 0) {
+      const names = raw.map(s => `${s.name}(${s.pid})`).join(', ');
+      this.logThrottledDiagnostics(
+        `filtered:${names}`,
+        `[MediaService] Windows audio mixer returned ${raw.length} session(s), but all were filtered: ${names}`,
+      );
+    }
+  }
+
+  private logThrottledDiagnostics(key: string, message: string): void {
+    const now = Date.now();
+    const lastAt = this.diagnosticsTimestamps.get(key) ?? 0;
+    if (now - lastAt < 10_000) return;
+    this.diagnosticsTimestamps.set(key, now);
+    console.warn(message);
   }
 
   private getMacSystemVolume(): number {
@@ -150,10 +244,16 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     const pinnedByName = new Map(
       pinnedMediaApps.map((p) => [p.processName.toLowerCase(), p]),
     );
-    const liveKeys = new Set(sessions.map(s => s.name.toLowerCase()));
-    const result: MediaSession[] = sessions.map(s => ({
+    const normalizedSessions = sessions
+      .map((s) => {
+        const name = normalizeProcessName(s.name);
+        return name ? { ...s, name } : null;
+      })
+      .filter((s): s is AudioSession => s !== null);
+    const liveKeys = new Set(normalizedSessions.map(s => s.name.toLowerCase()));
+    const result: MediaSession[] = normalizedSessions.map(s => ({
       processName: s.name,
-      label: s.name.replace(/\.exe$/i, ''),
+      label: labelForProcessName(s.name),
       iconBase64: s.iconBase64 ?? pinnedByName.get(s.name.toLowerCase())?.iconBase64,
       volume: s.volume,
       muted: s.muted,
@@ -238,20 +338,70 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   }
 
   pinApp(processName: string, label: string, pinned: boolean, iconBase64?: string): void {
+    const normalizedProcessName = normalizeProcessName(processName);
+    if (!normalizedProcessName) return;
+
     if (pinned) {
-      const existing = this.config.pinnedMediaApps.find(p => p.processName.toLowerCase() === processName.toLowerCase());
+      const normalizedLabel = label.trim() || labelForProcessName(normalizedProcessName);
+      const existing = this.config.pinnedMediaApps.find(p => p.processName.toLowerCase() === normalizedProcessName.toLowerCase());
       if (existing) {
-        existing.label = label;
+        existing.label = normalizedLabel;
         existing.iconBase64 = iconBase64 ?? existing.iconBase64;
       } else {
-        this.config.pinnedMediaApps.push({ processName, label, iconBase64 });
+        this.config.pinnedMediaApps.push({ processName: normalizedProcessName, label: normalizedLabel, iconBase64 });
       }
     } else {
       this.config.pinnedMediaApps = this.config.pinnedMediaApps.filter(
-        p => p.processName.toLowerCase() !== processName.toLowerCase(),
+        p => p.processName.toLowerCase() !== normalizedProcessName.toLowerCase(),
       );
     }
     this.persistConfig();
     this.broadcastFn?.(this.buildMediaState(this.prevSnapshot), platform() as 'win32' | 'darwin');
   }
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeProcessName(processName: string): string | null {
+  const trimmed = processName.trim();
+  if (!trimmed) return null;
+
+  const fileName = path.win32.basename(trimmed).replace(/^"+|"+$/g, '').trim();
+  if (!fileName || !/[a-z0-9]/i.test(fileName)) return null;
+
+  return fileName;
+}
+
+function processBaseName(processName: string): string {
+  return processName.replace(/\.exe$/i, '').trim().toLowerCase();
+}
+
+function labelForProcessName(processName: string): string {
+  return processName.replace(/\.exe$/i, '').trim() || processName;
+}
+
+function normalizePinnedMediaApp(value: unknown): MediaConfig['pinnedMediaApps'][number] | null {
+  const maybe = value as Partial<MediaConfig['pinnedMediaApps'][number]> | null;
+  const processName = typeof maybe?.processName === 'string'
+    ? normalizeProcessName(maybe.processName)
+    : null;
+  if (!processName) return null;
+
+  const label = typeof maybe?.label === 'string' && maybe.label.trim()
+    ? maybe.label.trim()
+    : labelForProcessName(processName);
+
+  return {
+    processName,
+    label,
+    iconBase64: typeof maybe?.iconBase64 === 'string' ? maybe.iconBase64 : undefined,
+  };
+}
+
+function isBetterAudioSession(candidate: AudioSession, existing: AudioSession): boolean {
+  if (candidate.muted !== existing.muted) return !candidate.muted;
+  if (!!candidate.iconBase64 !== !!existing.iconBase64) return !!candidate.iconBase64;
+  return candidate.volume > existing.volume;
 }

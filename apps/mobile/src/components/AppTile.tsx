@@ -14,48 +14,48 @@ import type { TileDensity } from './tileLayout';
 // Clearbit logo service — high-quality brand logos, HTTPS, no key required for low volume.
 // Maps iconId → domain used to fetch the logo.
 const LOGO_DOMAINS: Record<string, string> = {
-  spotify:    'spotify.com',
-  discord:    'discord.com',
-  vscode:     'code.visualstudio.com',
-  chrome:     'google.com',
-  slack:      'slack.com',
-  notion:     'notion.so',
-  obs:        'obsproject.com',
-  figma:      'figma.com',
-  claude:     'anthropic.com',
-  github:     'github.com',
-  youtube:    'youtube.com',
-  twitch:     'twitch.tv',
-  whatsapp:   'whatsapp.com',
-  steam:      'steampowered.com',
-  postman:    'postman.com',
-  linear:     'linear.app',
-  vercel:     'vercel.com',
+  spotify: 'spotify.com',
+  discord: 'discord.com',
+  vscode: 'code.visualstudio.com',
+  chrome: 'google.com',
+  slack: 'slack.com',
+  notion: 'notion.so',
+  obs: 'obsproject.com',
+  figma: 'figma.com',
+  claude: 'anthropic.com',
+  github: 'github.com',
+  youtube: 'youtube.com',
+  twitch: 'twitch.tv',
+  whatsapp: 'whatsapp.com',
+  steam: 'steampowered.com',
+  postman: 'postman.com',
+  linear: 'linear.app',
+  vercel: 'vercel.com',
 };
 
 // Official brand colors — used as icon background in all states.
 const BRAND_COLORS: Record<string, string> = {
-  spotify:    '#1DB954',
-  discord:    '#5865F2',
-  vscode:     '#007ACC',
-  chrome:     '#4285F4',
-  slack:      '#4A154B',
-  notion:     '#1F1F1F',
-  obs:        '#302E31',
-  figma:      '#F24E1E',
-  claude:     '#D97757',
-  github:     '#24292E',
-  youtube:    '#FF0000',
-  twitch:     '#9146FF',
-  whatsapp:   '#25D366',
+  spotify: '#1DB954',
+  discord: '#5865F2',
+  vscode: '#007ACC',
+  chrome: '#4285F4',
+  slack: '#4A154B',
+  notion: '#1F1F1F',
+  obs: '#302E31',
+  figma: '#F24E1E',
+  claude: '#D97757',
+  github: '#24292E',
+  youtube: '#FF0000',
+  twitch: '#9146FF',
+  whatsapp: '#25D366',
   powershell: '#012456',
-  terminal:   '#2D2D2D',
-  explorer:   '#0078D4',
-  steam:      '#1B2838',
-  postman:    '#FF6C37',
-  linear:     '#5E6AD2',
-  vercel:     '#1F1F1F',
-  custom:     '#2D5A27',
+  terminal: '#2D2D2D',
+  explorer: '#0078D4',
+  steam: '#1B2838',
+  postman: '#FF6C37',
+  linear: '#5E6AD2',
+  vercel: '#1F1F1F',
+  custom: '#2D5A27',
 };
 
 const ICON_FALLBACKS: Record<string, string> = {
@@ -88,11 +88,11 @@ const ICON_FALLBACKS: Record<string, string> = {
 };
 
 const TILE_BG: Record<string, string> = {
-  ai:       '#1A1A2E',
-  app:      '#1E1E2E',
-  url:      '#0D2B45',
+  ai: '#1A1A2E',
+  app: '#1E1E2E',
+  url: '#0D2B45',
   shortcut: '#0F2A1A',
-  custom:   '#0A2010',
+  custom: '#0A2010',
   workflow: '#1E1A3A',
   integration: '#1A1A2E',
 };
@@ -235,7 +235,7 @@ export function AppTile({
         onPressOut={handlePressOut}
         onPress={handlePress}
         onLongPress={handleLongPress}
-        delayLongPress={3000}
+        delayLongPress={1000}
         disabled={isLoading}
       >
         {/* Icon badge */}

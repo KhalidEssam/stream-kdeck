@@ -32,6 +32,7 @@ import {
   ReorderTilesMessage,
   ContextPermissionResponseMessage,
   RunHistoryMessage,
+  UserContextResponseMessage,
 } from '@control-surface/shared';
 import { MediaService } from '../media/media.service';
 import { CommandService } from '../command/command.service';
@@ -54,6 +55,7 @@ import { PluginCatalogService } from '../integrations/plugin-catalog.service';
 import { PluginInstallService } from '../integrations/plugin-install.service';
 import { RunHistoryService } from '../history/run-history.service';
 import { ConsentRequestService } from '../context/consent-request.service';
+import { UserContextRequestService } from '../context/user-context-request.service';
 
 function actionIncludesIntegration(action: ButtonAction): boolean {
   if (action.kind === 'INTEGRATION_ACTION') return true;
@@ -90,8 +92,10 @@ export class WsGateway implements OnGatewayConnection {
     private readonly cloudIntegrationClient: CloudIntegrationClientService,
     private readonly runHistoryService: RunHistoryService,
     private readonly consentRequestService: ConsentRequestService,
+    private readonly userContextRequestService: UserContextRequestService,
   ) {
     this.activationDialog.onActivated?.(() => this.broadcastLicenseStatus());
+    this.licenseService.onClaimsChanged?.(() => this.broadcastLicenseStatus());
     this.activeWindow.on('appChanged', (processName: string | null) => {
       void this.handleAppChanged(processName);
     });
@@ -259,6 +263,7 @@ export class WsGateway implements OnGatewayConnection {
   }
 
   private sendMediaState(client: WebSocket): void {
+    this.mediaService.startPolling();
     void this.mediaService.getSessions().then((sessions) => {
       const msg: MediaStateMessage = {
         type: 'MEDIA_STATE',
@@ -624,6 +629,12 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'USER_CONTEXT_RESPONSE') {
+        const d = data as UserContextResponseMessage;
+        this.userContextRequestService.handleResponse(d.requestId, d.canceled, d.text);
+        return;
+      }
+
       if (data.type === 'GET_RUN_HISTORY') {
         const msg: RunHistoryMessage = {
           type: 'RUN_HISTORY',
@@ -665,6 +676,10 @@ export class WsGateway implements OnGatewayConnection {
       if (data.action.kind === 'AI_CLIPBOARD') {
         this.sendLicenseStatus(client);
       }
+    });
+
+    client.on('close', () => {
+      this.userContextRequestService.cancelForClient(client);
     });
   }
 

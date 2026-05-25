@@ -3,6 +3,7 @@ import { ContextRegistryService } from './context-registry.service';
 import { ConsentStoreService } from './consent-store.service';
 import { ConsentRequestService } from './consent-request.service';
 import { ToolContextRequirement } from '@control-surface/shared';
+import { ContextEvaluatorService } from './context-evaluator.service';
 
 function makeReq(overrides: Partial<ToolContextRequirement> = {}): ToolContextRequirement {
   return { provider: 'clipboard', required: true, reason: 'needs it', ...overrides };
@@ -17,21 +18,52 @@ describe('ContextAssemblerService', () => {
   let registry: jest.Mocked<Pick<ContextRegistryService, 'read'>>;
   let consentStore: jest.Mocked<Pick<ConsentStoreService, 'isGranted' | 'grant'>>;
   let consentRequest: jest.Mocked<Pick<ConsentRequestService, 'request'>>;
+  let evaluator: jest.Mocked<Pick<ContextEvaluatorService, 'evaluate' | 'domainForPackSlug'>>;
   const client = {} as any;
 
   beforeEach(() => {
     registry = { read: jest.fn() };
     consentStore = { isGranted: jest.fn().mockReturnValue(true), grant: jest.fn() };
     consentRequest = { request: jest.fn() };
+    evaluator = {
+      evaluate: jest.fn().mockReturnValue({ decision: 'accepted' }),
+      domainForPackSlug: jest.fn().mockReturnValue('unknown'),
+    };
     service = new ContextAssemblerService(
       registry as any,
       consentStore as any,
       consentRequest as any,
+      evaluator as any,
     );
   });
 
   it('returns empty string for empty requirements', async () => {
     expect(await service.assemble([], client, 'p', 't')).toBe('');
+  });
+
+  it('skips user_input requirements without throwing', async () => {
+    const result = await service.assemble(
+      [{ provider: 'user_input', required: true, reason: 'intent' }],
+      client, 'p', 't',
+    );
+    expect(result).toBe('');
+    expect(registry.read).not.toHaveBeenCalled();
+  });
+
+  it('prepends User Intent section when userIntent is provided', async () => {
+    registry.read.mockResolvedValue(makePayload('clipboard', 'some code'));
+    const result = await service.assemble(
+      [makeReq({ provider: 'clipboard' })],
+      client, 'p', 't',
+      'explain this to me',
+    );
+    expect(result).toMatch(/^### User Intent\nexplain this to me/);
+    expect(result).toContain('### Clipboard\nsome code');
+  });
+
+  it('returns only User Intent section when no inferred providers have content', async () => {
+    const result = await service.assemble([], client, 'p', 't', 'what is up?');
+    expect(result).toBe('### User Intent\nwhat is up?');
   });
 
   it('assembles a labeled section for an available provider', async () => {
@@ -52,6 +84,22 @@ describe('ContextAssemblerService', () => {
       client, 'p', 't',
     );
     expect(result).toBe('### Project Files\nreadme content\n\n### Git\nbranch: master');
+  });
+
+  it('puts required provider before optional provider in output', async () => {
+    registry.read
+      .mockResolvedValueOnce(makePayload('git', 'branch: main'))
+      .mockResolvedValueOnce(makePayload('clipboard', 'some code'));
+    const result = await service.assemble(
+      [
+        makeReq({ provider: 'git', required: false }),
+        makeReq({ provider: 'clipboard', required: true }),
+      ],
+      client, 'p', 't',
+    );
+    const clipPos = result.indexOf('### Clipboard');
+    const gitPos = result.indexOf('### Git');
+    expect(clipPos).toBeLessThan(gitPos);
   });
 
   it('skips optional provider when content is empty', async () => {
@@ -157,5 +205,27 @@ describe('ContextAssemblerService', () => {
       client, 'p', 't',
     );
     expect(result).toBe('');
+  });
+
+  it('skips optional provider when evaluator rejects it', async () => {
+    registry.read.mockResolvedValue(makePayload('clipboard', 'function doThing() {}'));
+    evaluator.domainForPackSlug.mockReturnValue('gaming');
+    evaluator.evaluate.mockReturnValue({ decision: 'rejected', reason: 'domain_mismatch:software_vs_gaming' });
+    const result = await service.assemble(
+      [makeReq({ provider: 'clipboard', required: false })],
+      client, 'p', 't', undefined, 'gamer',
+    );
+    expect(result).toBe('');
+  });
+
+  it('does not reject required providers even when evaluator would reject', async () => {
+    registry.read.mockResolvedValue(makePayload('clipboard', 'function doThing() {}'));
+    evaluator.domainForPackSlug.mockReturnValue('gaming');
+    evaluator.evaluate.mockReturnValue({ decision: 'rejected', reason: 'domain_mismatch:software_vs_gaming' });
+    const result = await service.assemble(
+      [makeReq({ provider: 'clipboard', required: true })],
+      client, 'p', 't', undefined, 'gamer',
+    );
+    expect(result).toContain('### Clipboard');
   });
 });

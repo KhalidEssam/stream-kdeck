@@ -64,8 +64,11 @@ export function MediaTab({ sessions, platform, ws }: Props) {
   React.useEffect(() => {
     setLocalSessions(sessions);
     setActiveProcessName(prev => {
-      if (prev && sessions.some(s => s.processName === prev)) return prev;
-      return sessions.find(s => s.active !== false && s.volume > 0)?.processName
+      const previous = prev ? sessions.find(s => s.processName === prev) : undefined;
+      const active = sessions.find(s => s.active !== false && s.volume > 0)?.processName;
+      if (previous && previous.active !== false && previous.volume > 0) return previous.processName;
+      return active
+        ?? previous?.processName
         ?? sessions.find(s => s.pinned)?.processName
         ?? null;
     });
@@ -96,22 +99,12 @@ export function MediaTab({ sessions, platform, ws }: Props) {
   }, [showPinSearch, ws]);
 
   React.useEffect(() => {
-    if (!showPinSearch || !ws) return undefined;
-    const query = pinSearch.trim();
-    if (query.length < 2) {
-      setPinResults([]);
-      setSearchingPins(false);
-      setSearchedPins(false);
-      return undefined;
-    }
-
-    const timeout = setTimeout(() => {
-      setSearchingPins(true);
-      setSearchedPins(false);
-      ws.searchApps(query);
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [pinSearch, showPinSearch, ws]);
+    if (!showPinSearch) return undefined;
+    setPinResults([]);
+    setSearchingPins(false);
+    setSearchedPins(false);
+    return undefined;
+  }, [pinSearch, showPinSearch]);
 
   const handleDelta = useCallback((delta: number) => {
     if (!activeProcessName || activeSession?.active === false || !ws) return;
@@ -259,7 +252,11 @@ export function MediaTab({ sessions, platform, ws }: Props) {
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>🎵</Text>
           <Text style={styles.emptyText}>Nothing playing right now</Text>
-          <Text style={styles.emptyHint}>Start playing audio or pin an app to keep it here</Text>
+          <Text style={styles.emptyHint}>
+            {platform === 'win32'
+              ? 'If audio is playing, check that the app appears in Windows Volume Mixer.'
+              : 'Start playing audio or pin an app to keep it here'}
+          </Text>
           <TouchableOpacity
             style={[styles.pinAppButton, !ws && styles.pinAppButtonDisabled]}
             onPress={openPinSearch}

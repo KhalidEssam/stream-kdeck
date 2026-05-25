@@ -29,6 +29,7 @@ export interface WorkflowStep {
 // Pack catalog types (Agent → Mobile via PACK_REGISTRY)
 
 export type ContextProviderId =
+  | 'user_input'
   | 'clipboard'
   | 'active_window'
   | 'active_terminal'
@@ -37,11 +38,18 @@ export type ContextProviderId =
   | 'media'
   | 'obs';
 
+export type ContextRole = 'intent' | 'artifact' | 'environment' | 'supporting';
+export type UserInputMode = 'text' | 'speech' | 'speech_or_text';
+
 export interface ToolContextRequirement {
   provider: ContextProviderId;
   required: boolean;
   reason: string;
   maxBytes?: number;
+  role?: ContextRole;
+  priority?: number;
+  captureMode?: UserInputMode;
+  minConfidence?: number;
 }
 
 export type PackTool =
@@ -188,14 +196,14 @@ export interface PluginInstallStatusMessage {
 }
 
 export interface PluginConnectionStatusMessage {
-  type:     'PLUGIN_CONNECTION_STATUS';
-  pluginId: string;
-  status:   'not_configured' | 'connected' | 'error' | 'expired';
+  type:                 'PLUGIN_CONNECTION_STATUS';
+  pluginId:             string;
+  status:               'not_configured' | 'connected' | 'error' | 'expired';
   displayName?:         string;
   providerAccountName?: string;
   scopes?:              string[];
   expiresAt?:           string;
-  error?:   string;
+  error?:               string;
 }
 
 export interface PluginOAuthStartMessage {
@@ -505,6 +513,40 @@ export interface ContextPermissionResponseMessage {
   scope?: ConsentScope;
 }
 
+// Agent -> Mobile: request user input before an AI run
+export interface UserContextRequestMessage {
+  type: 'USER_CONTEXT_REQUEST';
+  requestId: string;
+  packId: string;
+  toolId: string;
+  title: string;
+  prompt: string;
+  required: boolean;
+  captureMode: UserInputMode;
+  timeoutMs?: number;
+  languageHint?: string;
+}
+
+// Mobile -> Agent: user's captured input (or cancellation)
+// Phase 1 note: modality, language, and confidence are forward-compatible
+// with native STT. Phase 1 sends modality:'text' and omits confidence.
+export interface UserContextResponseMessage {
+  type: 'USER_CONTEXT_RESPONSE';
+  requestId: string;
+  canceled: boolean;
+  text?: string;
+  modality?: 'text' | 'speech';
+  language?: string;
+  confidence?: number;
+  capturedAt: string;
+}
+
+// Agent -> Mobile: supersede a pending request (timeout or retap)
+export interface UserContextCancelMessage {
+  type: 'USER_CONTEXT_CANCEL';
+  requestId: string;
+}
+
 export type AgentMessage =
   | ActionResultMessage
   | ConnectedMessage
@@ -524,7 +566,9 @@ export type AgentMessage =
   | PluginConnectionStatusMessage
   | PluginOAuthStartMessage
   | IntegrationStateMessage
-  | RunHistoryMessage;
+  | RunHistoryMessage
+  | UserContextRequestMessage
+  | UserContextCancelMessage;
 
 export type MobileMessage =
   | ButtonTapMessage
@@ -559,4 +603,5 @@ export type MobileMessage =
   | GetPluginConnectionStatusMessage
   | DisconnectPluginMessage
   | ContextPermissionResponseMessage
-  | GetRunHistoryMessage;
+  | GetRunHistoryMessage
+  | UserContextResponseMessage;

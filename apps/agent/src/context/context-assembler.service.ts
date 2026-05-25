@@ -4,6 +4,7 @@ import { ToolContextRequirement, ContextProviderId } from '@control-surface/shar
 import { ContextRegistryService } from './context-registry.service';
 import { ConsentStoreService } from './consent-store.service';
 import { ConsentRequestService } from './consent-request.service';
+import { ContextEvaluatorService } from './context-evaluator.service';
 
 export class ContextAssemblyError extends Error {
   constructor(message: string) {
@@ -13,6 +14,7 @@ export class ContextAssemblyError extends Error {
 }
 
 const PROVIDER_LABELS: Record<ContextProviderId, string> = {
+  user_input:      'User Intent',
   clipboard:       'Clipboard',
   active_window:   'Active Window',
   active_terminal: 'Terminal',
@@ -28,6 +30,7 @@ export class ContextAssemblerService {
     private readonly contextRegistry: ContextRegistryService,
     private readonly consentStore: ConsentStoreService,
     private readonly consentRequest: ConsentRequestService,
+    private readonly evaluator?: ContextEvaluatorService,
   ) {}
 
   async assemble(
@@ -35,10 +38,15 @@ export class ContextAssemblerService {
     client: WebSocket,
     packId: string,
     toolId: string,
+    userIntent?: string,
+    packSlug?: string,
   ): Promise<string> {
-    const sections: string[] = [];
+    const trustedSections: string[] = [];
+    const supportingSections: string[] = [];
 
     for (const req of requirements) {
+      if (req.provider === 'user_input') continue;
+
       const label = PROVIDER_LABELS[req.provider] ?? req.provider;
 
       if (!this.consentStore.isGranted(packId, req.provider)) {
@@ -85,9 +93,30 @@ export class ContextAssemblerService {
         content = buf.slice(0, end).toString('utf8') + '\n[truncated]';
       }
 
-      sections.push(`### ${label}\n${content}`);
+      if (!req.required && packSlug && this.evaluator) {
+        const toolDomain = this.evaluator.domainForPackSlug(packSlug);
+        if (toolDomain !== 'unknown') {
+          const evalResult = this.evaluator.evaluate(content, toolDomain);
+          if (evalResult.decision === 'rejected') {
+            console.log(`[ContextAssemblerService] Rejected ${label}: ${evalResult.reason}`);
+            continue;
+          }
+        }
+      }
+
+      const section = `### ${label}\n${content}`;
+      if (req.required) {
+        trustedSections.push(section);
+      } else {
+        supportingSections.push(section);
+      }
     }
 
-    return sections.join('\n\n');
+    const sections = [...trustedSections, ...supportingSections];
+    if (!userIntent) return sections.join('\n\n');
+
+    const parts = [`### User Intent\n${userIntent}`];
+    if (sections.length) parts.push(sections.join('\n\n'));
+    return parts.join('\n\n');
   }
 }

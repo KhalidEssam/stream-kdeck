@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { MdnsService } from '../../src/network/mdns.service';
-import { AGENT_PORT } from '../../src/constants';
+const TEST_PORT = 3017;
 
 const mockStop    = jest.fn();
 const mockPublish = jest.fn().mockReturnValue({ stop: mockStop });
@@ -24,17 +24,17 @@ describe('MdnsService', () => {
     service = module.get(MdnsService);
   });
 
-  it('publishes _controlsurface._tcp on bootstrap', () => {
-    service.onApplicationBootstrap();
+  it('publishes _controlsurface._tcp on the runtime port', () => {
+    service.startAdvertising(TEST_PORT);
     expect(mockPublish).toHaveBeenCalledWith({
       name: 'KDeck Agent',
       type: 'controlsurface',
-      port: AGENT_PORT,
+      port: TEST_PORT,
     });
   });
 
   it('stops the published service on shutdown', () => {
-    service.onApplicationBootstrap();
+    service.startAdvertising(TEST_PORT);
     service.onApplicationShutdown();
     expect(mockStop).toHaveBeenCalled();
     expect(mockDestroy).toHaveBeenCalled();

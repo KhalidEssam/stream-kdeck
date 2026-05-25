@@ -265,49 +265,12 @@ function AppsTab({ ws, currentTiles, onAdd, onRemove }: Pick<Props, 'ws' | 'curr
   }, [ws]);
 
   useEffect(() => {
-    const nextQuery = search.trim();
-
-    if (pathMode) {
-      setDesktopResults([]);
-      setSearchedDesktop(false);
-      setSearchingDesktop(false);
-      if (!nextQuery) {
-        setPathValidation(null);
-        setValidatingPath(false);
-        return;
-      }
-
-      setPathValidation(null);
-      setValidatingPath(true);
-      const timeout = setTimeout(() => {
-        ws.validatePath(nextQuery);
-      }, 650);
-      return () => clearTimeout(timeout);
-    }
-
+    setDesktopResults([]);
+    setSearchedDesktop(false);
+    setSearchingDesktop(false);
     setPathValidation(null);
     setValidatingPath(false);
-    if (!nextQuery) {
-      setDesktopResults([]);
-      setSearchedDesktop(false);
-      setSearchingDesktop(false);
-      return;
-    }
-
-    if (nextQuery.length < 2) {
-      setDesktopResults([]);
-      setSearchedDesktop(false);
-      setSearchingDesktop(false);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      setSearchingDesktop(true);
-      setSearchedDesktop(false);
-      ws.searchApps(nextQuery);
-    }, 450);
-    return () => clearTimeout(timeout);
-  }, [pathMode, search, ws]);
+  }, [pathMode, search]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -366,6 +329,7 @@ function AppsTab({ ws, currentTiles, onAdd, onRemove }: Pick<Props, 'ws' | 'curr
       ws.validatePath(nextQuery);
       return;
     }
+    if (nextQuery.length < 2) return;
     setSearchingDesktop(true);
     setSearchedDesktop(false);
     ws.searchApps(nextQuery);

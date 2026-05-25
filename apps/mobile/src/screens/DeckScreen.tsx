@@ -52,6 +52,8 @@ import { normalizeTileLayoutPresetId } from '../components/tileLayout';
 import type { TileLayoutPresetId } from '../components/tileLayout';
 import { TileIconPickerSheet } from '../components/TileIconPickerSheet';
 import { GuidedTour, GuidedTourRefs } from '../components/GuidedTour';
+import { UserContextSheet } from '../components/UserContextSheet';
+import { useUserContextRequest } from '../hooks/useUserContextRequest';
 
 const UPGRADE_URL =
   process.env.EXPO_PUBLIC_UPGRADE_URL ?? 'https://placeholder-website.example/upgrade';
@@ -188,6 +190,11 @@ export function DeckScreen() {
   const [iconEditingTile, setIconEditingTile] = useState<TileConfig | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
   const [wsService, setWsService] = useState<WebSocketService | null>(null);
+  const {
+    pending: userContextPending,
+    submit: submitUserContext,
+    cancel: cancelUserContext,
+  } = useUserContextRequest(wsService);
   const wsRef = useRef<WebSocketService | null>(null);
   const peekFabRef = useRef<PeekFabHandle>(null);
   const retryCancelRef = useRef<(() => void) | null>(null);
@@ -398,7 +405,18 @@ export function DeckScreen() {
         ws.requestLicenseStatus();
       }
     });
-    const unsubscribeConnectionError = ws.onConnectionError(setConnectionError);
+    const unsubscribeConnectionError = ws.onConnectionError((error) => {
+      setConnectionError(error);
+      if (error.url !== agentUrl || manualAgentUrls.current.has(agentUrl)) return;
+
+      rejectedUrls.current.add(agentUrl);
+      void AsyncStorage.removeItem(AGENT_URL_STORAGE_KEY).finally(() => {
+        if (!connectionActive) return;
+        setStatus('connecting');
+        setAgentUrl(null);
+        setDiscoveryAttempt((attempt) => attempt + 1);
+      });
+    });
     ws.onResult((result) => {
       setLoadingId(null);
       if (result.output) setViewerText(result.output);
@@ -526,7 +544,7 @@ export function DeckScreen() {
   const handleConnectManual = () => {
     const url = normalizeAgentWsUrl(manualIpInput.trim());
     if (!url) {
-      Alert.alert('Invalid address', 'Enter the desktop IP, e.g. 192.168.1.10');
+      Alert.alert('Invalid address', 'Enter the desktop IP or full agent address, e.g. 192.168.1.10:3001');
       return;
     }
     retryCancelRef.current?.();
@@ -547,6 +565,11 @@ export function DeckScreen() {
     setLoadingId(tile.id);
     wsRef.current?.tap(tile.id, normalizeObsDeckTapAction(tile.action));
   };
+
+  useEffect(() => {
+    if (activeTab !== 'media' || status !== 'connected') return;
+    wsService?.requestMediaState();
+  }, [activeTab, status, wsService]);
 
   const handleAddTile = (tile: Omit<TileConfig, 'id'>) => {
     if (!wsRef.current?.isConnected()) {
@@ -756,7 +779,7 @@ export function DeckScreen() {
             style={styles.ipInput}
             value={manualIpInput}
             onChangeText={setManualIpInput}
-            placeholder="192.168.x.x"
+            placeholder="192.168.x.x:3001"
             placeholderTextColor="#555566"
             keyboardType="numbers-and-punctuation"
             autoCapitalize="none"
@@ -802,7 +825,7 @@ export function DeckScreen() {
             style={styles.ipInput}
             value={manualIpInput}
             onChangeText={setManualIpInput}
-            placeholder="192.168.x.x"
+            placeholder="192.168.x.x:3001"
             placeholderTextColor="#555566"
             keyboardType="numbers-and-punctuation"
             autoCapitalize="none"
@@ -1278,6 +1301,15 @@ export function DeckScreen() {
             />
           )}
       </Modal>
+
+      <UserContextSheet
+        visible={userContextPending !== null}
+        title={userContextPending?.title ?? ''}
+        prompt={userContextPending?.prompt ?? ''}
+        captureMode={userContextPending?.captureMode ?? 'text'}
+        onSubmit={submitUserContext}
+        onCancel={cancelUserContext}
+      />
     </SafeAreaView>
   );
 }
