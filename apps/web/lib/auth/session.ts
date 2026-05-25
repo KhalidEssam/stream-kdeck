@@ -8,6 +8,7 @@ import {
   setSessionCookies,
 } from './cookies';
 import { AccessTokenExpiredError, StaffRole, VerifiedAccessToken, verifyAccessToken } from './jwt';
+import { getUserLicenseByUserId } from '../licenses';
 
 export interface CurrentSession {
   accessToken: string;
@@ -55,9 +56,18 @@ export async function requireLicensed(): Promise<CurrentSession> {
   const session = await requireSession();
   const { user } = session;
   // Staff bypass: admins/owners may access the customer dashboard without a license.
-  if (!user.licensed && user.role !== 'admin' && user.role !== 'owner') {
+  if (user.licensed || user.role === 'admin' || user.role === 'owner') {
+    return session;
+  }
+
+  // The JWT `licensed` claim means the desktop license has been activated by
+  // an agent. The web dashboard should also be available to purchased but
+  // unused licenses so customers can reveal/resend their key and finish setup.
+  const license = await getUserLicenseByUserId(user.sub);
+  if (!license) {
     redirect('/?reason=no_license');
   }
+
   return session;
 }
 
