@@ -73,6 +73,12 @@ const OBS_RECORD_ACTION_IDS = new Set(['obs.record.toggle', 'obs.record.start', 
 
 type IntegrationStatesByPlugin = Map<string, IntegrationStateMessage['states']>;
 type IntegrationStateEntry = IntegrationStateMessage['states'][number];
+type IntegrationTool = IntegrationPlugin['tools'][number];
+
+interface ConfirmationRequiredTool {
+  plugin: IntegrationPlugin;
+  tool: IntegrationTool;
+}
 
 interface TileRuntimeState {
   badge: string | null;
@@ -97,6 +103,58 @@ function normalizeObsDeckTapAction(action: ButtonAction): ButtonAction {
     return { ...action, actionId: 'obs.record.toggle' };
   }
   return action;
+}
+
+function findIntegrationTool(
+  action: ButtonAction,
+  plugins: IntegrationPlugin[],
+): ConfirmationRequiredTool | null {
+  if (action.kind !== 'INTEGRATION_ACTION') return null;
+  const plugin = plugins.find((item) => item.id === action.pluginId);
+  const tool = plugin?.tools.find((item) => item.id === action.toolId);
+  return plugin && tool ? { plugin, tool } : null;
+}
+
+function getConfirmationRequiredTools(
+  action: ButtonAction,
+  plugins: IntegrationPlugin[],
+): ConfirmationRequiredTool[] {
+  if (action.kind === 'WORKFLOW') {
+    return action.steps.flatMap((step) => getConfirmationRequiredTools(step.action, plugins));
+  }
+
+  const match = findIntegrationTool(action, plugins);
+  return match?.tool.requiresConfirmation ? [match] : [];
+}
+
+function markConfirmedIntegrationActions(action: ButtonAction, plugins: IntegrationPlugin[]): ButtonAction {
+  if (action.kind === 'WORKFLOW') {
+    return {
+      ...action,
+      steps: action.steps.map((step) => ({
+        ...step,
+        action: markConfirmedIntegrationActions(step.action, plugins) as WorkflowStepAction,
+      })),
+    };
+  }
+
+  const match = findIntegrationTool(action, plugins);
+  if (action.kind === 'INTEGRATION_ACTION' && match?.tool.requiresConfirmation) {
+    return { ...action, confirmed: true };
+  }
+
+  return action;
+}
+
+function formatConfirmationMessage(action: ButtonAction, required: ConfirmationRequiredTool[]): string {
+  const toolNames = Array.from(new Set(required.map(({ tool }) => tool.name))).join(', ');
+  const pluginNames = Array.from(new Set(required.map(({ plugin }) => plugin.name))).join(', ');
+
+  if (action.kind === 'WORKFLOW') {
+    return `This workflow will run ${required.length} confirmed action${required.length === 1 ? '' : 's'}: ${toolNames}. These may make public or external changes via ${pluginNames}.`;
+  }
+
+  return `This action may make public or external changes via ${pluginNames || 'the integration'}.`;
 }
 
 function getTileRuntimeState(
@@ -567,26 +625,24 @@ export function DeckScreen() {
       return;
     }
     const action = normalizeObsDeckTapAction(tile.action);
-    if (action.kind === 'INTEGRATION_ACTION') {
-      const plugin = plugins.find((p) => p.id === action.pluginId);
-      const tool = plugin?.tools.find((t) => t.id === action.toolId);
-      if (tool?.requiresConfirmation) {
-        Alert.alert(
-          `Confirm: ${tool.name}`,
-          `This action will be sent publicly via ${plugin?.name ?? 'the integration'}.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Send',
-              onPress: () => {
-                setLoadingId(tile.id);
-                wsRef.current?.tap(tile.id, { ...action, confirmed: true });
-              },
+    const confirmationRequired = getConfirmationRequiredTools(action, plugins);
+    if (confirmationRequired.length > 0) {
+      const firstTool = confirmationRequired[0]?.tool.name ?? 'integration action';
+      Alert.alert(
+        action.kind === 'WORKFLOW' ? 'Confirm workflow' : `Confirm: ${firstTool}`,
+        formatConfirmationMessage(action, confirmationRequired),
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Send',
+            onPress: () => {
+              setLoadingId(tile.id);
+              wsRef.current?.tap(tile.id, markConfirmedIntegrationActions(action, plugins));
             },
-          ],
-        );
-        return;
-      }
+          },
+        ],
+      );
+      return;
     }
     setLoadingId(tile.id);
     wsRef.current?.tap(tile.id, action);
