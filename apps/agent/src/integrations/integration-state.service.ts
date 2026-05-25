@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { IntegrationStateMessage } from '@control-surface/shared';
 import { PluginCatalogService } from './plugin-catalog.service';
+import { PluginInstallService } from './plugin-install.service';
 import { IntegrationRouterService } from './integration-router.service';
 
 type BroadcastFn = (msg: IntegrationStateMessage) => void;
@@ -13,6 +14,7 @@ export class IntegrationStateService implements OnModuleDestroy {
   constructor(
     private readonly router: IntegrationRouterService,
     private readonly pluginCatalog: PluginCatalogService,
+    private readonly pluginInstall: PluginInstallService,
   ) {}
 
   setBroadcastFn(fn: BroadcastFn): void {
@@ -38,14 +40,16 @@ export class IntegrationStateService implements OnModuleDestroy {
     for (const adapter of this.router.getAdapters()) {
       if (!adapter.getState) continue;
 
+      const plugin = this.pluginCatalog.getPlugin(adapter.pluginSlug);
+      if (!plugin || !this.pluginInstall.isInstalled(plugin.id)) continue;
+
       try {
         const states = await adapter.getState();
         if (states.length === 0) continue;
 
-        const plugin = this.pluginCatalog.getPlugin(adapter.pluginSlug);
         const msg: IntegrationStateMessage = {
           type: 'INTEGRATION_STATE',
-          pluginId: plugin?.id ?? adapter.pluginSlug,
+          pluginId: plugin.id,
           states,
         };
         this.broadcastFn(msg);
