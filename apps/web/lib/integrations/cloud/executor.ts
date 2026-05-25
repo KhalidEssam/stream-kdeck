@@ -9,6 +9,7 @@ import {
 import { getProvider } from '../oauth/providers';
 import { getFreshAccessToken } from '../oauth/refresh';
 import { twitchAdapter } from './providers/twitch';
+import { githubAdapter } from './providers/github';
 
 export interface CloudActionRequest {
   userId: string;
@@ -38,6 +39,7 @@ interface CloudProviderAdapter {
 
 const PROVIDER_ADAPTERS: Record<string, CloudProviderAdapter | undefined> = {
   twitch: twitchAdapter,
+  github: githubAdapter,
 };
 
 export async function executeCloudAction(input: CloudActionRequest): Promise<CloudActionResult> {
@@ -176,6 +178,10 @@ function requiredScopesForAction(actionId: string): string[] {
       return ['channel:manage:broadcast'];
     case 'twitch.chat.send':
       return ['user:write:chat'];
+    case 'github.workflow.dispatch':
+    case 'github.issue.create':
+    case 'github.repo.star':
+      return ['repo'];
     default:
       return [];
   }
