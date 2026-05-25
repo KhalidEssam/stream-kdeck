@@ -185,7 +185,7 @@ export class CommandService {
               toolId: action.toolId,
               actionId: action.actionId,
               params: action.params,
-              confirmed: (action as { confirmed?: boolean }).confirmed,
+              confirmed: action.confirmed,
             });
           }
 

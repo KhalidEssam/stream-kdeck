@@ -220,6 +220,7 @@ export function DeckScreen() {
   const [selectedPlugin, setSelectedPlugin] = useState<IntegrationPlugin | null>(null);
   const [showPluginDetail, setShowPluginDetail] = useState(false);
   const [showPluginConnection, setShowPluginConnection] = useState(false);
+  const [plugins, setPlugins] = useState<IntegrationPlugin[]>([]);
   const [installedPluginIds, setInstalledPluginIds] = useState<string[]>([]);
   const [integrationStates, setIntegrationStates] = useState<Map<string, IntegrationStateMessage['states']>>(new Map());
   const [tileLayoutPresetId, setTileLayoutPresetId] = useState<TileLayoutPresetId>('standard');
@@ -451,6 +452,7 @@ export function DeckScreen() {
       setMediaSessions(msg.sessions);
       setMediaPlatform(msg.platform);
     });
+    const unsubscribePluginCatalog = ws.onPluginCatalog((p) => setPlugins(p));
     const unsubscribeInstalledPlugins = ws.onInstalledPlugins((ids) => setInstalledPluginIds(ids));
     const unsubscribeIntegrationState = ws.onIntegrationState((msg) => {
       setIntegrationStates((prev) => new Map(prev).set(msg.pluginId, msg.states));
@@ -486,11 +488,13 @@ export function DeckScreen() {
       unsubscribeContext();
       unsubscribePackRegistry();
       unsubscribeMedia();
+      unsubscribePluginCatalog();
       unsubscribeInstalledPlugins();
       unsubscribeIntegrationState();
       unsubscribeConsent();
       setContextMsg(null);
       setAiPro(false);
+      setPlugins([]);
       setInstalledPluginIds([]);
       setIntegrationStates(new Map());
       connectionActive = false;
@@ -562,8 +566,30 @@ export function DeckScreen() {
       setShowUpsell(true);
       return;
     }
+    const action = normalizeObsDeckTapAction(tile.action);
+    if (action.kind === 'INTEGRATION_ACTION') {
+      const plugin = plugins.find((p) => p.id === action.pluginId);
+      const tool = plugin?.tools.find((t) => t.id === action.toolId);
+      if (tool?.requiresConfirmation) {
+        Alert.alert(
+          `Confirm: ${tool.name}`,
+          `This action will be sent publicly via ${plugin?.name ?? 'the integration'}.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send',
+              onPress: () => {
+                setLoadingId(tile.id);
+                wsRef.current?.tap(tile.id, { ...action, confirmed: true });
+              },
+            },
+          ],
+        );
+        return;
+      }
+    }
     setLoadingId(tile.id);
-    wsRef.current?.tap(tile.id, normalizeObsDeckTapAction(tile.action));
+    wsRef.current?.tap(tile.id, action);
   };
 
   useEffect(() => {

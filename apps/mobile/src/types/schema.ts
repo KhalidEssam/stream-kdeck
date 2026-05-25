@@ -14,7 +14,7 @@ export type ButtonAction =
   | { kind: 'EXEC'; exePath: string }
   | { kind: 'SHELL_RUN'; command: string; outputMode: 'clipboard' | 'autopaste' | 'viewer' | 'silent'; toolId?: string }
   | { kind: 'WORKFLOW'; steps: WorkflowStep[]; stopOnError: boolean }
-  | { kind: 'INTEGRATION_ACTION'; pluginId: string; toolId: string; actionId: string; params: Record<string, unknown> };
+  | { kind: 'INTEGRATION_ACTION'; pluginId: string; toolId: string; actionId: string; params: Record<string, unknown>; confirmed?: boolean };
 
 // WorkflowStepAction excludes AI_CLIPBOARD (no credit charges) and WORKFLOW (no nesting)
 export type WorkflowStepAction = Exclude<ButtonAction, { kind: 'AI_CLIPBOARD' | 'WORKFLOW' }>;
