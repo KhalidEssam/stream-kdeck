@@ -27,6 +27,7 @@ import {
   PluginInstallStatusMessage,
   IntegrationStateMessage,
   PluginConnectionStatusMessage,
+  PluginOAuthStartMessage,
   ButtonAction,
   ReorderTilesMessage,
   ContextPermissionResponseMessage,
@@ -45,6 +46,7 @@ import { MouseService } from '../mouse/mouse.service';
 import { MouseMoveMessage, MouseClickMessage, MouseScrollMessage } from '@control-surface/shared';
 import { PackRegistryService } from '../packs/pack-registry.service';
 import { ConnectorService } from '../integrations/connector.service';
+import { CloudIntegrationClientService } from '../integrations/cloud-integration-client.service';
 import { IntegrationRouterService } from '../integrations/integration-router.service';
 import { IntegrationStateService } from '../integrations/integration-state.service';
 import { ObsService } from '../integrations/obs/obs.service';
@@ -85,6 +87,7 @@ export class WsGateway implements OnGatewayConnection {
     private readonly integrationRouter: IntegrationRouterService,
     private readonly obsService: ObsService,
     private readonly connectorService: ConnectorService,
+    private readonly cloudIntegrationClient: CloudIntegrationClientService,
     private readonly runHistoryService: RunHistoryService,
     private readonly consentRequestService: ConsentRequestService,
   ) {
@@ -362,6 +365,108 @@ export class WsGateway implements OnGatewayConnection {
         return;
       }
 
+      if (data.type === 'START_PLUGIN_OAUTH') {
+        const plugin = this.pluginCatalog.getPlugins().find((item) => item.id === data.pluginId);
+        if (!plugin) {
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: 'error',
+            error: 'Plugin not found',
+          });
+          return;
+        }
+        if (plugin.connectorType !== 'oauth2') {
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: 'error',
+            error: 'Plugin does not use OAuth',
+          });
+          return;
+        }
+
+        const result = await this.cloudIntegrationClient.startOAuth(plugin.slug);
+        if (!result.success || !result.authorizeUrl || !result.expiresAt) {
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: 'error',
+            error: result.error ?? 'OAuth start failed',
+          });
+          return;
+        }
+
+        const msg: PluginOAuthStartMessage = {
+          type: 'PLUGIN_OAUTH_START',
+          pluginId: data.pluginId,
+          authorizeUrl: result.authorizeUrl,
+          expiresAt: result.expiresAt,
+        };
+        client.send(JSON.stringify(msg));
+        return;
+      }
+
+      if (data.type === 'GET_PLUGIN_CONNECTION_STATUS') {
+        const plugin = this.pluginCatalog.getPlugins().find((item) => item.id === data.pluginId);
+        if (!plugin) {
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: 'error',
+            error: 'Plugin not found',
+          });
+          return;
+        }
+
+        if (plugin.connectorType === 'oauth2' || plugin.connectorType === 'api-key') {
+          const status = await this.cloudIntegrationClient.getConnectionStatus(plugin.slug);
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: status.status,
+            displayName: status.displayName,
+            providerAccountName: status.providerAccountName,
+            scopes: status.scopes,
+            expiresAt: status.expiresAt,
+            error: status.error,
+          });
+          return;
+        }
+
+        const statusMsg: PluginConnectionStatusMessage = {
+          type: 'PLUGIN_CONNECTION_STATUS',
+          pluginId: data.pluginId,
+          status: 'not_configured',
+        };
+        client.send(JSON.stringify(statusMsg));
+        return;
+      }
+
+      if (data.type === 'DISCONNECT_PLUGIN') {
+        const plugin = this.pluginCatalog.getPlugins().find((item) => item.id === data.pluginId);
+        if (!plugin) {
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: 'error',
+            error: 'Plugin not found',
+          });
+          return;
+        }
+
+        if (plugin.connectorType === 'oauth2' || plugin.connectorType === 'api-key') {
+          const result = await this.cloudIntegrationClient.disconnect(plugin.slug);
+          this.sendPluginConnectionStatus(client, {
+            pluginId: data.pluginId,
+            status: result.success ? 'not_configured' : 'error',
+            error: result.error,
+          });
+          return;
+        }
+
+        await this.connectorService.clearDeviceConnection(data.pluginId);
+        this.sendPluginConnectionStatus(client, {
+          pluginId: data.pluginId,
+          status: 'not_configured',
+        });
+        return;
+      }
+
       if (data.type === 'SET_PLUGIN_CONNECTION') {
         const plugin = this.pluginCatalog.getPlugins().find((item) => item.id === data.pluginId);
         if (plugin?.slug === 'obs') {
@@ -571,5 +676,12 @@ export class WsGateway implements OnGatewayConnection {
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
+  }
+
+  private sendPluginConnectionStatus(
+    client: WebSocket,
+    msg: Omit<PluginConnectionStatusMessage, 'type'>,
+  ): void {
+    client.send(JSON.stringify({ type: 'PLUGIN_CONNECTION_STATUS', ...msg } satisfies PluginConnectionStatusMessage));
   }
 }

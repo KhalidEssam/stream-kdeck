@@ -46,6 +46,10 @@ import {
   UninstallPluginMessage,
   SetPluginConnectionMessage,
   TestPluginConnectionMessage,
+  StartPluginOAuthMessage,
+  GetPluginConnectionStatusMessage,
+  DisconnectPluginMessage,
+  PluginOAuthStartMessage,
   ReorderTilesMessage,
 } from '../types/schema';
 
@@ -74,6 +78,7 @@ type InstalledPluginsCallback = (ids: string[]) => void;
 type PluginInstallStatusCallback = (msg: PluginInstallStatusMessage) => void;
 type IntegrationStateCallback = (msg: IntegrationStateMessage) => void;
 type PluginConnectionStatusCallback = (msg: PluginConnectionStatusMessage) => void;
+type PluginOAuthStartCallback = (msg: PluginOAuthStartMessage) => void;
 type ConnectedCallback = (userId: string | null) => void;
 
 export class WebSocketService {
@@ -98,6 +103,7 @@ export class WebSocketService {
   private pluginInstallStatusListeners: PluginInstallStatusCallback[] = [];
   private integrationStateListeners: IntegrationStateCallback[] = [];
   private pluginConnStatusListeners: PluginConnectionStatusCallback[] = [];
+  private pluginOAuthStartListeners: PluginOAuthStartCallback[] = [];
   private connectedCallbacks: ConnectedCallback[] = [];
 
   constructor(private readonly url: string) {
@@ -149,6 +155,8 @@ export class WebSocketService {
         this.integrationStateListeners.forEach((cb) => cb(msg));
       } else if (msg.type === 'PLUGIN_CONNECTION_STATUS') {
         this.pluginConnStatusListeners.forEach((cb) => cb(msg));
+      } else if (msg.type === 'PLUGIN_OAUTH_START') {
+        this.pluginOAuthStartListeners.forEach((cb) => cb(msg));
       }
     };
 
@@ -339,6 +347,18 @@ export class WebSocketService {
     this.send({ type: 'TEST_PLUGIN_CONNECTION', pluginId } satisfies TestPluginConnectionMessage);
   }
 
+  sendStartPluginOAuth(pluginId: string): void {
+    this.send({ type: 'START_PLUGIN_OAUTH', pluginId } satisfies StartPluginOAuthMessage);
+  }
+
+  sendGetPluginConnectionStatus(pluginId: string): void {
+    this.send({ type: 'GET_PLUGIN_CONNECTION_STATUS', pluginId } satisfies GetPluginConnectionStatusMessage);
+  }
+
+  sendDisconnectPlugin(pluginId: string): void {
+    this.send({ type: 'DISCONNECT_PLUGIN', pluginId } satisfies DisconnectPluginMessage);
+  }
+
   onStatusChange(cb: StatusCallback): void {
     this.statusCallbacks.push(cb);
   }
@@ -456,6 +476,13 @@ export class WebSocketService {
     this.pluginConnStatusListeners.push(cb);
     return () => {
       this.pluginConnStatusListeners = this.pluginConnStatusListeners.filter((c) => c !== cb);
+    };
+  }
+
+  onPluginOAuthStart(cb: PluginOAuthStartCallback): () => void {
+    this.pluginOAuthStartListeners.push(cb);
+    return () => {
+      this.pluginOAuthStartListeners = this.pluginOAuthStartListeners.filter((c) => c !== cb);
     };
   }
 

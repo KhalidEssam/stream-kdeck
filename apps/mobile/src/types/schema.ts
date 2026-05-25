@@ -131,6 +131,21 @@ export interface TestPluginConnectionMessage {
   pluginId: string;
 }
 
+export interface StartPluginOAuthMessage {
+  type: 'START_PLUGIN_OAUTH';
+  pluginId: string;
+}
+
+export interface GetPluginConnectionStatusMessage {
+  type: 'GET_PLUGIN_CONNECTION_STATUS';
+  pluginId: string;
+}
+
+export interface DisconnectPluginMessage {
+  type: 'DISCONNECT_PLUGIN';
+  pluginId: string;
+}
+
 export interface PluginCatalogMessage {
   type: 'PLUGIN_CATALOG';
   plugins: IntegrationPlugin[];
@@ -152,7 +167,18 @@ export interface PluginConnectionStatusMessage {
   type: 'PLUGIN_CONNECTION_STATUS';
   pluginId: string;
   status: 'not_configured' | 'connected' | 'error' | 'expired';
+  displayName?: string;
+  providerAccountName?: string;
+  scopes?: string[];
+  expiresAt?: string;
   error?: string;
+}
+
+export interface PluginOAuthStartMessage {
+  type: 'PLUGIN_OAUTH_START';
+  pluginId: string;
+  authorizeUrl: string;
+  expiresAt: string;
 }
 
 export interface IntegrationStateMessage {
@@ -375,6 +401,7 @@ export type AgentMessage =
   | InstalledPluginsMessage
   | PluginInstallStatusMessage
   | PluginConnectionStatusMessage
+  | PluginOAuthStartMessage
   | IntegrationStateMessage;
 
 // --- Media / Audio Session messages ---
@@ -458,4 +485,7 @@ export type MobileMessage =
   | InstallPluginMessage
   | UninstallPluginMessage
   | SetPluginConnectionMessage
-  | TestPluginConnectionMessage;
+  | TestPluginConnectionMessage
+  | StartPluginOAuthMessage
+  | GetPluginConnectionStatusMessage
+  | DisconnectPluginMessage;

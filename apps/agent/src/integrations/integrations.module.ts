@@ -3,6 +3,7 @@ import { LicenseModule } from '../license/license.module';
 import { ConnectorService } from './connector.service';
 import { IntegrationRouterService } from './integration-router.service';
 import { IntegrationStateService } from './integration-state.service';
+import { CloudIntegrationClientService } from './cloud-integration-client.service';
 import { ObsService } from './obs/obs.service';
 import { PluginCatalogService } from './plugin-catalog.service';
 import { PluginInstallService } from './plugin-install.service';
@@ -13,6 +14,7 @@ import { PluginInstallService } from './plugin-install.service';
     PluginCatalogService,
     PluginInstallService,
     IntegrationRouterService,
+    CloudIntegrationClientService,
     ConnectorService,
     IntegrationStateService,
     ObsService,
@@ -21,6 +23,7 @@ import { PluginInstallService } from './plugin-install.service';
     PluginCatalogService,
     PluginInstallService,
     IntegrationRouterService,
+    CloudIntegrationClientService,
     ConnectorService,
     IntegrationStateService,
     ObsService,

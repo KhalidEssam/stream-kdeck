@@ -11,6 +11,7 @@ import { LicenseService } from '../license/license.service';
 import { PackRegistryService } from '../packs/pack-registry.service';
 import { IntegrationRouterService } from '../integrations/integration-router.service';
 import { PluginCatalogService } from '../integrations/plugin-catalog.service';
+import { CloudIntegrationClientService } from '../integrations/cloud-integration-client.service';
 import { ShellRunnerService } from './shell-runner.service';
 import { RunHistoryService } from '../history/run-history.service';
 import { ContextAssemblerService, ContextAssemblyError } from '../context/context-assembler.service';
@@ -33,6 +34,7 @@ export class CommandService {
     private readonly packRegistry: PackRegistryService,
     private readonly integrationRouter: IntegrationRouterService,
     private readonly pluginCatalog: PluginCatalogService,
+    private readonly cloudClient: CloudIntegrationClientService,
     private readonly shellRunner: ShellRunnerService,
     private readonly runHistory: RunHistoryService,
     private readonly assembler: ContextAssemblerService,
@@ -147,10 +149,24 @@ export class CommandService {
         case 'INTEGRATION_ACTION': {
           const plugin = this.pluginCatalog.getPlugins().find((p) => p.id === action.pluginId);
           const tool = plugin?.tools.find((t) => t.id === action.toolId);
+          if (!tool) {
+            return { success: false, error: 'Plugin tool not found - re-add the tile from the Plugin Library' };
+          }
+
+          if (tool.executionMode === 'cloud') {
+            return this.cloudClient.execute({
+              pluginId: action.pluginId,
+              toolId: action.toolId,
+              actionId: action.actionId,
+              params: action.params,
+              confirmed: (action as { confirmed?: boolean }).confirmed,
+            });
+          }
+
           return this.integrationRouter.dispatch(
             action.actionId,
             action.params,
-            tool?.paramsSchema as Record<string, unknown> | undefined,
+            tool.paramsSchema as Record<string, unknown> | undefined,
           );
         }
 

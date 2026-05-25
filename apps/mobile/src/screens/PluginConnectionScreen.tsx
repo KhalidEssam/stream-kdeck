@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -26,6 +27,9 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [connectedName, setConnectedName] = useState('');
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!wsService || !plugin) return;
@@ -34,10 +38,31 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
       if (msg.status === 'connected') {
         setStatus('success');
         setErrorMsg('');
-      } else {
+        setConnectedName(msg.providerAccountName ?? msg.displayName ?? '');
+        stopStatusPolling();
+      } else if (msg.status === 'error' || msg.status === 'expired') {
         setStatus('error');
-        setErrorMsg(msg.error ?? 'Connection failed');
+        setErrorMsg(msg.error ?? (msg.status === 'expired' ? 'Connection expired' : 'Connection failed'));
+        stopStatusPolling();
+      } else {
+        setStatus('idle');
+        setErrorMsg('');
+        setConnectedName('');
       }
+    });
+    return unsub;
+  }, [plugin, wsService]);
+
+  useEffect(() => {
+    if (!wsService || !plugin) return;
+    const unsub = wsService.onPluginOAuthStart((msg) => {
+      if (msg.pluginId !== plugin.id) return;
+      Linking.openURL(msg.authorizeUrl)
+        .then(() => startStatusPolling())
+        .catch((err) => {
+          setStatus('error');
+          setErrorMsg(err instanceof Error ? err.message : 'Could not open authorization page');
+        });
     });
     return unsub;
   }, [plugin, wsService]);
@@ -46,7 +71,12 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
     if (plugin) {
       setStatus('idle');
       setErrorMsg('');
+      setConnectedName('');
+      if (plugin.connectorType === 'oauth2') {
+        wsService?.sendGetPluginConnectionStatus(plugin.id);
+      }
     }
+    return stopStatusPolling;
   }, [plugin]);
 
   const handleSave = () => {
@@ -59,6 +89,41 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
       password,
     });
   };
+
+  const handleOAuthConnect = () => {
+    if (!wsService || !plugin) return;
+    setStatus('saving');
+    setErrorMsg('');
+    wsService.sendStartPluginOAuth(plugin.id);
+  };
+
+  const handleDisconnect = () => {
+    if (!wsService || !plugin) return;
+    setStatus('saving');
+    setErrorMsg('');
+    wsService.sendDisconnectPlugin(plugin.id);
+  };
+
+  const startStatusPolling = () => {
+    if (!wsService || !plugin) return;
+    stopStatusPolling();
+    wsService.sendGetPluginConnectionStatus(plugin.id);
+    pollIntervalRef.current = setInterval(() => {
+      wsService.sendGetPluginConnectionStatus(plugin.id);
+    }, 3000);
+    pollTimeoutRef.current = setTimeout(stopStatusPolling, 5 * 60 * 1000);
+  };
+
+  function stopStatusPolling() {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }
 
   if (!plugin) return null;
 
@@ -81,6 +146,32 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
             <TouchableOpacity style={styles.saveBtn} onPress={onDismiss} activeOpacity={0.8}>
               <Text style={styles.saveBtnText}>Done</Text>
             </TouchableOpacity>
+          </View>
+        ) : plugin.connectorType === 'oauth2' ? (
+          <View style={styles.noSetup}>
+            <Text style={styles.noSetupText}>
+              {status === 'success'
+                ? `Connected${connectedName ? ` as ${connectedName}` : ''}.`
+                : `Connect your ${plugin.name} account.`}
+            </Text>
+            {status === 'error' ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+            <TouchableOpacity
+              style={[styles.saveBtn, status === 'saving' && styles.saveBtnDisabled]}
+              onPress={handleOAuthConnect}
+              disabled={status === 'saving'}
+              activeOpacity={0.8}
+            >
+              {status === 'saving' ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveBtnText}>{status === 'success' ? 'Reconnect' : 'Connect Account'}</Text>
+              )}
+            </TouchableOpacity>
+            {status === 'success' ? (
+              <TouchableOpacity style={styles.secondaryBtn} onPress={handleDisconnect} activeOpacity={0.8}>
+                <Text style={styles.secondaryBtnText}>Disconnect</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : plugin.connectorType === 'local-websocket' ? (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
@@ -183,6 +274,15 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#5B4FE8', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.65 },
   saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  secondaryBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  secondaryBtnText: { color: '#AAAACC', fontWeight: '800', fontSize: 15 },
   hint: { color: '#6B6B8A', fontSize: 12, lineHeight: 18, paddingHorizontal: 20 },
   noSetup: { flex: 1, padding: 20, justifyContent: 'flex-start' },
   noSetupText: { color: '#AAAACC', fontSize: 15, lineHeight: 22, marginTop: 8 },

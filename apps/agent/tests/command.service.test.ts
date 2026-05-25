@@ -8,6 +8,7 @@ import { LicenseService } from '../src/license/license.service';
 import { PackRegistryService } from '../src/packs/pack-registry.service';
 import { IntegrationRouterService } from '../src/integrations/integration-router.service';
 import { PluginCatalogService } from '../src/integrations/plugin-catalog.service';
+import { CloudIntegrationClientService } from '../src/integrations/cloud-integration-client.service';
 import { ShellRunnerService } from '../src/command/shell-runner.service';
 import { ContextAssemblerService, ContextAssemblyError } from '../src/context/context-assembler.service';
 import { RunHistoryService } from '../src/history/run-history.service';
@@ -25,6 +26,7 @@ describe('CommandService', () => {
   let mockPackRegistry: { getById: jest.Mock };
   let mockIntegrationRouter: { dispatch: jest.Mock };
   let mockPluginCatalog: { getPlugins: jest.Mock };
+  let mockCloudClient: { execute: jest.Mock };
   let mockAssembler: { assemble: jest.Mock };
 
   beforeEach(async () => {
@@ -41,6 +43,7 @@ describe('CommandService', () => {
     mockPackRegistry = { getById: jest.fn().mockReturnValue(undefined) };
     mockIntegrationRouter = { dispatch: jest.fn().mockResolvedValue({ success: true }) };
     mockPluginCatalog = { getPlugins: jest.fn().mockReturnValue([]) };
+    mockCloudClient = { execute: jest.fn().mockResolvedValue({ success: true }) };
     mockAssembler = { assemble: jest.fn().mockResolvedValue('') };
 
     const moduleRef = await Test.createTestingModule({
@@ -55,6 +58,7 @@ describe('CommandService', () => {
         { provide: PackRegistryService, useValue: mockPackRegistry },
         { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
         { provide: PluginCatalogService, useValue: mockPluginCatalog },
+        { provide: CloudIntegrationClientService, useValue: mockCloudClient },
         { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
         { provide: ContextAssemblerService, useValue: mockAssembler },
       ],
@@ -192,6 +196,7 @@ describe('CommandService', () => {
           { provide: PackRegistryService, useValue: mockPackRegistry },
           { provide: IntegrationRouterService, useValue: mockIntegrationRouter },
           { provide: PluginCatalogService, useValue: mockPluginCatalog },
+          { provide: CloudIntegrationClientService, useValue: mockCloudClient },
           { provide: ShellRunnerService,   useValue: { run: jest.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' }) } },
           { provide: ContextAssemblerService, useValue: mockAssembler },
         ],
@@ -230,7 +235,7 @@ describe('CommandService', () => {
   it('executes INTEGRATION_ACTION through the integration router with tool schema', async () => {
     const paramsSchema = { type: 'object', required: ['sceneName'] };
     mockPluginCatalog.getPlugins.mockReturnValue([
-      { id: 'plugin-obs', tools: [{ id: 'tool-scene', paramsSchema }] },
+      { id: 'plugin-obs', tools: [{ id: 'tool-scene', paramsSchema, executionMode: 'agent' }] },
     ]);
 
     const result = await commandService.execute({
@@ -247,6 +252,30 @@ describe('CommandService', () => {
       { sceneName: 'Gaming' },
       paramsSchema,
     );
+  });
+
+  it('delegates cloud INTEGRATION_ACTION tools to the cloud client', async () => {
+    mockPluginCatalog.getPlugins.mockReturnValue([
+      { id: 'plugin-twitch', tools: [{ id: 'tool-clip', executionMode: 'cloud', paramsSchema: {} }] },
+    ]);
+
+    const result = await commandService.execute({
+      kind: 'INTEGRATION_ACTION',
+      pluginId: 'plugin-twitch',
+      toolId: 'tool-clip',
+      actionId: 'twitch.clip.create',
+      params: { hasDelay: true },
+    }, client);
+
+    expect(result.success).toBe(true);
+    expect(mockCloudClient.execute).toHaveBeenCalledWith({
+      pluginId: 'plugin-twitch',
+      toolId: 'tool-clip',
+      actionId: 'twitch.clip.create',
+      params: { hasDelay: true },
+      confirmed: undefined,
+    });
+    expect(mockIntegrationRouter.dispatch).not.toHaveBeenCalled();
   });
 
   describe('AI_CLIPBOARD assembler paths', () => {
