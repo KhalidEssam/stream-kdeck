@@ -62,72 +62,92 @@ export function PluginConnectionScreen({ plugin, wsService, onDismiss }: Props) 
 
   if (!plugin) return null;
 
+  const needsConnector = plugin.requiresConnector && plugin.connectorType !== 'none';
+
   return (
     <Modal visible={!!plugin} animationType="slide" presentationStyle="pageSheet" onRequestClose={onDismiss}>
       <SafeAreaView style={styles.container}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onDismiss} activeOpacity={0.78}>
-              <Text style={styles.back}>Back</Text>
-            </TouchableOpacity>
-            <Text style={styles.title} numberOfLines={1}>Connect {plugin.name}</Text>
-            <View style={styles.headerSpacer} />
-          </View>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onDismiss} activeOpacity={0.78}>
+            <Text style={styles.back}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.title} numberOfLines={1}>Connect {plugin.name}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>Host</Text>
-            <TextInput
-              style={styles.input}
-              value={host}
-              onChangeText={setHost}
-              placeholder="localhost"
-              placeholderTextColor="#6B6B8A"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Text style={styles.label}>Port</Text>
-            <TextInput
-              style={styles.input}
-              value={port}
-              onChangeText={setPort}
-              placeholder="4455"
-              placeholderTextColor="#6B6B8A"
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Optional"
-              placeholderTextColor="#6B6B8A"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-
-            {status === 'error' ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-            {status === 'success' ? <Text style={styles.successText}>Connected successfully.</Text> : null}
-
-            <TouchableOpacity
-              style={[styles.saveBtn, status === 'saving' && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={status === 'saving'}
-              activeOpacity={0.8}
-            >
-              {status === 'saving' ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>Save and Connect</Text>
-              )}
+        {!needsConnector ? (
+          <View style={styles.noSetup}>
+            <Text style={styles.noSetupText}>No setup required for {plugin.name}.</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={onDismiss} activeOpacity={0.8}>
+              <Text style={styles.saveBtnText}>Done</Text>
             </TouchableOpacity>
           </View>
+        ) : plugin.connectorType === 'local-websocket' ? (
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
+            <View style={styles.form}>
+              <Text style={styles.label}>Host</Text>
+              <TextInput
+                style={styles.input}
+                value={host}
+                onChangeText={setHost}
+                placeholder="localhost"
+                placeholderTextColor="#6B6B8A"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-          <Text style={styles.hint}>
-            In OBS, open Tools, then WebSocket Server Settings. Enable the server and use the same port and password here.
-          </Text>
-        </KeyboardAvoidingView>
+              <Text style={styles.label}>Port</Text>
+              <TextInput
+                style={styles.input}
+                value={port}
+                onChangeText={setPort}
+                placeholder="4455"
+                placeholderTextColor="#6B6B8A"
+                keyboardType="numeric"
+              />
+
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Optional"
+                placeholderTextColor="#6B6B8A"
+                secureTextEntry
+                autoCapitalize="none"
+              />
+
+              {status === 'error' ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+              {status === 'success' ? <Text style={styles.successText}>Connected successfully.</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.saveBtn, status === 'saving' && styles.saveBtnDisabled]}
+                onPress={handleSave}
+                disabled={status === 'saving'}
+                activeOpacity={0.8}
+              >
+                {status === 'saving' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save and Connect</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.hint}>
+              Enter the WebSocket host, port, and optional password for {plugin.name}.
+            </Text>
+          </KeyboardAvoidingView>
+        ) : (
+          <View style={styles.noSetup}>
+            <Text style={styles.noSetupText}>
+              Connector type "{plugin.connectorType}" is not yet supported in this version.
+            </Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={onDismiss} activeOpacity={0.8}>
+              <Text style={styles.saveBtnText}>Back</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -164,4 +184,6 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.65 },
   saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
   hint: { color: '#6B6B8A', fontSize: 12, lineHeight: 18, paddingHorizontal: 20 },
+  noSetup: { flex: 1, padding: 20, justifyContent: 'flex-start' },
+  noSetupText: { color: '#AAAACC', fontSize: 15, lineHeight: 22, marginTop: 8 },
 });
