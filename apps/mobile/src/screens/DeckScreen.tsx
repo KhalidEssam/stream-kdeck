@@ -934,7 +934,6 @@ export function DeckScreen() {
           sessions={mediaSessions}
           platform={mediaPlatform}
           ws={wsService}
-          onSessionsChange={setMediaSessions}
         />
       ) : tiles === null ? (
         // Skeleton — waiting for DECK_CONFIG

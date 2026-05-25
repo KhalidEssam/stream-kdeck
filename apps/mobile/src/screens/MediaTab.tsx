@@ -20,7 +20,6 @@ interface Props {
   sessions: MediaSession[];
   platform: 'win32' | 'darwin' | null;
   ws: WebSocketService | null;
-  onSessionsChange?: (sessions: MediaSession[]) => void;
 }
 
 function isVisible(s: MediaSession): boolean {
@@ -51,7 +50,7 @@ function mediaProcessNameForResult(item: AppSearchResult): string | null {
   return fileName.toLowerCase().endsWith('.exe') ? fileName : null;
 }
 
-export function MediaTab({ sessions, platform, ws, onSessionsChange }: Props) {
+export function MediaTab({ sessions, platform, ws }: Props) {
   const [activeProcessName, setActiveProcessName] = useState<string | null>(null);
   const [localSessions, setLocalSessions] = useState<MediaSession[]>(sessions);
   const [actionSession, setActionSession] = useState<MediaSession | null>(null);
@@ -80,12 +79,8 @@ export function MediaTab({ sessions, platform, ws, onSessionsChange }: Props) {
   );
 
   const setOptimisticSessions = useCallback((updater: (sessions: MediaSession[]) => MediaSession[]) => {
-    setLocalSessions(prev => {
-      const next = updater(prev);
-      onSessionsChange?.(next);
-      return next;
-    });
-  }, [onSessionsChange]);
+    setLocalSessions(prev => updater(prev));
+  }, []);
 
   React.useEffect(() => {
     ws?.requestMediaState();
