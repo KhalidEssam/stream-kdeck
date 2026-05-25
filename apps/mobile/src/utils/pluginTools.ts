@@ -34,12 +34,18 @@ export function getRequiredParams(tool: IntegrationTool): string[] {
 export function getPluginToolViews(plugin: IntegrationPlugin): PluginToolView[] {
   const hasNativeStreamToggle = plugin.tools.some((tool) => tool.actionId === 'obs.stream.toggle');
   const hasNativeRecordToggle = plugin.tools.some((tool) => tool.actionId === 'obs.record.toggle');
+  const hasNativeReplayToggle = plugin.tools.some((tool) => tool.actionId === 'obs.replay.toggle');
+  const hasNativeVirtualCameraToggle = plugin.tools.some((tool) => tool.actionId === 'obs.virtual_camera.toggle');
+  const hasNativeStudioModeToggle = plugin.tools.some((tool) => tool.actionId === 'obs.studio_mode.toggle');
 
   return plugin.tools
     .filter((tool) => {
       if (plugin.slug !== 'obs') return true;
       if (hasNativeStreamToggle && ['obs.stream.start', 'obs.stream.stop'].includes(tool.actionId)) return false;
       if (hasNativeRecordToggle && ['obs.record.start', 'obs.record.stop'].includes(tool.actionId)) return false;
+      if (hasNativeReplayToggle && ['obs.replay.start', 'obs.replay.stop'].includes(tool.actionId)) return false;
+      if (hasNativeVirtualCameraToggle && ['obs.virtual_camera.start', 'obs.virtual_camera.stop'].includes(tool.actionId)) return false;
+      if (hasNativeStudioModeToggle && ['obs.studio_mode.enable', 'obs.studio_mode.disable'].includes(tool.actionId)) return false;
       return !HIDDEN_OBS_TOOL_ACTION_IDS.has(tool.actionId);
     })
     .map((tool) => {
