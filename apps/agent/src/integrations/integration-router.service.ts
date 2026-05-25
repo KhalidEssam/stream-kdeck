@@ -32,13 +32,44 @@ export class IntegrationRouterService {
 
   private validateParams(params: Record<string, unknown>, schema: Record<string, unknown>): string | null {
     const required = schema.required as string[] | undefined;
-    if (!required) return null;
+    const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
 
-    for (const field of required) {
-      if (params[field] === undefined || params[field] === null || params[field] === '') {
-        return `Missing required param: ${field}`;
+    if (required) {
+      for (const field of required) {
+        if (params[field] === undefined || params[field] === null || params[field] === '') {
+          return `Missing required param: ${field}`;
+        }
       }
     }
+
+    if (properties) {
+      for (const [field, propSchema] of Object.entries(properties)) {
+        const value = params[field];
+        if (value === undefined || value === null || value === '') continue;
+
+        const expectedType = propSchema.type as string | undefined;
+        if (expectedType && !this.valueMatchesType(value, expectedType)) {
+          return `Invalid type for param '${field}': expected ${expectedType}, got ${typeof value}`;
+        }
+
+        const allowedValues = propSchema.enum as unknown[] | undefined;
+        if (allowedValues && !allowedValues.includes(value)) {
+          return `Invalid value for param '${field}': must be one of [${allowedValues.join(', ')}]`;
+        }
+      }
+    }
+
     return null;
+  }
+
+  private valueMatchesType(value: unknown, expectedType: string): boolean {
+    if (typeof value === expectedType) return true;
+    if (expectedType === 'number' && typeof value === 'string') {
+      return value.trim() !== '' && Number.isFinite(Number(value));
+    }
+    if (expectedType === 'boolean' && typeof value === 'string') {
+      return value === 'true' || value === 'false';
+    }
+    return false;
   }
 }
