@@ -14,6 +14,19 @@ const SUPPORTED_ACTIONS = new Set([
   'obs.record.toggle',
   'obs.record.start',
   'obs.record.stop',
+  'obs.replay.toggle',
+  'obs.replay.start',
+  'obs.replay.stop',
+  'obs.replay.save',
+  'obs.virtual_camera.toggle',
+  'obs.virtual_camera.start',
+  'obs.virtual_camera.stop',
+  'obs.studio_mode.toggle',
+  'obs.studio_mode.enable',
+  'obs.studio_mode.disable',
+  'obs.input.mute.toggle',
+  'obs.input.mute.set',
+  'obs.input.volume.set',
   'obs.scene.switch',
   'obs.source.toggle',
 ]);
@@ -82,6 +95,68 @@ export class ObsService implements IntegrationAdapter {
           await this.obs.call('StopRecord');
           break;
 
+        case 'obs.replay.toggle':
+          await this.obs.call('ToggleReplayBuffer');
+          break;
+
+        case 'obs.replay.start':
+          await this.obs.call('StartReplayBuffer');
+          break;
+
+        case 'obs.replay.stop':
+          await this.obs.call('StopReplayBuffer');
+          break;
+
+        case 'obs.replay.save':
+          await this.obs.call('SaveReplayBuffer');
+          break;
+
+        case 'obs.virtual_camera.toggle':
+          await this.obs.call('ToggleVirtualCam');
+          break;
+
+        case 'obs.virtual_camera.start':
+          await this.obs.call('StartVirtualCam');
+          break;
+
+        case 'obs.virtual_camera.stop':
+          await this.obs.call('StopVirtualCam');
+          break;
+
+        case 'obs.studio_mode.toggle': {
+          const status = await this.obs.call('GetStudioModeEnabled') as unknown as { studioModeEnabled: boolean };
+          await this.obs.call('SetStudioModeEnabled', { studioModeEnabled: !status.studioModeEnabled });
+          break;
+        }
+
+        case 'obs.studio_mode.enable':
+          await this.obs.call('SetStudioModeEnabled', { studioModeEnabled: true });
+          break;
+
+        case 'obs.studio_mode.disable':
+          await this.obs.call('SetStudioModeEnabled', { studioModeEnabled: false });
+          break;
+
+        case 'obs.input.mute.toggle': {
+          const inputName = this.requireStringParam(params, 'inputName');
+          await this.obs.call('ToggleInputMute', { inputName });
+          break;
+        }
+
+        case 'obs.input.mute.set': {
+          const inputName = this.requireStringParam(params, 'inputName');
+          const inputMuted = this.requireBooleanParam(params, 'muted');
+          await this.obs.call('SetInputMute', { inputName, inputMuted });
+          break;
+        }
+
+        case 'obs.input.volume.set': {
+          const inputName = this.requireStringParam(params, 'inputName');
+          const inputVolumeMul = this.requireVolumeParam(params);
+          await this.obs.call('SetInputVolume', { inputName, inputVolumeMul });
+          break;
+        }
+
         case 'obs.scene.switch': {
           const sceneName = params.sceneName as string;
           await this.obs.call('SetCurrentProgramScene', { sceneName });
@@ -124,9 +199,14 @@ export class ObsService implements IntegrationAdapter {
         this.obs.call('GetRecordStatus') as Promise<{ outputActive: boolean }>,
         this.obs.call('GetSceneList') as Promise<{ currentProgramSceneName: string }>,
       ]);
+      const [replayBufferActive, virtualCameraActive, studioModeEnabled] = await Promise.all([
+        this.getOptionalOutputActive('GetReplayBufferStatus'),
+        this.getOptionalOutputActive('GetVirtualCamStatus'),
+        this.getOptionalStudioModeEnabled(),
+      ]);
 
       const now = new Date().toISOString();
-      return [
+      const states: IntegrationState[] = [
         {
           key: 'streaming',
           value: streamStatus.outputActive,
@@ -146,6 +226,35 @@ export class ObsService implements IntegrationAdapter {
           updatedAt: now,
         },
       ];
+
+      if (replayBufferActive !== null) {
+        states.push({
+          key: 'replayBufferActive',
+          value: replayBufferActive,
+          label: replayBufferActive ? 'Replay On' : '',
+          updatedAt: now,
+        });
+      }
+
+      if (virtualCameraActive !== null) {
+        states.push({
+          key: 'virtualCameraActive',
+          value: virtualCameraActive,
+          label: virtualCameraActive ? 'Virtual Cam' : '',
+          updatedAt: now,
+        });
+      }
+
+      if (studioModeEnabled !== null) {
+        states.push({
+          key: 'studioModeEnabled',
+          value: studioModeEnabled,
+          label: studioModeEnabled ? 'Studio' : '',
+          updatedAt: now,
+        });
+      }
+
+      return states;
     } catch {
       this.connected = false;
       return [];
@@ -190,5 +299,50 @@ export class ObsService implements IntegrationAdapter {
     const port = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 4455;
     const password = typeof metadata.password === 'string' ? metadata.password : '';
     return { host, port, password };
+  }
+
+  private requireStringParam(params: Record<string, unknown>, key: string): string {
+    const value = params[key];
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`Missing required OBS param: ${key}`);
+    }
+    return value.trim();
+  }
+
+  private requireBooleanParam(params: Record<string, unknown>, key: string): boolean {
+    const value = params[key];
+    if (typeof value === 'boolean') return value;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    throw new Error(`Missing required OBS boolean param: ${key}`);
+  }
+
+  private requireVolumeParam(params: Record<string, unknown>): number {
+    const rawValue = params.volume;
+    const volume = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+    if (!Number.isFinite(volume)) {
+      throw new Error('Missing required OBS numeric param: volume');
+    }
+    return Math.max(0, Math.min(1, volume));
+  }
+
+  private async getOptionalOutputActive(
+    requestType: 'GetReplayBufferStatus' | 'GetVirtualCamStatus',
+  ): Promise<boolean | null> {
+    try {
+      const status = await this.obs.call(requestType) as unknown as { outputActive: boolean };
+      return Boolean(status.outputActive);
+    } catch {
+      return null;
+    }
+  }
+
+  private async getOptionalStudioModeEnabled(): Promise<boolean | null> {
+    try {
+      const status = await this.obs.call('GetStudioModeEnabled') as unknown as { studioModeEnabled: boolean };
+      return Boolean(status.studioModeEnabled);
+    } catch {
+      return null;
+    }
   }
 }
