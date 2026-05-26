@@ -43,6 +43,16 @@ const PROVIDER_ADAPTERS: Record<string, CloudProviderAdapter | undefined> = {
 };
 
 export async function executeCloudAction(input: CloudActionRequest): Promise<CloudActionResult> {
+  try {
+    return await runCloudAction(input);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[web] executeCloudAction unexpected error', message);
+    return { success: false, error: message };
+  }
+}
+
+async function runCloudAction(input: CloudActionRequest): Promise<CloudActionResult> {
   const plugin = await getPluginById(input.pluginId);
   const tool = await getToolById(input.pluginId, input.toolId);
 
