@@ -10,6 +10,7 @@ import { getProvider } from '../oauth/providers';
 import { getFreshAccessToken } from '../oauth/refresh';
 import { twitchAdapter } from './providers/twitch';
 import { githubAdapter } from './providers/github';
+import { spotifyAdapter } from './providers/spotify';
 
 export interface CloudActionRequest {
   userId: string;
@@ -40,6 +41,7 @@ interface CloudProviderAdapter {
 const PROVIDER_ADAPTERS: Record<string, CloudProviderAdapter | undefined> = {
   twitch: twitchAdapter,
   github: githubAdapter,
+  spotify: spotifyAdapter,
 };
 
 export async function executeCloudAction(input: CloudActionRequest): Promise<CloudActionResult> {
@@ -192,6 +194,14 @@ function requiredScopesForAction(actionId: string): string[] {
     case 'github.issue.create':
     case 'github.repo.star':
       return ['repo'];
+    case 'spotify.playback.toggle':
+    case 'spotify.playback.next':
+    case 'spotify.playback.previous':
+    case 'spotify.volume.set':
+    case 'spotify.shuffle.toggle':
+      return ['user-modify-playback-state'];
+    case 'spotify.track.save':
+      return ['user-library-modify'];
     default:
       return [];
   }
